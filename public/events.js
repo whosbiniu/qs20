@@ -48,6 +48,7 @@
       const data = await response.json();
       if (!Array.isArray(data.events) || !Number.isFinite(Date.parse(data.updatedAt))) throw new Error('invalid');
       payload = data;render();
+      window.dispatchEvent(new CustomEvent('calendar-data', {detail: data}));
       status.textContent = `Aktualizacja: ${format.format(new Date(data.updatedAt))} ET · ${data.events.length} wydarzeń USD`;
       if (data.stale) status.textContent = `Kopia eksportu z ${format.format(new Date(data.updatedAt))} ET · ${data.events.length} wydarzeń USD. Pobieranie na żywo jest niedostępne; godziny i wartości mogły się zmienić. Sprawdź Forex Factory.`;
     } catch {

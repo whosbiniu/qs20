@@ -14,9 +14,9 @@
     .nav{position:absolute;left:50%;transform:translateX(-50%);display:flex;align-items:center}.nav button,.action{border:1px solid transparent;background:transparent;color:#7f8b9a;text-transform:uppercase;letter-spacing:.18em;font-size:11px;padding:10px 15px;cursor:pointer}.nav button.active{background:#edf3fa;color:#07101a}.nav button:hover,.action:hover{color:#fff;border-color:#34475d}.action{border-color:#34475d;color:#d7dce3;margin-left:auto}.quote{color:#aeb9c7;font:italic 15px Georgia,"Times New Roman",serif;letter-spacing:.035em;white-space:nowrap}.clock{font:12px ui-monospace,SFMono-Regular,monospace;color:#cbd2dc;white-space:nowrap}.legend{display:flex;gap:14px;font:10px ui-monospace,monospace;color:#89919e}.legend i{display:inline-block;width:9px;height:9px;margin-right:5px}.settings{color:#606977;font-size:18px}
     .stage{flex:1;display:flex;min-height:486px}.labels{width:138px;flex:0 0 138px;border-right:1px solid var(--line);background:#080a0e;padding-top:18px}.label{height:54px;display:flex;align-items:center;padding:0 12px;color:#a4acb8;font:bold 10px ui-monospace,monospace;letter-spacing:.08em}.label.dot::after{content:"";width:5px;height:5px;background:var(--blue);margin-left:auto;border-radius:1px}
     .timeline{min-width:900px;flex:1;position:relative;padding:18px 0 0;overflow-x:auto;overflow-y:hidden;cursor:grab;scrollbar-color:#394454 #0b0e13;scrollbar-width:thin}.timeline.dragging{cursor:grabbing;user-select:none}.grid{height:100%;width:800%;display:grid;grid-template-rows:repeat(9,54px);position:relative;background-image:linear-gradient(90deg,transparent calc(100% - 1px),#1c2633 calc(100% - 1px));background-size:3.125% 100%;transform-origin:left center}
-    .row{display:grid;position:relative;border-bottom:1px solid #111923}.cell{display:flex;align-items:center;justify-content:center;border-right:1px solid #263241;color:#d6dce6;font:12px ui-monospace,SFMono-Regular,monospace;position:relative;overflow:hidden}.cell.q0{background:repeating-linear-gradient(125deg,#090c10,#090c10 4px,#0d1116 4px,#0d1116 7px);color:#66707e}.cell.q1{background:var(--q1);color:#1a2633}.cell.q2{background:var(--q2)}.cell.q3{background:var(--q3)}.cell.q4{background:var(--q4)}.row.micro .cell,.row.nano .cell{opacity:.88}
+    .row{display:grid;position:relative;border-bottom:1px solid #111923}.cell{display:flex;align-items:center;justify-content:center;border-right:1px solid #263241;color:#d6dce6;font:12px ui-monospace,SFMono-Regular,monospace;position:relative;overflow:hidden}.cell.q0{background:repeating-linear-gradient(125deg,#090c10,#090c10 4px,#0d1116 4px,#0d1116 7px);color:#66707e}.cell.q1{background:var(--q1);color:#1a2633}.cell.q2{background:var(--q2)}.cell.q3{background:var(--q3)}.cell.q4{background:var(--q4)}.cell.holiday-session{box-shadow:inset 0 0 0 2px #00c67b;color:#e8fff6}.cell.holiday-session::after{content:"";position:absolute;inset:0;background:var(--green);opacity:.42;pointer-events:none}.holiday-day{position:absolute;top:0;bottom:0;pointer-events:none;z-index:1;background:#00c67b29;box-shadow:inset 0 0 0 1px #00c67b80}.row.micro .cell,.row.nano .cell{opacity:.88}
 .nowline{position:absolute;top:0;bottom:0;width:1px;background:#f3f6fb;box-shadow:0 0 12px #fff8;z-index:3;pointer-events:none}.nowline::before{content:"TERAZ";position:absolute;top:-16px;left:50%;transform:translateX(-50%);font:9px ui-monospace,monospace;letter-spacing:.18em;color:#fff}.view-tools{position:sticky;left:calc(100% - 210px);top:6px;width:198px;height:34px;margin-bottom:-34px;z-index:10;display:flex;align-items:center;justify-content:flex-end;gap:4px;pointer-events:none}.view-tools button{pointer-events:auto;width:34px;height:30px;border:1px solid #394454;background:#0c1016;color:#dce3ec;cursor:pointer}.view-tools button:hover{background:#1a222d}.view-tools span{min-width:82px;text-align:center;color:#9ca6b4;font:10px ui-monospace,monospace;background:#0c1016;border:1px solid #293240;padding:8px 6px}
-    .tooltip{position:absolute;z-index:8;width:260px;background:#0c0f14;border:1px solid #242d38;box-shadow:0 18px 50px #000b;padding:17px;pointer-events:none;opacity:0;transform:translateY(6px);transition:.15s}.tooltip.show{opacity:1;transform:none}.tiptime{font:12px ui-monospace,monospace;margin-bottom:13px}.tiprow{display:flex;justify-content:space-between;color:#818a98;font:11px ui-monospace,monospace;letter-spacing:.12em;line-height:1.9}.tiprow b{color:#d8dee7}.tiprow b.q1{color:var(--q1)}.tiprow b.q2{color:#ff7388}.tiprow b.q3{color:#00d688}.tiprow b.q4{color:#5ab9f5}
+    .tooltip{position:absolute;z-index:8;width:260px;background:#0c0f14;border:1px solid #242d38;box-shadow:0 18px 50px #000b;padding:17px;pointer-events:none;opacity:0;transform:translateY(6px);transition:.15s}.tooltip.show{opacity:1;transform:none}.tiptime{font:12px ui-monospace,monospace;margin-bottom:13px}.tiprow{display:flex;justify-content:space-between;color:#818a98;font:11px ui-monospace,monospace;letter-spacing:.12em;line-height:1.9}.tiprow b{color:#d8dee7}.tiprow b.q1{color:var(--q1)}.tiprow b.q2{color:#ff7388}.tiprow b.q3{color:#00d688}.tiprow b.q4{color:#5ab9f5}.tiprow b.holiday{color:var(--green)}
     .footer{height:220px;border-top:1px solid var(--line);display:grid;grid-template-columns:1fr .72fr 1fr;background:#080a0e}.pane{padding:17px 20px;border-right:1px solid var(--line);overflow:hidden}.pane:last-child{border:0}.pane h2{margin:0 0 13px;color:#66707e;font:10px ui-monospace,monospace;letter-spacing:.28em}.event{display:grid;grid-template-columns:26px 1fr auto;gap:12px;align-items:center;padding:10px 0;border-top:1px solid #151b23}.badge{border:1px solid #27303b;padding:5px;text-align:center;font:10px ui-monospace,monospace;color:#7e8794}.event strong{font:12px ui-monospace,monospace}.event small{display:block;color:#707987;font:10px ui-monospace,monospace;margin-top:4px}.event time{font:10px ui-monospace,monospace;color:#8b94a1}.current{display:grid;place-items:center;text-align:center;height:150px}.current .ring{width:68px;height:68px;border:1px solid #27303b;border-radius:50%;display:grid;place-items:center;margin:auto;position:relative}.current .ring::after{content:"";position:absolute;inset:5px;border-radius:50%;border:2px solid var(--green);border-left-color:transparent}.current b{font:14px ui-monospace,monospace}.current p{font:10px ui-monospace,monospace;color:#737d8b;letter-spacing:.16em}
     .datebar{position:absolute;bottom:0;left:0;right:18px;height:24px;border-top:1px solid var(--line);display:flex;align-items:center;justify-content:center;color:#8c95a2;font:10px ui-monospace,monospace}
     @media(max-width:900px){.legend,.quote{display:none}.topbar{padding:0 8px;gap:6px}.brand{min-width:auto}.brand b{font-size:10px}.mark{width:22px;height:22px;font-size:18px}.nav button,.action{padding:9px 10px;font-size:9px}.stage{overflow:hidden}.labels{width:88px;flex-basis:88px;position:relative}.label{padding:0 9px;font-size:8px}.timeline{min-width:0}.grid{background-size:3.125% 100%}.row:not(.micro):not(.nano) .cell{font-size:9px}.footer{grid-template-columns:1fr;height:190px}.pane:nth-child(1),.pane:nth-child(3){display:none}.clock,.settings{display:none}.datebar{right:8px}.tooltip{display:none}.view-tools{left:calc(100% - 152px);width:146px}.view-tools span{display:none}}
@@ -32,7 +32,7 @@
     <nav class="nav" aria-label="Widok"><button class="active">Timeline</button></nav>
     <span class="quote">look first, then leap.</span>
     <button class="action" id="jumpNow">Teraz</button>
-    <div class="legend"><span><i style="background:var(--q1)"></i>Q1</span><span><i style="background:var(--q2)"></i>Q2</span><span><i style="background:var(--q3)"></i>Q3</span><span><i style="background:var(--q4)"></i>Q4</span></div>
+    <div class="legend"><span><i style="background:var(--q1)"></i>Q1</span><span><i style="background:var(--q2)"></i>Q2</span><span><i style="background:var(--q3)"></i>Q3</span><span><i style="background:var(--q4)"></i>Q4</span><span><i style="background:var(--green)"></i>Bank holiday</span></div>
     <time class="clock" id="clock">--:--:-- CET</time><span class="settings">⚙</span>
   </header>
   <section class="stage">
@@ -55,6 +55,7 @@
 </main>
 <script src="events.js" defer></script>
 <script src="chains.js"></script>
+<script src="holidays.js"></script>
 <script>
 const phase={1:['A / X','Akumulacja lub kontynuacja'],2:['M / A','Manipulacja lub akumulacja'],3:['D / M','Dystrybucja lub manipulacja'],4:['X / D','Kontynuacja / Odwrócenie']};
 const grid=document.getElementById('grid');
@@ -68,9 +69,51 @@ function livePosition(s=context()){return (Date.UTC(s.year,s.month-1,s.day,s.hou
 const cycles=[{name:'4YR',fixed:state.quadrennial},{name:'QUARTERLY',fixed:3},{name:'YEARLY',fixed:state.yearly},{name:'MONTHLY',fixed:state.monthly},{name:'WEEKLY',fixed:3},{name:'DAILY',perDay:4},{name:'90MIN',perDay:16},{name:'MICRO',perDay:64},{name:'NANO',perDay:256}];
 function valueFor(c,x){return c.fixed!==undefined?c.fixed:(Math.floor(x*horizonDays*c.perDay)%4)+1}
 function valuesAt(x){return cycles.map(c=>({name:c.name,q:valueFor(c,x)}))}
-function build(){grid.innerHTML='';cycles.forEach((c,ri)=>{const segments=c.fixed!==undefined?1:c.perDay*horizonDays;const row=document.createElement('div');row.className='row '+c.name.toLowerCase();row.style.gridTemplateColumns=`repeat(${segments},1fr)`;for(let i=0;i<segments;i++){const cell=document.createElement('div');const q=c.fixed!==undefined?c.fixed:(i%4)+1;cell.className='cell q'+q;if(c.fixed!==undefined||c.perDay<=16)cell.textContent=q===0?'Q0':'Q'+q;cell.dataset.row=ri;cell.dataset.q=q;if(q>0)cell.title=`${c.name} · Q${q} · ${phase[q][0]} — ${phase[q][1]}`;else cell.title=`${c.name} · Q0 — tydzień przejściowy`;row.append(cell)}grid.append(row)});grid.append(nowline)}
+function build(){grid.innerHTML='';cycles.forEach((c,ri)=>{const segments=c.fixed!==undefined?1:c.perDay*horizonDays;const row=document.createElement('div');row.className='row '+c.name.toLowerCase();row.style.gridTemplateColumns=`repeat(${segments},1fr)`;for(let i=0;i<segments;i++){const cell=document.createElement('div');const q=c.fixed!==undefined?c.fixed:(i%4)+1;cell.className='cell q'+q;if(c.fixed!==undefined||c.perDay<=16)cell.textContent=q===0?'Q0':'Q'+q;cell.dataset.row=ri;cell.dataset.q=q;if(c.name==='DAILY')cell.dataset.day=String(Math.floor(i/4));if(q>0)cell.title=`${c.name} · Q${q} · ${phase[q][0]} — ${phase[q][1]}`;else cell.title=`${c.name} · Q0 — tydzień przejściowy`;row.append(cell)}grid.append(row)});grid.append(nowline)}
 function clockText(total){const m=((Math.round(total)%1440)+1440)%1440;return `${String(Math.floor(m/60)).padStart(2,'0')}:${String(m%60).padStart(2,'0')} ET`}
-const tip=document.getElementById('tooltip');timeline.addEventListener('mousemove',e=>{if(timeline.classList.contains('dragging'))return;const r=grid.getBoundingClientRect(),x=Math.max(0,Math.min(.999999,(e.clientX-r.left)/r.width));const elapsed=x*horizonDays*1440;tip.innerHTML=`<div class="tiptime">+${Math.floor(elapsed/1440)}d · ${clockText(1080+elapsed)}</div>`+valuesAt(x).map(v=>`<div class="tiprow"><span>${v.name}</span><b class="q${v.q}">${v.q===0?'Q0':`Q${v.q} · ${phase[v.q][0]}`}</b></div>`).join('');tip.style.left=Math.min(e.clientX-timeline.getBoundingClientRect().left+16,timeline.clientWidth-276)+'px';tip.style.top=Math.min(e.clientY-timeline.getBoundingClientRect().top+16,timeline.clientHeight-330)+'px';tip.classList.add('show')});timeline.addEventListener('mouseleave',()=>tip.classList.remove('show'));
+let holidayMarks=[];
+function nyStamp(date){const p=nyParts(date);return Date.UTC(+p.year,+p.month-1,+p.day,+p.hour,+p.minute,+p.second)}
+function paintHolidays(){
+  grid.querySelectorAll('.holiday-day').forEach(el=>el.remove());
+  grid.querySelectorAll('.cell.holiday-session').forEach(el=>{
+    el.classList.remove('holiday-session');
+    if(el.dataset.baseTitle)el.title=el.dataset.baseTitle;
+  });
+  const daily=grid.querySelector('.row.daily');
+  if(!daily)return;
+  for(const mark of holidayMarks){
+    const note='Bank holiday · '+mark.labels.join(' · ');
+    if(mark.whole){
+      const band=document.createElement('div');
+      band.className='holiday-day';
+      band.setAttribute('aria-hidden','true');
+      band.style.left=(mark.day/horizonDays*100)+'%';
+      band.style.width=(100/horizonDays)+'%';
+      grid.append(band);
+    }
+    daily.querySelectorAll('.cell').forEach(cell=>{
+      if(cell.dataset.day!==String(mark.day))return;
+      if(!mark.quarters.includes(+cell.dataset.q))return;
+      if(!cell.dataset.baseTitle)cell.dataset.baseTitle=cell.title;
+      cell.classList.add('holiday-session');
+      cell.title=cell.dataset.baseTitle+' · '+note;
+    });
+  }
+}
+function holidayTip(x){
+  const day=Math.floor(x*horizonDays);
+  const q=Math.floor((x*horizonDays*4)%4)+1;
+  const mark=holidayMarks.find(item=>item.day===day);
+  if(!mark)return '';
+  if(!mark.whole&&!mark.quarters.includes(q))return '';
+  return `<div class="tiprow"><span>${mark.whole?'DZIEŃ':'SESJA'}</span><b class="holiday">${mark.labels.join(' · ')}</b></div>`;
+}
+window.addEventListener('calendar-data',event=>{
+  if(!window.BankHolidays)return;
+  holidayMarks=BankHolidays.group(event.detail.holidays||[],windowStart,horizonDays,nyStamp);
+  paintHolidays();
+});
+const tip=document.getElementById('tooltip');timeline.addEventListener('mousemove',e=>{if(timeline.classList.contains('dragging'))return;const r=grid.getBoundingClientRect(),x=Math.max(0,Math.min(.999999,(e.clientX-r.left)/r.width));const elapsed=x*horizonDays*1440;tip.innerHTML=`<div class="tiptime">+${Math.floor(elapsed/1440)}d · ${clockText(1080+elapsed)}</div>`+valuesAt(x).map(v=>`<div class="tiprow"><span>${v.name}</span><b class="q${v.q}">${v.q===0?'Q0':`Q${v.q} · ${phase[v.q][0]}`}</b></div>`).join('')+holidayTip(x);tip.style.left=Math.min(e.clientX-timeline.getBoundingClientRect().left+16,timeline.clientWidth-276)+'px';tip.style.top=Math.min(e.clientY-timeline.getBoundingClientRect().top+16,timeline.clientHeight-330)+'px';tip.classList.add('show')});timeline.addEventListener('mouseleave',()=>tip.classList.remove('show'));
 function eventHtml(q,time,meta,delta){return `<div class="event"><span class="badge">Q${q}</span><div><strong>${time}</strong><small>${phase[q][0]} · ${phase[q][1]} · ${meta}</small></div><time>${delta}</time></div>`}
 function deltaText(min){min=Math.max(0,Math.round(min));if(min<60)return `za ${min} min`;const h=Math.floor(min/60),m=min%60;if(h<24)return m?`za ${h} h ${m} min`:`za ${h} h`;const d=Math.floor(h/24),hr=h%24;return hr?`za ${d} d ${hr} h`:`za ${d} d`}
 function chainRunsExact(values){const result=[];for(let start=0;start<values.length;){const q=values[start];let end=start+1;while(end<values.length&&values[end]===q)end++;if(q>0&&end-start>=3)result.push({start,end,q});start=end;}return result;}
@@ -98,7 +141,7 @@ function highlightChains(){
     grid.append(overlay);
   });
 }
-build();setZoom(1);tick();highlightChains();requestAnimationFrame(jumpNow);registerWebMCP();setInterval(()=>{tick();highlightChains()},1000);
+build();setZoom(1);tick();highlightChains();paintHolidays();requestAnimationFrame(jumpNow);registerWebMCP();setInterval(()=>{tick();highlightChains()},1000);
 </script>
 </body>
 </html>

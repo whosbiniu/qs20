@@ -10,6 +10,18 @@ type CalendarEvent = {
   previous: string
 }
 
+type BankHoliday = {
+  title: string
+  date: string
+  country: string
+  impact: string
+}
+
+function isBankHoliday(event: { impact?: unknown; title?: unknown }) {
+  if (String(event.impact || "") !== "Holiday") return false
+  return !/daylight saving/i.test(String(event.title || ""))
+}
+
 let calendarCache: { data: unknown; expires: number } | null = null
 let retryAfter = 0
 
@@ -37,13 +49,11 @@ export async function GET() {
     const data = await response.json()
     if (!Array.isArray(data)) throw new Error("format")
 
-    const events: CalendarEvent[] = data
-      .filter(
-        (e) =>
-          e.country === "USD" &&
-          typeof e.title === "string" &&
-          Number.isFinite(Date.parse(e.date)),
-      )
+    const dated = data.filter(
+      (e) => typeof e.title === "string" && Number.isFinite(Date.parse(e.date)),
+    )
+    const events: CalendarEvent[] = dated
+      .filter((e) => e.country === "USD")
       .map((e) => ({
         title: e.title,
         date: e.date,
@@ -53,7 +63,17 @@ export async function GET() {
       }))
       .sort((a, b) => Date.parse(a.date) - Date.parse(b.date))
 
-    const payload = { events, updatedAt: new Date().toISOString() }
+    const holidays: BankHoliday[] = dated
+      .filter(isBankHoliday)
+      .map((e) => ({
+        title: String(e.title),
+        date: e.date,
+        country: String(e.country || ""),
+        impact: "Holiday",
+      }))
+      .sort((a, b) => Date.parse(a.date) - Date.parse(b.date))
+
+    const payload = { events, holidays, updatedAt: new Date().toISOString() }
     calendarCache = { data: payload, expires: Date.now() + 900000 }
     return Response.json(payload, {
       headers: { "Cache-Control": "private, max-age=60" },

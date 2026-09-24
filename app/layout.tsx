@@ -3,8 +3,8 @@ import type { Metadata, Viewport } from 'next'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'CHAIN — Quarterly Timeline',
-  description: 'Created with v0',
+  title: "UNC'sWay — Quarterly Timeline",
+  description: "UNC'sWay — interaktywna mapa zagnieżdżonych cykli Quarterly Theory.",
   generator: 'v0.app',
   icons: {
     icon: [

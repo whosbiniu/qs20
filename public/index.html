@@ -38,6 +38,9 @@
     @container (max-width:110px){.probability-label{display:none}}
     .tip-probability{margin:3px 0 8px;color:#e8edf4;font:11px/1.4 ui-monospace,monospace;letter-spacing:0}
     .cell.weekly-mixed{background:linear-gradient(90deg,var(--q1) 50%,var(--q4) 50%);color:#fff;text-shadow:0 1px 2px #000}
+    .session-rule{max-width:230px;margin:9px auto 0!important;color:#a9bacd!important;font:10px/1.35 ui-monospace,monospace!important;letter-spacing:0!important}
+    .session-rule.match{color:#9ce8d3!important}
+    .session-label small{display:block;margin-top:3px;color:#9ce8d3;font:8px/1.25 ui-monospace,monospace;letter-spacing:0}
   </style>
 </head>
 <body>
@@ -51,12 +54,12 @@
     <time class="clock" id="clock">--:--:-- CET</time><span class="settings">⚙</span>
   </header>
   <section class="stage">
-    <aside class="labels" aria-label="Cykle"><div class="label">4YR</div><div class="label">QUARTERLY</div><div class="label">YEARLY</div><div class="label">MONTHLY</div><div class="label">WEEKLY</div><div class="label dot">DAILY</div><div class="label dot">90MIN</div><div class="label dot">MICRO</div><div class="label">NANO</div></aside>
+    <aside class="labels" aria-label="Cykle"><div class="label">4YR</div><div class="label">QUARTERLY</div><div class="label">YEARLY</div><div class="label">MONTHLY</div><div class="label">WEEKLY</div><div class="label dot">DAILY</div><div class="label dot session-label"><span>90MIN<small>Dzień = Sesja<br>Low/High Dnia</small></span></div><div class="label dot">MICRO</div><div class="label">NANO</div></aside>
     <div class="timeline" id="timeline"><div class="view-tools" aria-label="Sterowanie osią"><button id="zoomOut" aria-label="Oddal">−</button><select id="zoomRange" aria-label="Zakres osi"><option value="6">6 h</option><option value="12">12 h</option><option value="24">24 h</option><option value="48">48 h</option><option value="72">3 d</option><option value="168" selected>7 d</option></select><button id="zoomIn" aria-label="Przybliż">+</button><button id="resetView" aria-label="Wróć do teraz">◎</button></div><div class="grid" id="grid"></div><div class="nowline" id="nowline"></div><div class="tooltip" id="tooltip"></div><div class="datebar" id="datebar"></div></div>
   </section>
   <section class="footer">
     <div class="pane"><div class="chain-pane-heading"><h2>POPRZEDNIE OKNA</h2><div class="chain-filters" role="group" aria-label="Zakres poprzednich łańcuchów" data-panel="previous"><button type="button" data-scope="htf" aria-pressed="true" title="4YR–90MIN">HTF</button><button type="button" data-scope="ltf" aria-pressed="false" title="90MIN–NANO">LTF</button></div></div><div class="chain-list" id="previous"></div></div>
-    <div class="pane"><h2>TERAZ</h2><div class="current"><div><div class="ring"><b id="activeQ">Q3</b></div><p id="activeText">AKTYWNA SEKWENCJA</p><b id="countdown">00:17:18</b></div></div></div>
+    <div class="pane"><h2>TERAZ</h2><div class="current"><div><div class="ring"><b id="activeQ">Q3</b></div><p id="activeText">AKTYWNA SEKWENCJA</p><b id="countdown">00:17:18</b><p class="session-rule" id="sessionRule"></p></div></div></div>
     <div class="pane"><div class="chain-pane-heading"><h2>NASTĘPNE OKNA</h2><div class="chain-filters" role="group" aria-label="Zakres nadchodzących łańcuchów" data-panel="next"><button type="button" data-scope="htf" aria-pressed="true" title="4YR–90MIN">HTF</button><button type="button" data-scope="ltf" aria-pressed="false" title="90MIN–NANO">LTF</button></div></div><div class="chain-list" id="next"></div></div>
   </section>
   <section class="economic" aria-labelledby="economic-title">
@@ -253,7 +256,7 @@ function renderChainPanel(panel,now=currentPseudoTime(),force=false){
 }
 function updateEvents(){const now=currentPseudoTime();renderChainPanel('previous',now);renderChainPanel('next',now)}
 document.querySelectorAll('.chain-filters').forEach(group=>group.addEventListener('click',event=>{const button=event.target.closest('button[data-scope]');if(!button||!group.contains(button))return;const panel=group.dataset.panel;selectedChainScope[panel]=button.dataset.scope;group.querySelectorAll('button').forEach(item=>item.setAttribute('aria-pressed',String(item===button)));document.getElementById(panel).scrollTop=0;renderChainPanel(panel,currentPseudoTime(),true)}));
-function tick(){const s=context(),seconds=s.minutes*60+s.second,next=360*60-(seconds%(360*60));document.getElementById('clock').textContent=new Date().toLocaleTimeString('pl-PL',{timeZone:'America/New_York',hour12:false,timeZoneName:'short'});document.getElementById('datebar').textContent='Przeciągnij oś · rolka lub +/− zmienia przybliżenie · czas ET';document.getElementById('activeQ').textContent='Q'+s.daily;document.getElementById('activeText').textContent=`${phase[s.daily][0]} · ${phase[s.daily][1].toUpperCase()}`;document.getElementById('countdown').textContent=new Date(next*1000).toISOString().slice(11,19);nowline.style.left=(livePosition(s)*100)+'%';updateEvents()}
+function tick(){const s=context(),seconds=s.minutes*60+s.second,next=360*60-(seconds%(360*60)),sessionQ=Math.floor(s.minutes/90)%4+1,sessionMatch=sessionQ===s.daily;document.getElementById('clock').textContent=new Date().toLocaleTimeString('pl-PL',{timeZone:'America/New_York',hour12:false,timeZoneName:'short'});document.getElementById('datebar').textContent='Przeciągnij oś · rolka lub +/− zmienia przybliżenie · czas ET';document.getElementById('activeQ').textContent='Q'+s.daily;document.getElementById('activeText').textContent=`${phase[s.daily][0]} · ${phase[s.daily][1].toUpperCase()}`;document.getElementById('countdown').textContent=new Date(next*1000).toISOString().slice(11,19);const sessionRule=document.getElementById('sessionRule');sessionRule.classList.toggle('match',sessionMatch);sessionRule.textContent=`Dzień Q${s.daily} · Sesja Q${sessionQ}${sessionMatch?' → Low Dnia / High Dnia':' · zgodne Q → Low Dnia / High Dnia'}`;nowline.style.left=(livePosition(s)*100)+'%';updateEvents()}
 const zoomRange=document.getElementById('zoomRange');
 function hoursVisible(){return 24/zoom}
 function nearestHours(h){return zoomHours.reduce((best,value)=>Math.abs(value-h)<Math.abs(best-h)?value:best)}

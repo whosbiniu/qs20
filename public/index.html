@@ -25,13 +25,11 @@
     .economic{padding:24px;border-top:1px solid var(--line);background:var(--bg)}.economic header{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}.economic h2{font-size:20px;margin:0 0 6px}.economic p{font-size:14px;color:#99a9bc;margin:8px 0}.economic a{color:#8ec8ee;font-size:14px}.economic-scroll{overflow:auto;max-height:420px;margin-top:16px;border:1px solid var(--line)}.economic table{width:100%;border-collapse:collapse;font-size:14px;text-align:left;min-width:710px}.economic th{position:sticky;top:0;background:var(--bg);color:#a9bacd;font-weight:500;z-index:1}.economic td,.economic th{padding:13px 16px;border-bottom:1px solid var(--line)}.economic td:first-child{white-space:nowrap;font-family:ui-monospace,monospace}.economic tr.upcoming{background:#12302e}.impact{display:inline-block;padding:4px 8px;border-radius:4px;background:#293647;color:#c3cedb;font-size:12px}.impact.high{background:#552733;color:#ffb4bd}.impact.medium{background:#493b22;color:#f3ce86}.impact.low{background:#283828;color:#c2d59a}.economic-note{font-size:12px!important}.economic-empty{padding:20px;color:#99a9bc}
     .economic-filters{display:flex;gap:8px;margin-top:16px}.economic-filters button{padding:8px 14px;border:1px solid #394b60;background:#101e2d;color:#b9c8da;cursor:pointer;font-size:14px;border-radius:4px}.economic-filters button[aria-pressed="true"]{background:#17483d;border-color:#76d4ba;color:#e7fff5}.economic-filters button:focus-visible{outline:2px solid #8ec8ee;outline-offset:3px}.event-timing{display:block;margin-top:5px;color:#aebed0;font-size:12px}.economic.today-view .economic-scroll{max-height:none}
     .cell.probability-match{flex-direction:column;gap:2px;container-type:inline-size;box-shadow:inset 0 -2px 0 currentColor}
-    .probability-label{font-size:8px;line-height:1.15;text-align:center;max-width:100%;padding:0 1px}
+    .probability-label{font-size:8px;line-height:1.15;text-align:center;max-width:100%;padding:0 3px}
     .probability-label span{display:block}
-    .ssmt-label{color:var(--hot);font-weight:700;white-space:nowrap}
-    .smt-arrows{color:var(--hot);font-weight:700;margin-top:2px;white-space:nowrap;font-size:7px}
+    .smt-arrows{font-weight:700;margin-top:2px;white-space:nowrap;font-size:7px}
     .smt-detail{margin-top:5px;padding-top:5px;border-top:1px solid #34475d;font-weight:700}
-    @container (max-width:110px){.probability-heading,.probability-detail,.smt-arrows{display:none}}
-    @container (max-width:50px){.probability-label{display:none}}
+    @container (max-width:110px){.probability-label{display:none}}
     .tip-probability{margin:3px 0 8px;color:#e8edf4;font:11px/1.4 ui-monospace,monospace;letter-spacing:0}
   </style>
 </head>
@@ -97,20 +95,19 @@ function probabilityFor(name,q,values){
   if(!rule)return null;
   const sessionQ=values.find(value=>value.name==='DAILY')?.q;
   const smt=rule.target==='90MIN'?smtForSession(sessionQ):'';
-  return {...rule,description:`High probability Low ${rule.scope} / High ${rule.scope}`,text:'← SSMT →',sessionQ,smt};
+  return {...rule,text:`High probability Low ${rule.scope} / High ${rule.scope}`,sessionQ,smt};
 }
 function annotateProbability(cell,name,q,x){
   const match=probabilityFor(name,q,valuesAt(x));
   if(!match)return;
   cell.classList.add('probability-match');
-  cell.title+=` · ${match.source} Q${q} → ${name} Q${q} · ${match.description} · ${match.text}${match.smt?` · Sesja Q${match.sessionQ} → ${match.smt}`:''}`;
+  cell.title+=` · ${match.source} Q${q} → ${name} Q${q} · ${match.text}${match.smt?` · Sesja Q${match.sessionQ} → ${match.smt}`:''}`;
   cell.setAttribute('aria-label',cell.title);
   const label=document.createElement('small');
   label.className='probability-label';
-  const heading=document.createElement('span');heading.className='probability-heading';heading.textContent='High probability';
-  const detail=document.createElement('span');detail.className='probability-detail';detail.textContent=`Low ${match.scope} / High ${match.scope}`;
-  const ssmt=document.createElement('span');ssmt.className='ssmt-label';ssmt.textContent=match.text;
-  label.append(heading,detail,ssmt);
+  const heading=document.createElement('span');heading.textContent='High probability';
+  const detail=document.createElement('span');detail.textContent=`Low ${match.scope} / High ${match.scope}`;
+  label.append(heading,detail);
   if(match.smt){
     const arrows=document.createElement('span');arrows.className='smt-arrows';
     arrows.textContent=match.smt;label.append(arrows);
@@ -186,7 +183,7 @@ timeline.addEventListener('mousemove',e=>{
   if(timeline.classList.contains('dragging')||e.target.closest('.view-tools')){tip.classList.remove('show');return}
   const r=grid.getBoundingClientRect(),x=Math.max(0,Math.min(.999999,(e.clientX-r.left)/r.width));
   const elapsed=x*horizonDays*1440;
-  tip.innerHTML=`<div class="tiptime">+${Math.floor(elapsed/1440)}d · ${clockText(1080+elapsed)}</div>`+valuesAt(x).map(v=>{const match=probabilityFor(v.name,v.q,valuesAt(x));return `<div class="tiprow"><span>${v.name}</span><b class="q${v.q}">${v.q===0?'Q0':`Q${v.q} · ${phase[v.q][0]}`}</b></div>`+(match?`<div class="tip-probability">${match.description}<br><span class="ssmt-label">${match.text}</span><br>${match.source} Q${v.q} → ${v.name} Q${v.q}${match.smt?`<div class="smt-detail">Sesja Q${match.sessionQ} → ${match.smt}</div>`:''}</div>`:'')}).join('')+holidayTip(x);
+  tip.innerHTML=`<div class="tiptime">+${Math.floor(elapsed/1440)}d · ${clockText(1080+elapsed)}</div>`+valuesAt(x).map(v=>{const match=probabilityFor(v.name,v.q,valuesAt(x));return `<div class="tiprow"><span>${v.name}</span><b class="q${v.q}">${v.q===0?'Q0':`Q${v.q} · ${phase[v.q][0]}`}</b></div>`+(match?`<div class="tip-probability">${match.text}<br>${match.source} Q${v.q} → ${v.name} Q${v.q}${match.smt?`<div class="smt-detail">Sesja Q${match.sessionQ} → ${match.smt}</div>`:''}</div>`:'')}).join('')+holidayTip(x);
   tip.classList.add('show');
   placeTip(e);
 });

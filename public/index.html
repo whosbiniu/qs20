@@ -23,6 +23,13 @@
     .chain-now{position:absolute;width:30px;transform:translateX(-50%);pointer-events:none;background:transparent;border:2px solid #76d4ba;z-index:4}.chain-now::before{content:attr(data-count);position:absolute;top:2px;left:50%;transform:translateX(-50%);background:#10251f;color:#9ce8d3;font:11px ui-monospace,monospace;padding:1px 3px}
     .economic{padding:24px;border-top:1px solid var(--line);background:var(--bg)}.economic header{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}.economic h2{font-size:20px;margin:0 0 6px}.economic p{font-size:14px;color:#99a9bc;margin:8px 0}.economic a{color:#8ec8ee;font-size:14px}.economic-scroll{overflow:auto;max-height:420px;margin-top:16px;border:1px solid var(--line)}.economic table{width:100%;border-collapse:collapse;font-size:14px;text-align:left;min-width:710px}.economic th{position:sticky;top:0;background:var(--bg);color:#a9bacd;font-weight:500;z-index:1}.economic td,.economic th{padding:13px 16px;border-bottom:1px solid var(--line)}.economic td:first-child{white-space:nowrap;font-family:ui-monospace,monospace}.economic tr.upcoming{background:#12302e}.impact{display:inline-block;padding:4px 8px;border-radius:4px;background:#293647;color:#c3cedb;font-size:12px}.impact.high{background:#552733;color:#ffb4bd}.impact.medium{background:#493b22;color:#f3ce86}.impact.low{background:#283828;color:#c2d59a}.economic-note{font-size:12px!important}.economic-empty{padding:20px;color:#99a9bc}
     .economic-filters{display:flex;gap:8px;margin-top:16px}.economic-filters button{padding:8px 14px;border:1px solid #394b60;background:#101e2d;color:#b9c8da;cursor:pointer;font-size:14px;border-radius:4px}.economic-filters button[aria-pressed="true"]{background:#17483d;border-color:#76d4ba;color:#e7fff5}.economic-filters button:focus-visible{outline:2px solid #8ec8ee;outline-offset:3px}.event-timing{display:block;margin-top:5px;color:#aebed0;font-size:12px}.economic.today-view .economic-scroll{max-height:none}
+    .cell.probability-match{flex-direction:column;gap:2px;container-type:inline-size;box-shadow:inset 0 -2px 0 currentColor}
+    .probability-label{font-size:8px;line-height:1.15;text-align:center;max-width:100%;padding:0 3px}
+    .probability-label span{display:block}
+    .smt-arrows{font-weight:700;margin-top:2px;white-space:nowrap;font-size:7px}
+    .smt-detail{margin-top:5px;padding-top:5px;border-top:1px solid #34475d;font-weight:700}
+    @container (max-width:110px){.probability-label{display:none}}
+    .tip-probability{margin:3px 0 8px;color:#e8edf4;font:11px/1.4 ui-monospace,monospace;letter-spacing:0}
   </style>
 </head>
 <body>
@@ -62,14 +69,52 @@ const grid=document.getElementById('grid');
 const timeline=document.getElementById('timeline'),nowline=document.getElementById('nowline');
 const horizonDays=8,zoomHours=[6,12,24,48,72,168],defaultHours=168;let zoom=24/defaultHours;
 function nyParts(date=new Date()){const parts=new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',year:'numeric',month:'numeric',day:'numeric',weekday:'short',hour:'numeric',minute:'numeric',second:'numeric',hourCycle:'h23'}).formatToParts(date);return Object.fromEntries(parts.filter(p=>p.type!=='literal').map(p=>[p.type,p.value]))}
-function context(date=new Date()){const p=nyParts(date),year=+p.year,month=+p.month,day=+p.day,hour=+p.hour,minute=+p.minute,second=+p.second;const quadrennial=((year-2023)%4+4)%4+1;const yearly=Math.floor((month-1)/3)+1;const quarterStartMonth=Math.floor((month-1)/3)*3;const start=Date.UTC(year,quarterStartMonth,1),end=Date.UTC(year,quarterStartMonth+3,1),current=Date.UTC(year,month-1,day);const quarterly=Math.min(4,Math.floor(((current-start)/(end-start))*4)+1);const firstWeekday=new Date(Date.UTC(year,month-1,1)).getUTCDay();const firstMonday=1+((8-firstWeekday)%7);const monthly=day<firstMonday?0:Math.min(4,Math.floor((day-firstMonday)/7)+1);const weekly=({Mon:1,Tue:2,Wed:3,Thu:4})[p.weekday]||0;const minutes=(hour*60+minute-1080+1440)%1440;const daily=Math.floor(minutes/360)+1;return {p,year,month,day,hour,minute,second,minutes,quadrennial,yearly,quarterly,monthly,weekly,daily}}
+function context(date=new Date()){const p=nyParts(date),year=+p.year,month=+p.month,day=+p.day,hour=+p.hour,minute=+p.minute,second=+p.second;const quadrennial=((year-2023)%4+4)%4+1;const yearly=Math.floor((month-1)/3)+1;const quarterly=Math.floor((month-1)/3)+1;const firstWeekday=new Date(Date.UTC(year,month-1,1)).getUTCDay();const firstMonday=1+((8-firstWeekday)%7);const monthly=day<firstMonday?0:Math.min(4,Math.floor((day-firstMonday)/7)+1);const weekly=({Mon:1,Tue:2,Wed:3,Thu:4})[p.weekday]||0;const minutes=(hour*60+minute-1080+1440)%1440;const daily=Math.floor(minutes/360)+1;return {p,year,month,day,hour,minute,second,minutes,quadrennial,yearly,quarterly,monthly,weekly,daily}}
 const state=context();
 const windowStart=Date.UTC(state.year,state.month-1,state.day,18)-(state.hour<18?86400000:0);
 function livePosition(s=context()){return (Date.UTC(s.year,s.month-1,s.day,s.hour,s.minute,s.second)-windowStart)/(horizonDays*86400000)}
-const cycles=[{name:'4YR',fixed:state.quadrennial},{name:'QUARTERLY',fixed:3},{name:'YEARLY',fixed:state.yearly},{name:'MONTHLY',fixed:state.monthly},{name:'WEEKLY',fixed:3},{name:'DAILY',perDay:4},{name:'90MIN',perDay:16},{name:'MICRO',perDay:64},{name:'NANO',perDay:256}];
+const cycles=[{name:'4YR',fixed:state.quadrennial},{name:'QUARTERLY',fixed:state.quarterly},{name:'YEARLY',fixed:state.yearly},{name:'MONTHLY',fixed:state.monthly},{name:'WEEKLY',fixed:3},{name:'DAILY',perDay:4},{name:'90MIN',perDay:16},{name:'MICRO',perDay:64},{name:'NANO',perDay:256}];
 function valueFor(c,x){return c.fixed!==undefined?c.fixed:(Math.floor(x*horizonDays*c.perDay)%4)+1}
 function valuesAt(x){return cycles.map(c=>({name:c.name,q:valueFor(c,x)}))}
-function build(){grid.innerHTML='';cycles.forEach((c,ri)=>{const segments=c.fixed!==undefined?1:c.perDay*horizonDays;const row=document.createElement('div');row.className='row '+c.name.toLowerCase();row.style.gridTemplateColumns=`repeat(${segments},1fr)`;for(let i=0;i<segments;i++){const cell=document.createElement('div');const q=c.fixed!==undefined?c.fixed:(i%4)+1;cell.className='cell q'+q;cell.textContent=q===0?'Q0':'Q'+q;cell.dataset.row=ri;cell.dataset.q=q;if(c.name==='DAILY')cell.dataset.day=String(Math.floor(i/4));if(q>0)cell.title=`${c.name} · Q${q} · ${phase[q][0]} — ${phase[q][1]}`;else cell.title=`${c.name} · Q0 — tydzień przejściowy`;row.append(cell)}grid.append(row)});grid.append(nowline)}
+const probabilityRules=[
+  {source:'MONTHLY',target:'90MIN',scope:'Sesji'},
+  {source:'QUARTERLY',target:'MONTHLY',scope:'Miesiąca'},
+  {source:'QUARTERLY',target:'WEEKLY',scope:'Tygodnia'},
+  {source:'WEEKLY',target:'DAILY',scope:'Tygodnia'},
+  {source:'QUARTERLY',target:'YEARLY',scope:'Kwartału'},
+  {source:'QUARTERLY',target:'QUARTERLY',scope:'Roku'}
+];
+const sessionSmtPairs={1:[[1,4]],2:[[2,3]],3:[[2,3],[3,4]],4:[[1,4]]};
+function smtForSession(q){
+  const pairs=sessionSmtPairs[q];
+  return pairs?`SMT: ${pairs.map(([from,to])=>`Q${from} ↔ Q${to}`).join(' lub ')}`:'';
+}
+function probabilityFor(name,q,values){
+  if(q<1||q>4)return null;
+  const rule=probabilityRules.find(rule=>rule.target===name&&values.some(value=>value.name===rule.source&&value.q===q));
+  if(!rule)return null;
+  const sessionQ=values.find(value=>value.name==='DAILY')?.q;
+  const smt=rule.target==='90MIN'?smtForSession(sessionQ):'';
+  return {...rule,text:`High probability Low ${rule.scope} / High ${rule.scope}`,sessionQ,smt};
+}
+function annotateProbability(cell,name,q,x){
+  const match=probabilityFor(name,q,valuesAt(x));
+  if(!match)return;
+  cell.classList.add('probability-match');
+  cell.title+=` · ${match.source} Q${q} → ${name} Q${q} · ${match.text}${match.smt?` · Sesja Q${match.sessionQ} → ${match.smt}`:''}`;
+  cell.setAttribute('aria-label',cell.title);
+  const label=document.createElement('small');
+  label.className='probability-label';
+  const heading=document.createElement('span');heading.textContent='High probability';
+  const detail=document.createElement('span');detail.textContent=`Low ${match.scope} / High ${match.scope}`;
+  label.append(heading,detail);
+  if(match.smt){
+    const arrows=document.createElement('span');arrows.className='smt-arrows';
+    arrows.textContent=match.smt;label.append(arrows);
+  }
+  cell.append(label);
+}
+function build(){grid.innerHTML='';cycles.forEach((c,ri)=>{const segments=c.fixed!==undefined?1:c.perDay*horizonDays;const row=document.createElement('div');row.className='row '+c.name.toLowerCase();row.style.gridTemplateColumns=`repeat(${segments},1fr)`;for(let i=0;i<segments;i++){const cell=document.createElement('div');const q=c.fixed!==undefined?c.fixed:(i%4)+1;cell.className='cell q'+q;cell.textContent=q===0?'Q0':'Q'+q;cell.dataset.row=ri;cell.dataset.q=q;if(c.name==='DAILY')cell.dataset.day=String(Math.floor(i/4));if(q>0)cell.title=`${c.name} · Q${q} · ${phase[q][0]} — ${phase[q][1]}`;else cell.title=`${c.name} · Q0 — tydzień przejściowy`;annotateProbability(cell,c.name,q,(i+.5)/segments);row.append(cell)}grid.append(row)});grid.append(nowline)}
 function clockText(total){const m=((Math.round(total)%1440)+1440)%1440;return `${String(Math.floor(m/60)).padStart(2,'0')}:${String(m%60).padStart(2,'0')} ET`}
 let holidayMarks=[];
 function nyStamp(date){const p=nyParts(date);return Date.UTC(+p.year,+p.month-1,+p.day,+p.hour,+p.minute,+p.second)}
@@ -79,8 +124,9 @@ function paintHolidays(){
   grid.querySelectorAll('.cell.holiday-session').forEach(el=>{
     el.classList.remove('holiday-session');
     if(el.dataset.baseTitle)el.title=el.dataset.baseTitle;
-    el.replaceChildren();
+    const probabilityLabel=el.querySelector('.probability-label');
     el.textContent=quarterLabel(+el.dataset.q);
+    if(probabilityLabel)el.append(probabilityLabel);
   });
   const daily=grid.querySelector('.row.daily');
   if(!daily)return;
@@ -105,7 +151,9 @@ function paintHolidays(){
       const tag=document.createElement('span');
       tag.className='inverted-cycle';
       tag.textContent='(odwrócony cykl)';
+      const probabilityLabel=cell.querySelector('.probability-label');
       cell.replaceChildren(main, tag);
+      if(probabilityLabel)cell.append(probabilityLabel);
     });
   }
 }
@@ -135,7 +183,7 @@ timeline.addEventListener('mousemove',e=>{
   if(timeline.classList.contains('dragging')||e.target.closest('.view-tools')){tip.classList.remove('show');return}
   const r=grid.getBoundingClientRect(),x=Math.max(0,Math.min(.999999,(e.clientX-r.left)/r.width));
   const elapsed=x*horizonDays*1440;
-  tip.innerHTML=`<div class="tiptime">+${Math.floor(elapsed/1440)}d · ${clockText(1080+elapsed)}</div>`+valuesAt(x).map(v=>`<div class="tiprow"><span>${v.name}</span><b class="q${v.q}">${v.q===0?'Q0':`Q${v.q} · ${phase[v.q][0]}`}</b></div>`).join('')+holidayTip(x);
+  tip.innerHTML=`<div class="tiptime">+${Math.floor(elapsed/1440)}d · ${clockText(1080+elapsed)}</div>`+valuesAt(x).map(v=>{const match=probabilityFor(v.name,v.q,valuesAt(x));return `<div class="tiprow"><span>${v.name}</span><b class="q${v.q}">${v.q===0?'Q0':`Q${v.q} · ${phase[v.q][0]}`}</b></div>`+(match?`<div class="tip-probability">${match.text}<br>${match.source} Q${v.q} → ${v.name} Q${v.q}${match.smt?`<div class="smt-detail">Sesja Q${match.sessionQ} → ${match.smt}</div>`:''}</div>`:'')}).join('')+holidayTip(x);
   tip.classList.add('show');
   placeTip(e);
 });

@@ -92,10 +92,10 @@ function valueFor(c,x){return c.name==='WEEKLY'?weeklyAt(x).q:c.fixed!==undefine
 function labelFor(c,x,q){return c.name==='WEEKLY'?weeklyAt(x).label:q===0?'Q0':'Q'+q}
 function valuesAt(x){return cycles.map(c=>{const q=valueFor(c,x);return {name:c.name,q,label:labelFor(c,x,q)}})}
 const probabilityRules=[
-  {source:'MONTHLY',target:'90MIN',scope:'Sesji'},
   {source:'QUARTERLY',target:'MONTHLY',scope:'Miesiąca'},
-  {source:'QUARTERLY',target:'WEEKLY',scope:'Tygodnia'},
-  {source:'WEEKLY',target:'DAILY',scope:'Tygodnia'},
+  {source:'MONTHLY',target:'WEEKLY',scope:'Tygodnia'},
+  {source:'WEEKLY',target:'DAILY',scope:'Dnia',edgePair:true},
+  {source:'DAILY',target:'90MIN',scope:'Sesji',edgePair:true},
   {source:'QUARTERLY',target:'YEARLY',scope:'Kwartału'}
 ];
 const sessionSmtPairs={1:[[1,4]],2:[[2,3]],3:[[2,3],[3,4]],4:[[1,4]]};
@@ -105,17 +105,20 @@ function smtForSession(q){
 }
 function probabilityFor(name,q,values){
   if(q<1||q>4)return null;
-  const rule=probabilityRules.find(rule=>rule.target===name&&values.some(value=>value.name===rule.source&&value.q===q));
+  const rule=probabilityRules.find(rule=>rule.target===name);
   if(!rule)return null;
+  const source=values.find(value=>value.name===rule.source),sourceQ=source?.q;
+  if(sourceQ!==q&&!(rule.edgePair&&[1,4].includes(q)&&([1,4].includes(sourceQ)||source?.label==='Q1/Q4')))return null;
+  const sourceLabel=source?.label==='Q1/Q4'?'Q1/Q4':`Q${sourceQ}`;
   const sessionQ=values.find(value=>value.name==='DAILY')?.q;
   const smt=rule.target==='90MIN'?smtForSession(sessionQ):'';
-  return {...rule,text:`High probability Low ${rule.scope} / High ${rule.scope}`,sessionQ,smt};
+  return {...rule,sourceQ,sourceLabel,text:`High probability Low ${rule.scope} / High ${rule.scope}`,sessionQ,smt};
 }
 function annotateProbability(cell,name,q,x){
   const match=probabilityFor(name,q,valuesAt(x));
   if(!match)return;
   cell.classList.add('probability-match');
-  cell.title+=` · ${match.source} Q${q} → ${name} Q${q} · ${match.text}${match.smt?` · Sesja Q${match.sessionQ} → ${match.smt}`:''}`;
+  cell.title+=` · ${match.source} ${match.sourceLabel} → ${name} Q${q} · ${match.text}${match.smt?` · Sesja Q${match.sessionQ} → ${match.smt}`:''}`;
   cell.setAttribute('aria-label',cell.title);
   const label=document.createElement('small');
   label.className='probability-label';
@@ -197,7 +200,7 @@ timeline.addEventListener('mousemove',e=>{
   if(timeline.classList.contains('dragging')||e.target.closest('.view-tools')){tip.classList.remove('show');return}
   const r=grid.getBoundingClientRect(),x=Math.max(0,Math.min(.999999,(e.clientX-r.left)/r.width));
   const elapsed=x*horizonDays*1440;
-  tip.innerHTML=`<div class="tiptime">+${Math.floor(elapsed/1440)}d · ${clockText(1080+elapsed)}</div>`+valuesAt(x).map(v=>{const match=probabilityFor(v.name,v.q,valuesAt(x));return `<div class="tiprow"><span>${v.name}</span><b class="q${v.q}">${v.q===0?v.label:`${v.label} · ${phase[v.q][0]}`}</b></div>`+(match?`<div class="tip-probability">${match.text}<br>${match.source} Q${v.q} → ${v.name} Q${v.q}${match.smt?`<div class="smt-detail">Sesja Q${match.sessionQ} → ${match.smt}</div>`:''}</div>`:'')}).join('')+holidayTip(x);
+  tip.innerHTML=`<div class="tiptime">+${Math.floor(elapsed/1440)}d · ${clockText(1080+elapsed)}</div>`+valuesAt(x).map(v=>{const match=probabilityFor(v.name,v.q,valuesAt(x));return `<div class="tiprow"><span>${v.name}</span><b class="q${v.q}">${v.q===0?v.label:`${v.label} · ${phase[v.q][0]}`}</b></div>`+(match?`<div class="tip-probability">${match.text}<br>${match.source} ${match.sourceLabel} → ${v.name} Q${v.q}${match.smt?`<div class="smt-detail">Sesja Q${match.sessionQ} → ${match.smt}</div>`:''}</div>`:'')}).join('')+holidayTip(x);
   tip.classList.add('show');
   placeTip(e);
 });

@@ -92,7 +92,7 @@ function valueFor(c,x){return c.name==='WEEKLY'?weeklyAt(x).q:c.fixed!==undefine
 function labelFor(c,x,q){return c.name==='WEEKLY'?weeklyAt(x).label:q===0?'Q0':'Q'+q}
 function valuesAt(x){return cycles.map(c=>{const q=valueFor(c,x);return {name:c.name,q,label:labelFor(c,x,q)}})}
 const probabilityRules=[
-  {source:'MONTHLY',target:'90MIN',scope:'Sesji'},
+  {source:'DAILY',target:'90MIN',scope:'Dnia'},
   {source:'QUARTERLY',target:'MONTHLY',scope:'Miesiąca'},
   {source:'QUARTERLY',target:'WEEKLY',scope:'Tygodnia'},
   {source:'WEEKLY',target:'DAILY',scope:'Tygodnia'},

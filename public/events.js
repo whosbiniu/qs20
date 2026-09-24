@@ -43,7 +43,8 @@
   }
   async function refresh() {
     try {
-      const response = await fetch('/api/events', {signal:AbortSignal.timeout(15000)});
+      const endpoint = document.querySelector('meta[name="events-endpoint"]').content;
+      const response = await fetch(endpoint, {signal:AbortSignal.timeout(15000)});
       if (!response.ok) throw new Error('unavailable');
       const data = await response.json();
       if (!Array.isArray(data.events) || !Number.isFinite(Date.parse(data.updatedAt))) throw new Error('invalid');

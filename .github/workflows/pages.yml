@@ -28,7 +28,9 @@ jobs:
         with:
           node-version: '22'
       - name: Verify website encryption
-        run: node scripts/test-site-lock.mjs
+        run: |
+          node scripts/test-site-lock.mjs
+          node scripts/test-vercel-auth.mjs
       - name: Prepare static site and calendar data
         env:
           SITE_PASSWORD: ${{ secrets.SITE_PASSWORD }}

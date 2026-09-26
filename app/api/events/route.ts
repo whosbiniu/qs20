@@ -1,4 +1,6 @@
 import snapshot from "./snapshot.json"
+import { NextRequest } from "next/server"
+import { SESSION_COOKIE, validSession } from "../../../lib/site-auth.mjs"
 
 export const dynamic = "force-dynamic"
 
@@ -32,7 +34,10 @@ function fallback() {
   )
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  if (!validSession(request.cookies.get(SESSION_COOKIE)?.value)) {
+    return Response.json({ error: "Authentication required" }, { status: 401, headers: { "Cache-Control": "private, no-store" } })
+  }
   if (Date.now() < retryAfter) return fallback()
   if (calendarCache && Date.now() < calendarCache.expires) {
     return Response.json(calendarCache.data, {

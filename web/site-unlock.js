@@ -41,14 +41,15 @@
       const html = await decrypt(envelope, key, 'page');
       // Keep only the non-extractable key in this page's memory. Nothing is
       // written to cookies, sessionStorage or localStorage.
-      const calendarURL = new URL('api/events.enc.json', location.href);
+      const encryptedURLs = new Map(['events','market-highs'].map(name => [new URL(`api/${name}.enc.json`, location.href).pathname, name==='events'?'calendar':'market-highs']));
       window.fetch = async (request, options) => {
         const url = new URL(typeof request === 'string' || request instanceof URL ? request : request.url, location.href);
-        if (url.origin !== calendarURL.origin || url.pathname !== calendarURL.pathname) return originalFetch(request, options);
+        const kind = url.origin === location.origin && encryptedURLs.get(url.pathname);
+        if (!kind) return originalFetch(request, options);
         const response = await originalFetch(request, {...options, cache:'no-store'});
         if (!response.ok) return response;
         const data = await response.json();
-        const text = await decrypt(data, key, 'calendar');
+        const text = await decrypt(data, key, kind);
         return new Response(text, {headers:{'Content-Type':'application/json'}});
       };
       document.open();

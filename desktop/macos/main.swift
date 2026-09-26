@@ -55,6 +55,67 @@ final class CalendarBridge: NSObject, WKScriptMessageHandlerWithReply {
     }
 }
 
+final class MarketHighsBridge: NSObject, WKScriptMessageHandlerWithReply {
+    var cached: [String: Any]?
+    var expires = Date.distantPast
+    var waiting: [(Any?, String?) -> Void] = []
+
+    func userContentController(_ userContentController: WKUserContentController,
+                               didReceive message: WKScriptMessage,
+                               replyHandler: @escaping (Any?, String?) -> Void) {
+        guard message.frameInfo.isMainFrame,
+              let origin = message.frameInfo.request.url, origin.isFileURL,
+              origin.standardizedFileURL.path.hasPrefix(Bundle.main.resourceURL!.path + "/public/") else {
+            replyHandler(nil, "Unsupported origin"); return
+        }
+        let assets = [("NQ1!", "NQ=F"), ("ES1!", "ES=F"), ("YM1!", "YM=F")]
+        if CommandLine.arguments.contains("--self-test") {
+            var charts: [String: Any] = [:]
+            for (symbol, feed) in assets {
+                charts[symbol] = ["meta": ["symbol": feed, "shortName": "Test fixture"],
+                    "timestamp": [1790308800, 1790310120],
+                    "indicators": ["quote": [["high": [100, 110], "volume": [10, 10]]]]]
+            }
+            replyHandler(["charts": charts, "fetchedAt": Date().timeIntervalSince1970 * 1000], nil); return
+        }
+        if let cached, expires > Date() { replyHandler(cached, nil); return }
+        if CommandLine.arguments.contains("--offline") {
+            replyHandler(cached ?? ["charts": [:], "fetchedAt": 0], nil); return
+        }
+        waiting.append(replyHandler)
+        if waiting.count > 1 { return }
+        var charts: [String: Any] = [:]
+        var remaining = assets.count
+        for (symbol, feed) in assets {
+            var components = URLComponents(string: "https://query1.finance.yahoo.com/v8/finance/chart/" + feed)!
+            components.queryItems = [URLQueryItem(name: "interval", value: "1m"),
+                URLQueryItem(name: "range", value: "5d"), URLQueryItem(name: "includePrePost", value: "true")]
+            var request = URLRequest(url: components.url!)
+            request.timeoutInterval = 12
+            request.setValue("Mozilla/5.0", forHTTPHeaderField: "User-Agent")
+            URLSession.shared.dataTask(with: request) { data, response, error in
+                DispatchQueue.main.async {
+                    if error == nil, (response as? HTTPURLResponse)?.statusCode == 200,
+                       let data, let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                       let chart = root["chart"] as? [String: Any],
+                       let result = chart["result"] as? [[String: Any]], let first = result.first {
+                        charts[symbol] = first
+                    }
+                    remaining -= 1
+                    if remaining == 0 {
+                        let payload: [String: Any] = ["charts": charts, "fetchedAt": Date().timeIntervalSince1970 * 1000]
+                        self.cached = payload
+                        self.expires = Date().addingTimeInterval(60)
+                        let callbacks = self.waiting
+                        self.waiting = []
+                        callbacks.forEach { $0(payload, nil) }
+                    }
+                }
+            }.resume()
+        }
+    }
+}
+
 final class CalendarExportBridge: NSObject, WKScriptMessageHandlerWithReply {
     var lastExport: URL?
     func userContentController(_ userContentController: WKUserContentController,
@@ -97,12 +158,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate {
     var webView: WKWebView!
     let calendar = CalendarBridge()
     let calendarExport = CalendarExportBridge()
+    let marketHighs = MarketHighsBridge()
     var selfTestStarted = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         let config = WKWebViewConfiguration()
         config.userContentController.addScriptMessageHandler(calendar, contentWorld: .page, name: "calendar")
         config.userContentController.addScriptMessageHandler(calendarExport, contentWorld: .page, name: "calendarExport")
+        config.userContentController.addScriptMessageHandler(marketHighs, contentWorld: .page, name: "marketHighs")
         config.userContentController.addUserScript(WKUserScript(source: """
         (() => {
           const original = window.fetch.bind(window);
@@ -110,6 +173,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate {
             const path = typeof input === 'string' ? input : input.url;
             if (path === '/api/events') {
               const payload = await window.webkit.messageHandlers.calendar.postMessage(null);
+              return new Response(JSON.stringify(payload), {headers: {'Content-Type': 'application/json'}});
+            }
+            if (path === '/api/market-highs') {
+              const payload = await window.webkit.messageHandlers.marketHighs.postMessage(null);
               return new Response(JSON.stringify(payload), {headers: {'Content-Type': 'application/json'}});
             }
             return original(input, options);
@@ -339,12 +406,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate {
               if(focus)timeline.scrollLeft=((focus.start-windowStart)/(horizonDays*dayMs))*grid.scrollWidth-timeline.clientWidth*.75;
               document.getElementById('history-panel').scrollIntoView({block:'end'});
             });
-            return JSON.stringify({rows:document.querySelectorAll('#grid .row').length,
+            const dayHighsCheck=document.querySelector('#ssmt-panel + #day-highs-panel')!==null &&
+              document.querySelectorAll('#day-highs-body tr').length===3 &&
+              [...document.querySelectorAll('#day-highs-body tr')].every(row=>row.cells.length===5 &&
+                row.cells[1].textContent==='Q1/Q4' && row.cells[2].textContent==='Q2' &&
+                row.cells[3].textContent==='Q1' && row.cells[4].textContent==='Q1 / Q2');
+            return JSON.stringify({dayHighsCheck,rows:document.querySelectorAll('#grid .row').length,
               cells:document.querySelectorAll('#grid .cell').length,
               clock:document.getElementById('clock').textContent,
               calendar:document.getElementById('economic-status').textContent,
               ruleChecks,fullWeekCheck,ltfCheck,panelCheck,nyAmExclusionCheck,layoutCheck,sessionCheck,sessionDomCheck,sessionDomDetails,dayCheck,dayDomCheck,restoredSessionCheck,historyCheck,historyDomCheck,routingCheck,
-              ok:document.querySelectorAll('#grid .row').length===9 &&
+              ok:dayHighsCheck && document.querySelectorAll('#grid .row').length===9 &&
                  ruleChecks && fullWeekCheck && ltfCheck && panelCheck && nyAmExclusionCheck && layoutCheck && sessionCheck && sessionDomCheck && dayCheck && dayDomCheck && restoredSessionCheck && historyCheck && historyDomCheck && routingCheck &&
                  document.getElementById('clock').textContent.length>5 &&
                  document.getElementById('economic-status').textContent.includes('Kopia eksportu')});

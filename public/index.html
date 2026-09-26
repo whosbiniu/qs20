@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <meta name="description" content="UNC'sWay — interaktywna mapa zagnieżdżonych cykli Quarterly Theory." />
   <meta name="events-endpoint" content="/api/events" />
+  <meta name="market-highs-endpoint" content="/api/market-highs" />
   <title>UNC'sWay — Quarterly Timeline</title>
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ctext y='52' font-size='52'%3E%E2%9B%93%EF%B8%8F%3C/text%3E%3C/svg%3E" />
   <style>
@@ -46,6 +47,7 @@
     .probability-scope{display:flex;gap:4px;margin-right:10px}.probability-scope button[aria-pressed="true"]{border-color:#76d4ba;background:#173b2e;color:#e7fff5}.session-cards.day-view{grid-template-columns:1fr}.day-view .session-window-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px}.day-view .session-window+.session-window{margin:0;border-top:0}.day-view .session-window{padding:14px;border:1px solid #283748;border-radius:4px}.day-view .session-window+.session-window{border-top:1px solid #283748}@media(max-width:600px){.day-view .session-window-list{grid-template-columns:1fr}}
     @media(max-width:1150px){.session-cards{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:600px){.session-panel{padding:22px 14px}.session-cards{grid-template-columns:1fr}}
     .ssmt-options{display:flex;flex-wrap:wrap;gap:10px;margin-top:20px}.ssmt-option{display:flex;align-items:center;gap:10px;min-width:130px;padding:13px 16px;border:1px solid #34465b;border-radius:5px;background:#0c1016;color:#c5d7e8;font:13px ui-monospace,monospace;cursor:pointer}.ssmt-option.is-active{border-color:#76d4ba;background:#173b2e;color:#e7fff5}.ssmt-option input{width:17px;height:17px;margin:0;accent-color:#76d4ba;cursor:pointer}.ssmt-option:focus-within{outline:2px solid #ffe09b;outline-offset:3px}.ssmt-messages{display:grid;gap:10px;margin-top:18px}.ssmt-messages p{margin:0;padding:16px 18px;border:1px solid #283748;border-left:3px solid #76d4ba;border-radius:5px;background:#0c1016;color:#e8edf4;font-size:14px;line-height:1.6}.ssmt-messages strong{display:block;color:#76d4ba;font:11px ui-monospace,monospace;margin-bottom:6px}.ssmt-messages [hidden]{display:none}
+    .day-highs-scroll{overflow-x:auto;margin-top:18px}.day-highs-table{width:100%;border-collapse:collapse;text-align:left;font:13px ui-monospace,monospace;white-space:nowrap}.day-highs-table th{padding:10px 14px;color:#8b9bab;font-size:10px;letter-spacing:.06em;font-weight:400}.day-highs-table td{padding:14px;border-top:1px solid #283748;color:#e8edf4}.day-highs-table td:first-child{font-weight:700;color:#76d4ba}.day-highs-table small{display:block;margin-top:6px;color:#8295a8;font-size:10px;font-weight:400}.day-highs-table .high-quarter{color:#c5d7e8}.day-highs-note,#day-highs-status{color:#8295a8;font:11px/1.6 ui-monospace,monospace;margin:12px 0 0}.day-highs-table th:first-child,.day-highs-table td:first-child{padding-left:0}
   </style>
 </head>
 <body>
@@ -75,6 +77,11 @@
       <p id="ssmt-session" hidden><strong>Session</strong>Oczekuj 2S z 90 / Micro / Nano</p>
       <p id="ssmt-90" hidden><strong>90</strong>Oczekuj 2S z Micro / Nano w oknie czasowym lub Z OKNEM czasowym.</p>
     </div>
+  </section>
+  <section class="session-panel" id="day-highs-panel" aria-labelledby="day-highs-title">
+    <header><h2 id="day-highs-title">Aktualne High Dnia</h2></header>
+    <div class="day-highs-scroll"><table class="day-highs-table"><thead><tr><th scope="col">Instrument</th><th scope="col">Weekly</th><th scope="col">Daily</th><th scope="col">90M</th><th scope="col">Micro</th></tr></thead><tbody id="day-highs-body"><tr><td>NQ1!</td><td colspan="4">Ładowanie…</td></tr><tr><td>ES1!</td><td colspan="4">Ładowanie…</td></tr><tr><td>YM1!</td><td colspan="4">Ładowanie…</td></tr></tbody></table></div>
+    <p id="day-highs-status" role="status">Yahoo Finance · dane opóźnione około 10 min</p>
   </section>
   <p class="rule-summary"><strong>LOW lub HIGH: Q2 / Q3 → Q1 lub Q3</strong> · NY AM: M90 Q3 · okna tylko w pełnych tygodniach pon.–pt. jednego miesiąca · newsy i święta bez wykluczeń</p>
   <section class="stage">
@@ -112,6 +119,8 @@
   </section>
 </main>
 <script src="events.js" defer></script>
+<script src="day-highs.js"></script>
+<script src="day-highs-panel.js" defer></script>
 <script src="chains.js"></script>
 <script src="holidays.js"></script>
 <script src="cycle-rules.js"></script>

@@ -1,6 +1,7 @@
 import { mkdir, readFile, writeFile, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { deriveSiteKey, encryptSiteContent } from './site-crypto.mjs'
+import { marketHighs } from '../lib/market-data.mjs'
 
 // Fail closed before creating any deployable files when the secret is absent.
 const key = await deriveSiteKey(process.env.SITE_PASSWORD)
@@ -13,6 +14,9 @@ let html = await readFile('public/index.html', 'utf8')
 const originalEndpoint = '<meta name="events-endpoint" content="/api/events" />'
 if (!html.includes(originalEndpoint)) throw new Error('Missing events endpoint marker')
 html = html.replace(originalEndpoint, '<meta name="events-endpoint" content="api/events.enc.json" />')
+const marketEndpoint = '<meta name="market-highs-endpoint" content="/api/market-highs" />'
+if (!html.includes(marketEndpoint)) throw new Error('Missing market endpoint marker')
+html = html.replace(marketEndpoint, '<meta name="market-highs-endpoint" content="api/market-highs.enc.json" />')
 const deferred = []
 for (const match of [...html.matchAll(/<script src="([a-z0-9-]+\.js)"( defer)?><\/script>/g)]) {
   const source = (await readFile(join('public', match[1]), 'utf8')).replace(/<\/script/gi, '<\\/script')
@@ -63,6 +67,7 @@ try {
 await mkdir(join(output, 'api'), { recursive: true })
 await writeFile(join(output, 'protected.json'), JSON.stringify(await encryptSiteContent(html, key, 'page')))
 await writeFile(join(output, 'api', 'events.enc.json'), JSON.stringify(await encryptSiteContent(JSON.stringify(calendar), key, 'calendar')))
+await writeFile(join(output, 'api', 'market-highs.enc.json'), JSON.stringify(await encryptSiteContent(JSON.stringify(await marketHighs()), key, 'market-highs')))
 await writeFile(join(output, 'index.html'), await readFile('web/site-lock.html'))
 await writeFile(join(output, 'unlock.js'), await readFile('web/site-unlock.js'))
 await writeFile(join(output, '.nojekyll'), '')

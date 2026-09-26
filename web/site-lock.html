@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="robots" content="noindex,nofollow" />
+  <meta name="referrer" content="no-referrer" />
+  <title>UNC’sWay — Dostęp do strony</title>
+  <style>
+    *{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;padding:24px;background:#080a0e;color:#e8edf4;font-family:system-ui,-apple-system,sans-serif}main{width:100%;max-width:410px;padding:32px;border:1px solid #283748;border-radius:12px;background:#0c1016}.brand{margin:0 0 32px;color:#76d4ba;font:12px ui-monospace,monospace;letter-spacing:.24em}h1{font-size:24px;margin:0 0 26px}label{display:block;font-size:13px;color:#b7c6d6;margin-bottom:8px}input,button{width:100%;border-radius:5px;font-family:inherit;font-size:15px}input{padding:13px;border:1px solid #394454;background:#080a0e;color:#fff;font-size:16px}button{margin-top:16px;padding:13px;border:1px solid #76d4ba;background:#173b2e;color:#e7fff5;cursor:pointer;font-size:14px}button:hover{background:#234e3e}button:disabled{opacity:.6;cursor:wait}input:focus-visible,button:focus-visible{outline:2px solid #8ec8ee;outline-offset:3px}#unlock-status{min-height:36px;margin:16px 0 0;color:#ffb4bd;font-size:13px;line-height:1.5}.note{margin:18px 0 0;color:#8793a3;font-size:12px;line-height:1.5}
+  </style>
+  <script src="unlock.js" defer></script>
+</head>
+<body>
+  <main>
+    <p class="brand">UNC’SWAY</p>
+    <h1>Dostęp do strony</h1>
+    <form id="unlock-form">
+      <label for="site-password">Hasło</label>
+      <input id="site-password" name="password" type="password" autocomplete="current-password" required aria-describedby="unlock-status" />
+      <button id="unlock-button" type="submit">Odblokuj stronę</button>
+    </form>
+    <p id="unlock-status" role="status" aria-live="polite"></p>
+    <noscript>Włącz JavaScript, aby odblokować stronę.</noscript>
+  </main>
+</body>
+</html>

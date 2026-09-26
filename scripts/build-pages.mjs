@@ -1,15 +1,27 @@
-import { cp, mkdir, readFile, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, writeFile, rm } from 'node:fs/promises'
 import { join } from 'node:path'
+import { deriveSiteKey, encryptSiteContent } from './site-crypto.mjs'
 
+// Fail closed before creating any deployable files when the secret is absent.
+const key = await deriveSiteKey(process.env.SITE_PASSWORD)
+delete process.env.SITE_PASSWORD
 const output = join(process.cwd(), '_site')
+await rm(output, { recursive: true, force: true })
 await mkdir(output, { recursive: true })
-await cp('public', output, { recursive: true, force: true })
 
-const htmlPath = join(output, 'index.html')
-const html = await readFile(htmlPath, 'utf8')
+let html = await readFile('public/index.html', 'utf8')
 const originalEndpoint = '<meta name="events-endpoint" content="/api/events" />'
 if (!html.includes(originalEndpoint)) throw new Error('Missing events endpoint marker')
-await writeFile(htmlPath, html.replace(originalEndpoint, '<meta name="events-endpoint" content="api/events.json" />'))
+html = html.replace(originalEndpoint, '<meta name="events-endpoint" content="api/events.enc.json" />')
+const deferred = []
+for (const match of [...html.matchAll(/<script src="([a-z0-9-]+\.js)"( defer)?><\/script>/g)]) {
+  const source = (await readFile(join('public', match[1]), 'utf8')).replace(/<\/script/gi, '<\\/script')
+  const inline = `<script>\n${source}\n</script>`
+  if (match[2]) deferred.push(inline)
+  html = html.replace(match[0], () => match[2] ? '' : inline)
+}
+if (/<script\s+[^>]*src=/i.test(html)) throw new Error('Unbundled script; refusing to publish')
+html = html.replace('</body>', () => deferred.join('\n') + '\n</body>')
 
 const snapshot = JSON.parse(await readFile('app/api/events/snapshot.json', 'utf8'))
 let calendar = { ...snapshot, stale: true }
@@ -49,6 +61,9 @@ try {
 }
 
 await mkdir(join(output, 'api'), { recursive: true })
-await writeFile(join(output, 'api', 'events.json'), JSON.stringify(calendar))
+await writeFile(join(output, 'protected.json'), JSON.stringify(await encryptSiteContent(html, key, 'page')))
+await writeFile(join(output, 'api', 'events.enc.json'), JSON.stringify(await encryptSiteContent(JSON.stringify(calendar), key, 'calendar')))
+await writeFile(join(output, 'index.html'), await readFile('web/site-lock.html'))
+await writeFile(join(output, 'unlock.js'), await readFile('web/site-unlock.js'))
 await writeFile(join(output, '.nojekyll'), '')
-console.log(`Prepared GitHub Pages site with ${calendar.events.length} calendar events`)
+console.log(`Prepared encrypted GitHub Pages site with ${calendar.events.length} calendar events`)

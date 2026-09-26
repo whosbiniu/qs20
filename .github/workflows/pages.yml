@@ -27,7 +27,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Verify website encryption
+        run: node scripts/test-site-lock.mjs
       - name: Prepare static site and calendar data
+        env:
+          SITE_PASSWORD: ${{ secrets.SITE_PASSWORD }}
         run: node scripts/build-pages.mjs
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v4

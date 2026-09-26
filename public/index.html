@@ -13,8 +13,9 @@
     .app{min-height:100vh;display:flex;flex-direction:column;overflow:hidden;background:var(--bg)}.topbar{height:64px;border-bottom:1px solid var(--line);display:flex;align-items:center;padding:0 22px;gap:20px;background:var(--bg);position:relative;z-index:5}
     .brand{display:flex;align-items:center;gap:10px;min-width:150px}.mark{width:28px;height:28px;display:grid;place-items:center;font-size:22px;filter:drop-shadow(0 0 10px #6db7ff55)}.brand b{font-size:13px;letter-spacing:.32em}.brand span{display:none}
     .nav{position:absolute;left:50%;transform:translateX(-50%);display:flex;align-items:center}.nav button,.action{border:1px solid transparent;background:transparent;color:#7f8b9a;text-transform:uppercase;letter-spacing:.18em;font-size:11px;padding:10px 15px;cursor:pointer}.nav button.active{background:#edf3fa;color:#07101a}.nav button:hover,.action:hover{color:#fff;border-color:#34475d}.action{border-color:#34475d;color:#d7dce3;margin-left:auto}.quote{color:#aeb9c7;font:italic 15px Georgia,"Times New Roman",serif;letter-spacing:.035em;white-space:nowrap}.clock{font:12px ui-monospace,SFMono-Regular,monospace;color:#cbd2dc;white-space:nowrap}.legend{display:flex;gap:14px;font:10px ui-monospace,monospace;color:#89919e}.legend i{display:inline-block;width:9px;height:9px;margin-right:5px}.settings{color:#606977;font-size:18px}
-    .stage{flex:1;display:flex;min-height:486px;background:var(--bg)}.labels{width:138px;flex:0 0 138px;border-right:1px solid var(--line);background:var(--bg);padding-top:18px}.label{height:54px;display:flex;align-items:center;padding:0 12px;color:#a4acb8;font:bold 10px ui-monospace,monospace;letter-spacing:.08em}.label.dot::after{content:"";width:5px;height:5px;background:var(--blue);margin-left:auto;border-radius:1px}
-    .timeline{min-width:900px;flex:1;position:relative;padding:18px 0 0;overflow-x:auto;overflow-y:hidden;cursor:grab;scrollbar-color:#394454 var(--bg);scrollbar-width:thin;background:var(--bg)}.timeline.dragging{cursor:grabbing;user-select:none}.grid{height:100%;width:800%;display:grid;grid-template-rows:repeat(9,54px);position:relative;background-image:linear-gradient(90deg,transparent calc(100% - 1px),#1c2633 calc(100% - 1px));background-size:3.125% 100%;transform-origin:left center}
+    [hidden]{display:none!important}.app-page{display:flex;flex:1;flex-direction:column}#events-page{flex:1;border-top:0}.events-view .clock{margin-left:auto}.nav button:focus-visible{outline:2px solid #8ec8ee;outline-offset:2px}@media(max-width:1200px){.legend,.quote{display:none}}
+    .stage{flex:1;display:flex;min-height:528px;background:var(--bg)}.labels{width:138px;flex:0 0 138px;border-right:1px solid var(--line);background:var(--bg);padding-top:18px}.label{height:54px;display:flex;align-items:center;padding:0 12px;color:#a4acb8;font:bold 10px ui-monospace,monospace;letter-spacing:.08em}.label.dot::after{content:"";width:5px;height:5px;background:var(--blue);margin-left:auto;border-radius:1px}
+    .timeline{min-width:900px;flex:1;position:relative;padding:18px 0 24px;overflow-x:auto;overflow-y:hidden;cursor:grab;scrollbar-color:#394454 var(--bg);scrollbar-width:thin;background:var(--bg)}.timeline.dragging{cursor:grabbing;user-select:none}.grid{height:486px;width:800%;display:grid;grid-template-rows:repeat(9,54px);position:relative;background-image:linear-gradient(90deg,transparent calc(100% - 1px),#1c2633 calc(100% - 1px));background-size:3.125% 100%;transform-origin:left center}
     .row{display:grid;position:relative;border-bottom:1px solid #111923}.cell{display:flex;align-items:center;justify-content:center;border-right:1px solid #263241;color:#d6dce6;font:12px ui-monospace,SFMono-Regular,monospace;position:relative;overflow:hidden}.cell.q0{background:repeating-linear-gradient(125deg,#090c10,#090c10 4px,#0d1116 4px,#0d1116 7px);color:#66707e}.cell.q1{background:var(--q1);color:#1a2633}.cell.q2{background:var(--q2);color:#f4d5d8}.cell.q3{background:var(--q3);color:#d4f5e8}.cell.q4{background:var(--q4);color:#d4e8f6}.cell.holiday-session{box-shadow:inset 0 0 0 2px #00c67b;color:#e8fff6;flex-direction:column;gap:2px;padding:3px 4px;text-align:center;line-height:1.1}.cell.holiday-session::after{content:"";position:absolute;inset:0;background:var(--green);opacity:.42;pointer-events:none;z-index:0}.cell.holiday-session span{position:relative;z-index:1}.inverted-cycle{display:block;font-size:8px;font-weight:400;letter-spacing:.02em;text-transform:lowercase}.holiday-day{position:absolute;top:0;bottom:0;pointer-events:none;z-index:1;background:#00c67b29;box-shadow:inset 0 0 0 1px #00c67b80}.row.micro .cell,.row.nano .cell{font-size:8px;letter-spacing:0;opacity:1}.row.nano .cell{font-size:7px}
 .nowline{position:absolute;top:0;bottom:0;width:1px;background:#f3f6fb;box-shadow:0 0 12px #fff8;z-index:3;pointer-events:none}.nowline::before{content:"TERAZ";position:absolute;top:-16px;left:50%;transform:translateX(-50%);font:9px ui-monospace,monospace;letter-spacing:.18em;color:#fff}.view-tools{position:sticky;left:calc(100% - 248px);top:6px;width:236px;height:34px;margin-bottom:-34px;z-index:10;display:flex;align-items:center;justify-content:flex-end;gap:4px;pointer-events:none}.view-tools button,.view-tools select{pointer-events:auto;height:30px;border:1px solid #394454;background:#0c1016;color:#dce3ec;cursor:pointer}.view-tools button{width:34px}.view-tools button:hover,.view-tools select:hover{background:#1a222d}.view-tools select{min-width:96px;color:#9ca6b4;font:10px ui-monospace,monospace;padding:0 8px;color-scheme:dark}
     .tooltip{position:fixed;z-index:20;width:260px;background:#0c0f14;border:1px solid #242d38;box-shadow:0 18px 50px #000b;padding:17px;pointer-events:none;opacity:0;left:0;top:0}.tooltip.show{opacity:1}.tiptime{font:12px ui-monospace,monospace;margin-bottom:13px}.tiprow{display:flex;justify-content:space-between;color:#818a98;font:11px ui-monospace,monospace;letter-spacing:.12em;line-height:1.9}.tiprow b{color:#d8dee7}.tiprow b.q1{color:var(--q1)}.tiprow b.q2{color:#ff7388}.tiprow b.q3{color:#00d688}.tiprow b.q4{color:#5ab9f5}.tiprow b.holiday{color:var(--green)}
@@ -22,6 +23,7 @@
     .datebar{position:absolute;bottom:0;left:0;right:18px;height:24px;border-top:1px solid var(--line);display:flex;align-items:center;justify-content:center;color:#8c95a2;font:10px ui-monospace,monospace;background:var(--bg)}
     @media(max-width:900px){.legend,.quote{display:none}.topbar{padding:0 8px;gap:6px}.brand{min-width:auto}.brand b{font-size:10px}.mark{width:22px;height:22px;font-size:18px}.nav button,.action{padding:9px 10px;font-size:9px}.stage{overflow:hidden}.labels{width:88px;flex-basis:88px;position:relative}.label{padding:0 9px;font-size:8px}.timeline{min-width:0}.grid{background-size:3.125% 100%}.row:not(.micro):not(.nano) .cell{font-size:9px}.footer{grid-template-columns:1fr;height:190px}.pane:nth-child(1),.pane:nth-child(3){display:none}.clock,.settings{display:none}.datebar{right:8px}.tooltip{display:none}.view-tools{left:calc(100% - 186px);width:178px}}
     .chain-now{position:absolute;width:30px;transform:translateX(-50%);pointer-events:none;background:transparent;border:2px solid #76d4ba;z-index:4}.chain-now::before{content:attr(data-count);position:absolute;top:2px;left:50%;transform:translateX(-50%);background:#10251f;color:#9ce8d3;font:11px ui-monospace,monospace;padding:1px 3px}
+    .ltf-probability-window{position:absolute;top:324px;height:162px;min-width:2px;border:1px solid #ffe09b;background:#ffd5751a;pointer-events:none;z-index:2}.ltf-badge{display:block;margin-top:4px;color:#ffe09b;font:9px ui-monospace,monospace}.ltf-tip{padding-top:8px;border-top:1px solid #ffe09b;color:#ffe09b}
     .economic{padding:24px;border-top:1px solid var(--line);background:var(--bg)}.economic header{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}.economic h2{font-size:20px;margin:0 0 6px}.economic p{font-size:14px;color:#99a9bc;margin:8px 0}.economic a{color:#8ec8ee;font-size:14px}.economic-scroll{overflow:auto;max-height:420px;margin-top:16px;border:1px solid var(--line)}.economic table{width:100%;border-collapse:collapse;font-size:14px;text-align:left;min-width:710px}.economic th{position:sticky;top:0;background:var(--bg);color:#a9bacd;font-weight:500;z-index:1}.economic td,.economic th{padding:13px 16px;border-bottom:1px solid var(--line)}.economic td:first-child{white-space:nowrap;font-family:ui-monospace,monospace}.economic tr.upcoming{background:#12302e}.impact{display:inline-block;padding:4px 8px;border-radius:4px;background:#293647;color:#c3cedb;font-size:12px}.impact.high{background:#552733;color:#ffb4bd}.impact.medium{background:#493b22;color:#f3ce86}.impact.low{background:#283828;color:#c2d59a}.economic-note{font-size:12px!important}.economic-empty{padding:20px;color:#99a9bc}
     .economic-filters{display:flex;gap:8px;margin-top:16px}.economic-filters button{padding:8px 14px;border:1px solid #394b60;background:#101e2d;color:#b9c8da;cursor:pointer;font-size:14px;border-radius:4px}.economic-filters button[aria-pressed="true"]{background:#17483d;border-color:#76d4ba;color:#e7fff5}.economic-filters button:focus-visible{outline:2px solid #8ec8ee;outline-offset:3px}.event-timing{display:block;margin-top:5px;color:#aebed0;font-size:12px}.economic.today-view .economic-scroll{max-height:none}
     .pane:first-child,.pane:last-child{display:flex;flex-direction:column;overflow:hidden}
@@ -38,18 +40,43 @@
     @container (max-width:110px){.probability-label{display:none}}
     .tip-probability{margin:3px 0 8px;color:#e8edf4;font:11px/1.4 ui-monospace,monospace;letter-spacing:0}
     .cell.weekly-mixed{background:linear-gradient(90deg,var(--q1) 50%,var(--q4) 50%);color:#fff;text-shadow:0 1px 2px #000}
+    .rule-summary{margin:0;padding:9px 22px;border-bottom:1px solid var(--line);color:#aeb9c7;font:11px/1.5 ui-monospace,monospace}.rule-summary strong{color:#e8edf4}
+    .session-panel{padding:28px 24px 36px;border-top:1px solid var(--line);background:var(--bg)}.session-panel header{display:flex;justify-content:space-between;align-items:center;gap:20px;flex-wrap:wrap}.session-panel h2{margin:0;font-size:20px}.session-panel p{color:#99a9bc;font-size:13px;line-height:1.6}.session-controls{display:flex;align-items:center;gap:6px;flex-wrap:wrap}.session-controls button,.session-controls input{background:#101820;border:1px solid #394454;color:#e8edf4;padding:9px 11px;font:12px ui-monospace,monospace;color-scheme:dark}.session-controls button{cursor:pointer}.session-controls button:disabled{opacity:.35;cursor:default}.session-controls :focus-visible{outline:2px solid #ffe09b;outline-offset:2px}.session-cards{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-top:18px}.session-card{border:1px solid #283748;background:#0c1016;padding:18px;border-radius:6px}.session-card.active-session{border-color:#76d4ba}.session-card h3{margin:0 0 6px;display:flex;justify-content:space-between;font-size:16px}.session-card h3 span{color:#9eb3c9;font:12px ui-monospace,monospace}.session-card .session-range{margin:0;font:11px/1.6 ui-monospace,monospace}.session-targets{padding:12px 0;border-bottom:1px solid #283748;min-height:34px}.session-targets b{color:#e8edf4;font-weight:500}.session-window{padding-top:14px}.session-window+.session-window{margin-top:14px;border-top:1px solid #283748}.session-window-heading{display:flex;justify-content:space-between;align-items:center;gap:8px}.session-window-heading strong{color:#ffe09b;font:10px ui-monospace,monospace}.session-status{font:10px ui-monospace,monospace;color:#96a5b7}.session-window.is-active .session-status{color:#76d4ba}.session-window time{display:block;margin:9px 0;color:#eef3f9;font:12px/1.6 ui-monospace,monospace;white-space:nowrap}.session-chain{display:flex;gap:5px;flex-wrap:wrap}.session-chain span{padding:5px 6px;border:1px solid #34465b;color:#c5d7e8;font:10px ui-monospace,monospace;border-radius:3px}.session-panel .session-note{margin-bottom:0;font-size:12px}.session-empty{padding:12px 0}.session-panel #session-summary,.session-panel .history-summary{margin:16px 0 0;color:#b7c6d6;font:12px/1.6 ui-monospace,monospace}
+    .add-calendar{margin-top:12px;width:100%;padding:8px 10px;background:#14251f;border:1px solid #416d5d;border-radius:4px;color:#d6f5e8;font:11px ui-monospace,monospace;cursor:pointer}.add-calendar:hover{background:#203c32}.add-calendar:focus-visible{outline:2px solid #ffe09b;outline-offset:2px}.add-calendar:disabled{opacity:.5;cursor:wait}
+    .probability-scope{display:flex;gap:4px;margin-right:10px}.probability-scope button[aria-pressed="true"]{border-color:#76d4ba;background:#173b2e;color:#e7fff5}.session-cards.day-view{grid-template-columns:1fr}.day-view .session-window-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px}.day-view .session-window+.session-window{margin:0;border-top:0}.day-view .session-window{padding:14px;border:1px solid #283748;border-radius:4px}.day-view .session-window+.session-window{border-top:1px solid #283748}@media(max-width:600px){.day-view .session-window-list{grid-template-columns:1fr}}
+    @media(max-width:1150px){.session-cards{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:600px){.session-panel{padding:22px 14px}.session-cards{grid-template-columns:1fr}}
+    .ssmt-options{display:flex;flex-wrap:wrap;gap:10px;margin-top:20px}.ssmt-option{display:flex;align-items:center;gap:10px;min-width:130px;padding:13px 16px;border:1px solid #34465b;border-radius:5px;background:#0c1016;color:#c5d7e8;font:13px ui-monospace,monospace;cursor:pointer}.ssmt-option.is-active{border-color:#76d4ba;background:#173b2e;color:#e7fff5}.ssmt-option input{width:17px;height:17px;margin:0;accent-color:#76d4ba;cursor:pointer}.ssmt-option:focus-within{outline:2px solid #ffe09b;outline-offset:3px}.ssmt-messages{display:grid;gap:10px;margin-top:18px}.ssmt-messages p{margin:0;padding:16px 18px;border:1px solid #283748;border-left:3px solid #76d4ba;border-radius:5px;background:#0c1016;color:#e8edf4;font-size:14px;line-height:1.6}.ssmt-messages strong{display:block;color:#76d4ba;font:11px ui-monospace,monospace;margin-bottom:6px}.ssmt-messages [hidden]{display:none}
   </style>
 </head>
 <body>
 <main class="app">
   <header class="topbar">
     <div class="brand"><div class="mark" aria-hidden="true">🔗</div><div><b>CHAIN</b></div></div>
-    <nav class="nav" aria-label="Widok"><button class="active">Timeline</button></nav>
+    <nav class="nav" aria-label="Widok"><button type="button" id="nav-timeline" class="active" aria-current="page" aria-controls="timeline-page">Timeline</button><button type="button" id="nav-events" aria-controls="events-page">Wydarzenia</button></nav>
     <span class="quote">look first, then leap.</span>
     <button class="action" id="jumpNow">Teraz</button>
     <div class="legend"><span><i style="background:var(--q1)"></i>Q1</span><span><i style="background:var(--q2)"></i>Q2</span><span><i style="background:var(--q3)"></i>Q3</span><span><i style="background:var(--q4)"></i>Q4</span><span><i style="background:var(--green)"></i>Bank holiday</span></div>
     <time class="clock" id="clock">--:--:-- CET</time><span class="settings">⚙</span>
   </header>
+  <div class="app-page" id="timeline-page">
+  <section class="session-panel" id="ssmt-panel" aria-labelledby="ssmt-title">
+    <header><h2 id="ssmt-title">Aktywne SSMT</h2></header>
+    <div class="ssmt-options" role="group" aria-label="Aktywne poziomy SSMT">
+      <label class="ssmt-option"><input type="checkbox" aria-controls="ssmt-monthly" />Monthly</label>
+      <label class="ssmt-option"><input type="checkbox" aria-controls="ssmt-weekly" />Weekly</label>
+      <label class="ssmt-option"><input type="checkbox" aria-controls="ssmt-daily" />Daily</label>
+      <label class="ssmt-option"><input type="checkbox" aria-controls="ssmt-session" />Session</label>
+      <label class="ssmt-option"><input type="checkbox" aria-controls="ssmt-90" />90</label>
+    </div>
+    <div class="ssmt-messages" aria-live="polite" aria-relevant="additions text">
+      <p id="ssmt-monthly" hidden><strong>Monthly</strong>Oczekuj 2S z Weekly / Daily / Session w oknie czasowym lub Z OKNEM czasowym.</p>
+      <p id="ssmt-weekly" hidden><strong>Weekly</strong>Oczekuj 2S z Daily / Session / 90 w oknie czasowym lub Z OKNEM czasowym.</p>
+      <p id="ssmt-daily" hidden><strong>Daily</strong>Oczekuj 2S z Session / 90 / Micro w oknie czasowym lub Z OKNEM czasowym.</p>
+      <p id="ssmt-session" hidden><strong>Session</strong>Oczekuj 2S z 90 / Micro / Nano</p>
+      <p id="ssmt-90" hidden><strong>90</strong>Oczekuj 2S z Micro / Nano w oknie czasowym lub Z OKNEM czasowym.</p>
+    </div>
+  </section>
+  <p class="rule-summary"><strong>LOW lub HIGH: Q2 / Q3 → Q1 lub Q3</strong> · okna tylko w pełnych tygodniach pon.–pt. jednego miesiąca · newsy i święta bez wykluczeń</p>
   <section class="stage">
     <aside class="labels" aria-label="Cykle"><div class="label">4YR</div><div class="label">QUARTERLY</div><div class="label">YEARLY</div><div class="label">MONTHLY</div><div class="label">WEEKLY</div><div class="label dot">DAILY</div><div class="label dot">90MIN</div><div class="label dot">MICRO</div><div class="label">NANO</div></aside>
     <div class="timeline" id="timeline"><div class="view-tools" aria-label="Sterowanie osią"><button id="zoomOut" aria-label="Oddal">−</button><select id="zoomRange" aria-label="Zakres osi"><option value="6">6 h</option><option value="12">12 h</option><option value="24">24 h</option><option value="48">48 h</option><option value="72">3 d</option><option value="168" selected>7 d</option></select><button id="zoomIn" aria-label="Przybliż">+</button><button id="resetView" aria-label="Wróć do teraz">◎</button></div><div class="grid" id="grid"></div><div class="nowline" id="nowline"></div><div class="tooltip" id="tooltip"></div><div class="datebar" id="datebar"></div></div>
@@ -59,7 +86,23 @@
     <div class="pane"><h2>TERAZ</h2><div class="current"><div><div class="ring"><b id="activeQ">Q3</b></div><p id="activeText">AKTYWNA SEKWENCJA</p><b id="countdown">00:17:18</b></div></div></div>
     <div class="pane"><div class="chain-pane-heading"><h2>NASTĘPNE OKNA</h2><div class="chain-filters" role="group" aria-label="Zakres nadchodzących łańcuchów" data-panel="next"><button type="button" data-scope="htf" aria-pressed="true" title="4YR–90MIN">HTF</button><button type="button" data-scope="ltf" aria-pressed="false" title="90MIN–NANO">LTF</button></div></div><div class="chain-list" id="next"></div></div>
   </section>
-  <section class="economic" aria-labelledby="economic-title">
+  <section class="session-panel" id="session-panel" aria-labelledby="session-title">
+    <header><h2 id="session-title">High Probability Okna w Sesji</h2>
+      <div class="session-controls" role="group" aria-label="Okna i dzień handlowy"><div class="probability-scope" role="group" aria-label="Skala High Probability"><button type="button" data-probability-scope="session" aria-pressed="true">Sesja</button><button type="button" data-probability-scope="day" aria-pressed="false">Dzień</button></div><button type="button" id="session-prev" aria-label="Poprzedni dzień">←</button><input type="date" id="session-date" aria-label="Dzień handlowy" /><button type="button" id="session-next" aria-label="Następny dzień">→</button><button type="button" id="session-today">Bieżący dzień</button></div>
+    </header>
+    <p id="session-summary" role="status"></p>
+    <div class="session-cards" id="session-cards"></div>
+    <p id="session-calendar-status" role="status" hidden></p>
+  </section>
+  <section class="session-panel" id="history-panel" aria-labelledby="history-title">
+    <header><h2 id="history-title">Minione High Probability Okna w Sesji</h2>
+      <div class="session-controls" role="group" aria-label="Minione okna i dzień handlowy"><div class="probability-scope" role="group" aria-label="Skala minionych okien"><button type="button" data-history-scope="session" aria-pressed="true">Sesja</button><button type="button" data-history-scope="day" aria-pressed="false">Dzień</button></div><button type="button" id="history-prev" aria-label="Poprzedni dzień historii">←</button><input type="date" id="history-date" aria-label="Dzień handlowy historii" /><button type="button" id="history-next" aria-label="Następny dzień historii">→</button><button type="button" id="history-today">Bieżący dzień</button></div>
+    </header>
+    <p id="history-summary" class="history-summary" role="status"></p>
+    <div class="session-cards" id="history-cards"></div>
+  </section>
+  </div>
+  <section class="economic" id="events-page" hidden aria-labelledby="economic-title">
     <header><div><h2 id="economic-title">Wydarzenia</h2><p>USD · czas Nowego Jorku (ET) · minione i nadchodzące</p></div><a href="https://www.forexfactory.com/calendar" target="_blank" rel="noopener noreferrer">Kalendarz Forex Factory ↗</a></header>
     <div class="economic-filters" role="group" aria-label="Zakres kalendarza"><button type="button" id="eventsToday" aria-pressed="true">Dzisiaj</button><button type="button" id="eventsWeek" aria-pressed="false">Cały tydzień</button></div>
     <p id="economic-range"></p>
@@ -71,13 +114,19 @@
 <script src="events.js" defer></script>
 <script src="chains.js"></script>
 <script src="holidays.js"></script>
+<script src="cycle-rules.js"></script>
+<script src="calendar-export.js"></script>
 <script>
+document.querySelectorAll('.ssmt-option input').forEach(checkbox=>checkbox.addEventListener('change',()=>{
+  document.getElementById(checkbox.getAttribute('aria-controls')).hidden=!checkbox.checked;
+  checkbox.closest('.ssmt-option').classList.toggle('is-active',checkbox.checked);
+}));
 const phase={1:['A / X','Akumulacja lub kontynuacja'],2:['M / A','Manipulacja lub akumulacja'],3:['D / M','Dystrybucja lub manipulacja'],4:['X / D','Kontynuacja / Odwrócenie']};
 const grid=document.getElementById('grid');
 const timeline=document.getElementById('timeline'),nowline=document.getElementById('nowline');
 const horizonDays=7,zoomHours=[6,12,24,48,72,168],defaultHours=168;let zoom=24/defaultHours;
 function nyParts(date=new Date()){const parts=new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',year:'numeric',month:'numeric',day:'numeric',weekday:'short',hour:'numeric',minute:'numeric',second:'numeric',hourCycle:'h23'}).formatToParts(date);return Object.fromEntries(parts.filter(p=>p.type!=='literal').map(p=>[p.type,p.value]))}
-function context(date=new Date()){const p=nyParts(date),year=+p.year,month=+p.month,day=+p.day,hour=+p.hour,minute=+p.minute,second=+p.second;const quadrennial=((year-2023)%4+4)%4+1;const yearly=Math.floor((month-1)/3)+1;const quarterly=Math.floor((month-1)/3)+1;const firstWeekday=new Date(Date.UTC(year,month-1,1)).getUTCDay();const firstMonday=1+((8-firstWeekday)%7);const monthly=day<firstMonday?0:Math.min(4,Math.floor((day-firstMonday)/7)+1);const weekly=({Mon:1,Tue:2,Wed:3,Thu:4})[p.weekday]||0;const minutes=(hour*60+minute-1080+1440)%1440;const daily=Math.floor(minutes/360)+1;return {p,year,month,day,hour,minute,second,minutes,quadrennial,yearly,quarterly,monthly,weekly,daily}}
+function context(date=new Date()){const p=nyParts(date),year=+p.year,month=+p.month,day=+p.day,hour=+p.hour,minute=+p.minute,second=+p.second;const quadrennial=((year-2023)%4+4)%4+1;const yearly=Math.floor((month-1)/3)+1;const quarterly=Math.floor((month-1)/3)+1;const monthly=CycleRules.fullWeekQuarter(year,month,day);const weekly=({Mon:1,Tue:2,Wed:3,Thu:4})[p.weekday]||0;const minutes=(hour*60+minute-1080+1440)%1440;const daily=Math.floor(minutes/360)+1;return {p,year,month,day,hour,minute,second,minutes,quadrennial,yearly,quarterly,monthly,weekly,daily}}
 const state=context();
 function weekStartFor(s){const sessionStart=Date.UTC(s.year,s.month-1,s.day,18)-(s.hour<18?86400000:0);const tradingWeekday=new Date(sessionStart+43200000).getUTCDay();return sessionStart-((tradingWeekday+6)%7)*86400000}
 const windowStart=weekStartFor(state);
@@ -85,7 +134,7 @@ const weekDate=new Intl.DateTimeFormat('pl-PL',{timeZone:'UTC',day:'2-digit',mon
 const weekLabel=`${weekDate.format(new Date(windowStart+43200000))}–${weekDate.format(new Date(windowStart+(horizonDays-.5)*86400000))}`;
 function livePosition(s=context()){return (Date.UTC(s.year,s.month-1,s.day,s.hour,s.minute,s.second)-windowStart)/(horizonDays*86400000)}
 const cycles=[{name:'4YR',high:true},{name:'QUARTERLY',high:true},{name:'YEARLY',high:true},{name:'MONTHLY',high:true},{name:'WEEKLY',perDay:1},{name:'DAILY',perDay:4},{name:'90MIN',perDay:16},{name:'MICRO',perDay:64},{name:'NANO',perDay:256}];
-function highValuesAt(x){const day=Math.floor(x*horizonDays),date=new Date(windowStart+(day+.5)*86400000),year=date.getUTCFullYear(),month=date.getUTCMonth()+1,dayOfMonth=date.getUTCDate(),firstWeekday=new Date(Date.UTC(year,month-1,1)).getUTCDay(),firstMonday=1+((8-firstWeekday)%7);return {'4YR':((year-2023)%4+4)%4+1,QUARTERLY:Math.floor((month-1)/3)+1,YEARLY:Math.floor((month-1)/3)+1,MONTHLY:dayOfMonth<firstMonday?0:Math.min(4,Math.floor((dayOfMonth-firstMonday)/7)+1)}}
+function highValuesAt(x){const day=Math.floor(x*horizonDays),date=new Date(windowStart+(day+.5)*86400000),year=date.getUTCFullYear(),month=date.getUTCMonth()+1,dayOfMonth=date.getUTCDate();return {'4YR':((year-2023)%4+4)%4+1,QUARTERLY:Math.floor((month-1)/3)+1,YEARLY:Math.floor((month-1)/3)+1,MONTHLY:CycleRules.fullWeekQuarter(year,month,dayOfMonth)}}
 function weeklyAt(x){
   const day=Math.floor(x*horizonDays);
   const weekday=new Date(windowStart+(day+.5)*86400000).getUTCDay();
@@ -100,6 +149,8 @@ const probabilityRules=[
   {source:'MONTHLY',target:'WEEKLY',scope:'Tygodnia'},
   {source:'WEEKLY',target:'DAILY',scope:'Dnia',edgePair:true},
   {source:'DAILY',target:'90MIN',scope:'Sesji',edgePair:true},
+  {source:'90MIN',target:'MICRO',scope:'90 min',edgePair:true},
+  {source:'MICRO',target:'NANO',scope:'Micro',edgePair:true},
   {source:'QUARTERLY',target:'YEARLY',scope:'Kwartału'}
 ];
 const sessionSmtPairs={1:[[1,4]],2:[[2,3]],3:[[2,3],[3,4]],4:[[1,4]]};
@@ -109,10 +160,14 @@ function smtForSession(q){
 }
 function probabilityFor(name,q,values){
   if(q<1||q>4)return null;
+  if(values.find(value=>value.name==='MONTHLY')?.q===0)return null;
+  const weekday=values.find(value=>value.name==='WEEKLY');
+  if(weekday?.q===0&&weekday.label!=='Q1/Q4')return null;
   const rule=probabilityRules.find(rule=>rule.target===name);
   if(!rule)return null;
   const source=values.find(value=>value.name===rule.source),sourceQ=source?.q;
-  if(sourceQ!==q&&!(rule.edgePair&&[1,4].includes(q)&&([1,4].includes(sourceQ)||source?.label==='Q1/Q4')))return null;
+  const targets=CycleRules.targetQuarters(sourceQ,{edgePair:rule.edgePair,sourceLabel:source?.label});
+  if(!targets.includes(q))return null;
   const sourceLabel=source?.label==='Q1/Q4'?'Q1/Q4':`Q${sourceQ}`;
   const sessionQ=values.find(value=>value.name==='DAILY')?.q;
   const smt=rule.target==='90MIN'?smtForSession(sessionQ):'';
@@ -166,12 +221,12 @@ function paintHolidays(){
       if(!mark.quarters.includes(+cell.dataset.q))return;
       if(!cell.dataset.baseTitle)cell.dataset.baseTitle=cell.title;
       cell.classList.add('holiday-session');
-      cell.title=cell.dataset.baseTitle+' · '+note+' · odwrócony cykl';
+      cell.title=cell.dataset.baseTitle+' · '+note;
       const main=document.createElement('span');
       main.textContent=quarterLabel(+cell.dataset.q);
       const tag=document.createElement('span');
       tag.className='inverted-cycle';
-      tag.textContent='(odwrócony cykl)';
+      tag.textContent='(bank holiday)';
       const probabilityLabel=cell.querySelector('.probability-label');
       cell.replaceChildren(main, tag);
       if(probabilityLabel)cell.append(probabilityLabel);
@@ -204,7 +259,7 @@ timeline.addEventListener('mousemove',e=>{
   if(timeline.classList.contains('dragging')||e.target.closest('.view-tools')){tip.classList.remove('show');return}
   const r=grid.getBoundingClientRect(),x=Math.max(0,Math.min(.999999,(e.clientX-r.left)/r.width));
   const elapsed=x*horizonDays*1440;
-  tip.innerHTML=`<div class="tiptime">+${Math.floor(elapsed/1440)}d · ${clockText(1080+elapsed)}</div>`+valuesAt(x).map(v=>{const match=probabilityFor(v.name,v.q,valuesAt(x));return `<div class="tiprow"><span>${v.name}</span><b class="q${v.q}">${v.q===0?v.label:`${v.label} · ${phase[v.q][0]}`}</b></div>`+(match?`<div class="tip-probability">${match.text}<br>${match.source} ${match.sourceLabel} → ${v.name} Q${v.q}${match.smt?`<div class="smt-detail">Sesja Q${match.sessionQ} → ${match.smt}</div>`:''}</div>`:'')}).join('')+holidayTip(x);
+  tip.innerHTML=`<div class="tiptime">+${Math.floor(elapsed/1440)}d · ${clockText(1080+elapsed)}</div>`+valuesAt(x).map(v=>{const match=probabilityFor(v.name,v.q,valuesAt(x));return `<div class="tiprow"><span>${v.name}</span><b class="q${v.q}">${v.q===0?v.label:`${v.label} · ${phase[v.q][0]}`}</b></div>`+(match?`<div class="tip-probability">${match.text}<br>${match.source} ${match.sourceLabel} → ${v.name} Q${v.q}${match.smt?`<div class="smt-detail">Sesja Q${match.sessionQ} → ${match.smt}</div>`:''}</div>`:'')}).join('')+ltfTip(x)+holidayTip(x);
   tip.classList.add('show');
   placeTip(e);
 });
@@ -212,15 +267,13 @@ timeline.addEventListener('mouseleave',()=>tip.classList.remove('show'));
 function matchingQuarterGroups(values,start,end,minCount){const result=[];for(let q=1;q<=4;q++){let first=-1;for(let row=start;row<=end;row++){const value=values[row],matches=row<end&&(value.q===q||(value.name==='WEEKLY'&&value.label==='Q1/Q4'&&(q===1||q===4)));if(matches){if(first<0)first=row}else if(first>=0){if(row-first>=minCount)result.push({q,indexes:Array.from({length:row-first},(_,i)=>first+i)});first=-1}}}return result}
 const chainRanges={htf:[0,7],ltf:[6,9]};
 const minimumChainLength=3;
-const dayMs=86400000,hourMs=3600000;
+const dayMs=86400000,nanoMs=dayMs/256;
 function valuesAtPseudo(ms){
   const instant=new Date(ms),hour=instant.getUTCHours();
   const sessionStart=Date.UTC(instant.getUTCFullYear(),instant.getUTCMonth(),instant.getUTCDate(),18)-(hour<18?dayMs:0);
   const fraction=(ms-sessionStart)/dayMs;
   const date=new Date(sessionStart+dayMs/2),year=date.getUTCFullYear(),month=date.getUTCMonth()+1,day=date.getUTCDate();
-  const firstWeekday=new Date(Date.UTC(year,month-1,1)).getUTCDay();
-  const firstMonday=1+((8-firstWeekday)%7);
-  const monthly=day<firstMonday?0:Math.min(4,Math.floor((day-firstMonday)/7)+1);
+  const monthly=CycleRules.fullWeekQuarter(year,month,day);
   const weekday=new Date(sessionStart+dayMs/2).getUTCDay();
   const weekly=weekday>=1&&weekday<=4?weekday:0;
   const quarter=Math.floor((month-1)/3)+1;
@@ -228,16 +281,42 @@ function valuesAtPseudo(ms){
   const values=[((year-2023)%4+4)%4+1,quarter,quarter,monthly,weekly,cycleQ(4),cycleQ(16),cycleQ(64),cycleQ(256)];
   return cycles.map((cycle,i)=>({name:cycle.name,q:values[i],label:i===4&&weekday===5?'Q1/Q4':values[i]===0?'Q0':'Q'+values[i]}));
 }
-function chainWindows(scope){
-  const [startRow,endRow]=chainRanges[scope],duration=scope==='htf'?dayMs:hourMs;
-  const first=windowStart-2*dayMs,last=windowStart+horizonDays*dayMs,windows=[];
+function chainWindows(scope,first=windowStart-2*dayMs,last=windowStart+horizonDays*dayMs){
+  // Session starts (18:00 ET) and all nested boundaries are multiples of nanoMs.
+  // Sampling whole hours misses the final Q4/Q4/Q4 interval of every session.
+  const [startRow,endRow]=chainRanges[scope],duration=scope==='htf'?dayMs:nanoMs,windows=[];
   for(let start=first;start<last;start+=duration){
-    const chains=matchingQuarterGroups(valuesAtPseudo(start+1),startRow,endRow,minimumChainLength);
-    windows.push({start,end:start+duration,chains});
+    const values=valuesAtPseudo(start+1);
+    const chains=matchingQuarterGroups(values,startRow,endRow,minimumChainLength);
+    if(scope==='ltf'&&!chains.length)continue;
+    const highProbability=scope==='ltf'&&['MICRO','NANO'].every(name=>probabilityFor(name,values.find(v=>v.name===name).q,values));
+    windows.push({start,end:Math.min(start+duration,last),chains,highProbability});
   }
   return windows;
 }
 const windowTimelines={htf:chainWindows('htf'),ltf:chainWindows('ltf')};
+function preciseTime(ms){
+  const date=new Date(ms),time=date.toISOString().slice(11,19);
+  return time+(date.getUTCMilliseconds()?','+String(date.getUTCMilliseconds()).padStart(3,'0').replace(/0+$/,''):'');
+}
+function ltfRange(item){return `${preciseTime(item.start)}–${preciseTime(item.end)} ET`}
+function paintLtfWindows(){
+  grid.querySelectorAll('.ltf-probability-window').forEach(el=>el.remove());
+  for(const item of windowTimelines.ltf){
+    if(!item.highProbability||item.start<windowStart||item.start>=windowStart+horizonDays*dayMs)continue;
+    const band=document.createElement('div');band.className='ltf-probability-window';
+    band.dataset.quarter=String(item.chains[0].q);
+    band.style.left=((item.start-windowStart)/(horizonDays*dayMs)*100)+'%';
+    band.style.width=((item.end-item.start)/(horizonDays*dayMs)*100)+'%';
+    band.setAttribute('aria-label',`High probability · 90MIN / MICRO / NANO Q${item.chains[0].q} · ${ltfRange(item)}`);
+    grid.append(band);
+  }
+}
+function ltfTip(x){
+  const ms=windowStart+x*horizonDays*dayMs;
+  const item=windowTimelines.ltf.find(item=>item.highProbability&&item.start<=ms&&ms<item.end);
+  return item?`<div class="tip-probability ltf-tip"><strong>High probability · Q${item.chains[0].q} ×3</strong><br>90MIN / MICRO / NANO<br>${ltfRange(item)}</div>`:'';
+}
 const selectedChainScope={previous:'htf',next:'htf'};
 const renderedWindowKey={previous:'',next:''};
 function currentPseudoTime(){return windowStart+livePosition()*horizonDays*dayMs}
@@ -246,20 +325,155 @@ function windowHtml(item,scope,now,open){
   const labelDate=new Date(item.start+(scope==='htf'?dayMs/2:0));
   const date=labelDate.toLocaleDateString('pl-PL',{timeZone:'UTC',day:'2-digit',month:'2-digit'});
   const hour=new Date(item.start).toLocaleTimeString('pl-PL',{timeZone:'UTC',hour:'2-digit',minute:'2-digit',hourCycle:'h23'});
-  const title=scope==='htf'?`${date} · HTF`:`${date} · ${hour}`;
+  const title=scope==='htf'?`${date} · HTF`:`${date} · ${preciseTime(item.start)}`;
   const status=item.end<=now?'minęło':item.start<=now?'trwa':'następne';
-  const description=`Stan na ${hour} ET · okno ${scope==='htf'?'24 h':'1 h'}`;
+  const description=scope==='htf'?`Stan na ${hour} ET · okno 24 h`:`${ltfRange(item)} · 5 min 37,5 s`;
   const chains=item.chains.map(run=>`<div class="chain-window-chain"><b>Q${run.q} ×${run.indexes.length}</b><span>${run.indexes.map(i=>cycles[i].name).join(' + ')}</span></div>`).join('');
-  return `<details class="chain-window"${open?' open':''}><summary><strong>${title}</strong><span>${status} · ${item.chains.length} łańc.</span></summary><div class="chain-window-body"><p>${description}</p>${chains||'<p>Brak łańcucha na początku okna.</p>'}</div></details>`;
+  return `<details class="chain-window${item.highProbability?' high-probability':''}"${open?' open':''}><summary><strong>${title}${item.highProbability?'<small class="ltf-badge">High probability</small>':''}</strong><span>${status} · ${item.chains.length} łańc.</span></summary><div class="chain-window-body"><p>${description}</p>${chains||'<p>Brak łańcucha na początku okna.</p>'}</div></details>`;
 }
 function renderChainPanel(panel,now=currentPseudoTime(),force=false){
-  const scope=selectedChainScope[panel],duration=scope==='htf'?dayMs:hourMs,key=`${scope}:${Math.floor((now-windowStart)/duration)}`;
+  const scope=selectedChainScope[panel],duration=scope==='htf'?dayMs:nanoMs,key=`${scope}:${Math.floor((now-windowStart)/duration)}`;
   if(!force&&renderedWindowKey[panel]===key)return;
   const windows=splitWindows(scope,now)[panel];
   document.getElementById(panel).innerHTML=windows.map((item,i)=>windowHtml(item,scope,now,i===0)).join('');
   renderedWindowKey[panel]=key;
 }
-function updateEvents(){const now=currentPseudoTime();renderChainPanel('previous',now);renderChainPanel('next',now)}
+const sessionNames=['Azja','Londyn','NY AM','NY PM'];
+const sessionDateInput=document.getElementById('session-date');
+const dateKey=ms=>new Date(ms).toISOString().slice(0,10);
+const tradingDateKey=ms=>dateKey(ms+6*3600000);
+sessionDateInput.min=dateKey(windowStart+dayMs/2);
+sessionDateInput.max=dateKey(windowStart+(horizonDays-.5)*dayMs);
+let followSessionDay=true,sessionPanelKey='',probabilityScope='session';
+function sessionsForDay(date){
+  const first=Date.parse(date+'T00:00:00Z')-6*3600000;
+  const ltf=chainWindows('ltf',first,first+dayMs);
+  return sessionNames.map((name,index)=>{
+    const start=first+index*dayMs/4,end=start+dayMs/4,q=index+1;
+    const values=valuesAtPseudo(start+1);
+    const targets=CycleRules.targetQuarters(q,{edgePair:true});
+    const eligible=targets.some(target=>probabilityFor('90MIN',target,values));
+    const windows=ltf.filter(item=>item.start>=start&&item.end<=end&&item.highProbability&&
+      probabilityFor('90MIN',item.chains[0].q,valuesAtPseudo(item.start+1)));
+    return {name,q,start,end,targets,eligible,windows};
+  });
+}
+function sessionCardHtml(session,now,{calendar=true,pastOnly=false}={}){
+  const scope=session.scope||'session',isDay=scope==='day';
+  const chainNames=isDay?['DAILY','90MIN','MICRO']:['90MIN','MICRO','NANO'];
+  const date=ms=>new Date(ms).toLocaleDateString('pl-PL',{timeZone:'UTC',day:'2-digit',month:'2-digit'});
+  const range=`${date(session.start)} ${preciseTime(session.start).slice(0,5)}–${date(session.end)} ${preciseTime(session.end).slice(0,5)} ET`;
+  const windows=session.windows.map(item=>{
+    const active=item.start<=now&&now<item.end,status=active?'Trwa':item.end<=now?'Minęło':'Nadchodzące';
+    const q=item.chains[0].q;
+    return `<div class="session-window${active?' is-active':''}" data-quarter="${q}"><div class="session-window-heading"><strong>High probability${isDay?' · '+sessionNames[q-1]:''}</strong><span class="session-status">${status}</span></div><time>${ltfRange(item)}</time><div class="session-chain">${chainNames.map(name=>`<span>${name} Q${q}</span>`).join('')}</div>${calendar?`<button type="button" class="add-calendar" data-start="${item.start}" data-session="${session.q||0}" data-scope="${scope}">Dodaj do kalendarza</button>`:''}</div>`;
+  }).join('');
+  const empty=session.eligible?(pastOnly?'Brak zakończonych okien.':'Brak pokrywających się okien.'):'Dzień poza filtrem pełnych tygodni pon.–pt.';
+  return `<article class="session-card${!pastOnly&&session.start<=now&&now<session.end?' active-session':''}" data-session="${session.q||0}"><h3>${session.name}${isDay?'':`<span>Q${session.q}</span>`}</h3><p class="session-range">${range}</p><p class="session-targets"><b>${isDay?'DAILY':'90MIN'} ${session.targets.length?session.targets.map(q=>'Q'+q).join(' lub '):'—'}</b></p><div class="session-window-list">${windows||`<p class="session-empty">${empty}</p>`}</div></article>`;
+}
+function dayForDate(date){
+  const start=Date.parse(date+'T00:00:00Z')-6*3600000,end=start+dayMs;
+  const weekday=valuesAtPseudo(start+1).find(v=>v.name==='WEEKLY');
+  const targets=CycleRules.targetQuarters(weekday.q,{edgePair:true,sourceLabel:weekday.label});
+  const eligible=targets.some(q=>probabilityFor('DAILY',q,valuesAtPseudo(start+1)));
+  const windows=[],duration=dayMs/64;
+  for(let time=start;time<end;time+=duration){
+    const values=valuesAtPseudo(time+1);
+    const chains=matchingQuarterGroups(values,5,8,3);
+    if(chains.length&&['DAILY','90MIN','MICRO'].every(name=>probabilityFor(name,values.find(v=>v.name===name).q,values)))
+      windows.push({start:time,end:time+duration,chains,highProbability:true});
+  }
+  return {scope:'day',name:'Dzień',start,end,targets,eligible,windows};
+}
+function renderSessionPanel(now=currentPseudoTime(),force=false){
+  if(followSessionDay)sessionDateInput.value=tradingDateKey(now);
+  const date=sessionDateInput.value,key=`${date}:${probabilityScope}:${Math.floor(now/nanoMs)}`;
+  if(!force&&key===sessionPanelKey)return;
+  const sessions=probabilityScope==='day'?[dayForDate(date)]:sessionsForDay(date),count=sessions.reduce((sum,session)=>sum+session.windows.length,0);
+  document.getElementById('session-title').textContent=probabilityScope==='day'?'High Probability Low / High Dnia':'High Probability Okna w Sesji';
+  document.getElementById('session-cards').classList.toggle('day-view',probabilityScope==='day');
+  document.getElementById('session-cards').innerHTML=sessions.map(session=>sessionCardHtml(session,now)).join('');
+  document.getElementById('session-summary').textContent=`Dzień handlowy ${date.split('-').reverse().join('.')} · ${count} ${count===1?'okno':count>=2&&count<=4?'okna':'okien'}`;
+  document.getElementById('session-prev').disabled=date<=sessionDateInput.min;
+  document.getElementById('session-next').disabled=date>=sessionDateInput.max;
+  sessionPanelKey=key;
+}
+sessionDateInput.addEventListener('change',()=>{
+  if(!sessionDateInput.value||!sessionDateInput.validity.valid){sessionDateInput.value=sessionPanelKey.split(':')[0];return}
+  followSessionDay=false;renderSessionPanel(currentPseudoTime(),true);
+});
+for(const [id,step] of [['session-prev',-1],['session-next',1]])document.getElementById(id).addEventListener('click',()=>{
+  sessionDateInput.value=dateKey(Date.parse(sessionDateInput.value+'T00:00:00Z')+step*dayMs);
+  followSessionDay=false;renderSessionPanel(currentPseudoTime(),true);
+});
+document.getElementById('session-today').addEventListener('click',()=>{followSessionDay=true;renderSessionPanel(currentPseudoTime(),true)});
+document.querySelectorAll('[data-probability-scope]').forEach(button=>button.addEventListener('click',()=>{
+  probabilityScope=button.dataset.probabilityScope;
+  document.querySelectorAll('[data-probability-scope]').forEach(item=>item.setAttribute('aria-pressed',String(item===button)));
+  document.getElementById('session-calendar-status').hidden=true;
+  renderSessionPanel(currentPseudoTime(),true);
+}));
+async function addSessionCalendar(button){
+  const status=document.getElementById('session-calendar-status');
+  button.disabled=true;status.hidden=false;status.textContent='Przygotowywanie wydarzenia…';
+  try{
+    const scope=button.dataset.scope||'session';
+    const session=scope==='day'?dayForDate(sessionDateInput.value):sessionsForDay(sessionDateInput.value).find(session=>session.q===Number(button.dataset.session));
+    const item=session?.windows.find(item=>item.start===Number(button.dataset.start));
+    if(!item)throw new Error('Okno nie jest już dostępne. Wybierz dzień ponownie.');
+    const exported=SessionCalendar.event({scope,name:session.name,q:item.chains[0].q,start:item.start,end:item.end});
+    if(window.webkit?.messageHandlers?.calendarExport){
+      await window.webkit.messageHandlers.calendarExport.postMessage(exported);
+      status.textContent='Otwarto wydarzenie w Kalendarzu — wybierz kalendarz i dodaj wydarzenie.';
+    }else{
+      const url=URL.createObjectURL(new Blob([exported.ics],{type:'text/calendar;charset=utf-8'}));
+      const link=document.createElement('a');link.href=url;link.download=exported.filename;
+      document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),10000);
+      status.textContent='Pobrano wydarzenie. Otwórz plik, aby dodać je do Kalendarza.';
+    }
+    return true;
+  }catch(error){status.textContent=`Nie udało się otworzyć wydarzenia. ${error.message||error}`;return false}
+  finally{button.disabled=false}
+}
+document.getElementById('session-cards').addEventListener('click',event=>{
+  const button=event.target.closest('.add-calendar');if(button)addSessionCalendar(button);
+});
+const historyDateInput=document.getElementById('history-date');
+historyDateInput.min=sessionDateInput.min;
+let historyScope='session',followHistoryDay=true,historyPanelKey='';
+function pastWindowsForDay(date,scope,now){
+  const cards=scope==='day'?[dayForDate(date)]:sessionsForDay(date);
+  return cards.map(card=>({...card,windows:card.windows.filter(item=>item.end<=now)}));
+}
+function renderHistoryPanel(now=currentPseudoTime(),force=false){
+  historyDateInput.max=tradingDateKey(now);
+  if(followHistoryDay)historyDateInput.value=historyDateInput.max;
+  const date=historyDateInput.value,key=`${date}:${historyScope}:${Math.floor(now/nanoMs)}`;
+  if(!force&&key===historyPanelKey)return;
+  const cards=pastWindowsForDay(date,historyScope,now),count=cards.reduce((sum,card)=>sum+card.windows.length,0);
+  document.getElementById('history-title').textContent=historyScope==='day'?'Minione High Probability Low / High Dnia':'Minione High Probability Okna w Sesji';
+  document.getElementById('history-cards').classList.toggle('day-view',historyScope==='day');
+  document.getElementById('history-cards').innerHTML=cards.map(card=>sessionCardHtml(card,now,{calendar:false,pastOnly:true})).join('');
+  document.getElementById('history-summary').textContent=`Dzień handlowy ${date.split('-').reverse().join('.')} · ${count} ${count===1?'zakończone okno':count>=2&&count<=4?'zakończone okna':'zakończonych okien'}`;
+  document.getElementById('history-prev').disabled=date<=historyDateInput.min;
+  document.getElementById('history-next').disabled=date>=historyDateInput.max;
+  historyPanelKey=key;
+}
+historyDateInput.addEventListener('change',()=>{
+  if(!historyDateInput.value||!historyDateInput.validity.valid){historyDateInput.value=historyPanelKey.split(':')[0];return}
+  followHistoryDay=false;renderHistoryPanel(currentPseudoTime(),true);
+});
+for(const [id,step] of [['history-prev',-1],['history-next',1]])document.getElementById(id).addEventListener('click',()=>{
+  historyDateInput.value=dateKey(Date.parse(historyDateInput.value+'T00:00:00Z')+step*dayMs);
+  followHistoryDay=false;renderHistoryPanel(currentPseudoTime(),true);
+});
+document.getElementById('history-today').addEventListener('click',()=>{followHistoryDay=true;renderHistoryPanel(currentPseudoTime(),true)});
+document.querySelectorAll('[data-history-scope]').forEach(button=>button.addEventListener('click',()=>{
+  historyScope=button.dataset.historyScope;
+  document.querySelectorAll('[data-history-scope]').forEach(item=>item.setAttribute('aria-pressed',String(item===button)));
+  renderHistoryPanel(currentPseudoTime(),true);
+}));
+function updateEvents(){const now=currentPseudoTime();renderChainPanel('previous',now);renderChainPanel('next',now);renderSessionPanel(now);renderHistoryPanel(now)}
 document.querySelectorAll('.chain-filters').forEach(group=>group.addEventListener('click',event=>{const button=event.target.closest('button[data-scope]');if(!button||!group.contains(button))return;const panel=group.dataset.panel;selectedChainScope[panel]=button.dataset.scope;group.querySelectorAll('button').forEach(item=>item.setAttribute('aria-pressed',String(item===button)));document.getElementById(panel).scrollTop=0;renderChainPanel(panel,currentPseudoTime(),true)}));
 function tick(){const s=context();if(weekStartFor(s)!==windowStart){location.reload();return}const seconds=s.minutes*60+s.second,next=360*60-(seconds%(360*60));document.getElementById('clock').textContent=new Date().toLocaleTimeString('pl-PL',{timeZone:'America/New_York',hour12:false,timeZoneName:'short'});document.getElementById('datebar').textContent=`Tydzień ${weekLabel} ET · przeciągnij oś wstecz lub w przód`;document.getElementById('activeQ').textContent='Q'+s.daily;document.getElementById('activeText').textContent=`${phase[s.daily][0]} · ${phase[s.daily][1].toUpperCase()}`;document.getElementById('countdown').textContent=new Date(next*1000).toISOString().slice(11,19);nowline.style.left=(livePosition(s)*100)+'%';updateEvents()}
 const zoomRange=document.getElementById('zoomRange');
@@ -289,7 +503,28 @@ function highlightChains(){
     grid.append(overlay);
   });
 }
-build();setHours(defaultHours);tick();highlightChains();paintHolidays();requestAnimationFrame(jumpNow);registerWebMCP();setInterval(()=>{tick();highlightChains()},1000);
+function renderAppPage(scroll=true){
+  const events=location.hash==='#events';
+  document.body.classList.toggle('events-view',events);
+  document.getElementById('timeline-page').hidden=events;
+  document.getElementById('events-page').hidden=!events;
+  document.getElementById('jumpNow').hidden=events;
+  document.querySelector('.legend').hidden=events;
+  tip.classList.remove('show');
+  for(const [id,active] of [['nav-timeline',!events],['nav-events',events]]){
+    const button=document.getElementById(id);button.classList.toggle('active',active);
+    if(active)button.setAttribute('aria-current','page');else button.removeAttribute('aria-current');
+  }
+  document.title=events?"UNC'sWay — Wydarzenia":"UNC'sWay — Quarterly Timeline";
+  if(scroll)window.scrollTo(0,0);
+  if(!events)requestAnimationFrame(()=>{jumpNow();highlightChains()});
+}
+for(const [id,hash] of [['nav-timeline','#timeline'],['nav-events','#events']])document.getElementById(id).addEventListener('click',()=>{
+  if(location.hash!==hash)location.hash=hash;
+  renderAppPage();
+});
+window.addEventListener('hashchange',()=>renderAppPage());
+build();paintLtfWindows();setHours(defaultHours);tick();highlightChains();paintHolidays();renderAppPage(false);requestAnimationFrame(jumpNow);registerWebMCP();setInterval(()=>{tick();highlightChains()},1000);
 </script>
 </body>
 </html>

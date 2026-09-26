@@ -76,7 +76,7 @@
       <p id="ssmt-90" hidden><strong>90</strong>Oczekuj 2S z Micro / Nano w oknie czasowym lub Z OKNEM czasowym.</p>
     </div>
   </section>
-  <p class="rule-summary"><strong>LOW lub HIGH: Q2 / Q3 → Q1 lub Q3</strong> · okna tylko w pełnych tygodniach pon.–pt. jednego miesiąca · newsy i święta bez wykluczeń</p>
+  <p class="rule-summary"><strong>LOW lub HIGH: Q2 / Q3 → Q1 lub Q3</strong> · NY AM: M90 Q3 · okna tylko w pełnych tygodniach pon.–pt. jednego miesiąca · newsy i święta bez wykluczeń</p>
   <section class="stage">
     <aside class="labels" aria-label="Cykle"><div class="label">4YR</div><div class="label">QUARTERLY</div><div class="label">YEARLY</div><div class="label">MONTHLY</div><div class="label">WEEKLY</div><div class="label dot">DAILY</div><div class="label dot">90MIN</div><div class="label dot">MICRO</div><div class="label">NANO</div></aside>
     <div class="timeline" id="timeline"><div class="view-tools" aria-label="Sterowanie osią"><button id="zoomOut" aria-label="Oddal">−</button><select id="zoomRange" aria-label="Zakres osi"><option value="6">6 h</option><option value="12">12 h</option><option value="24">24 h</option><option value="48">48 h</option><option value="72">3 d</option><option value="168" selected>7 d</option></select><button id="zoomIn" aria-label="Przybliż">+</button><button id="resetView" aria-label="Wróć do teraz">◎</button></div><div class="grid" id="grid"></div><div class="nowline" id="nowline"></div><div class="tooltip" id="tooltip"></div><div class="datebar" id="datebar"></div></div>
@@ -166,7 +166,7 @@ function probabilityFor(name,q,values){
   const rule=probabilityRules.find(rule=>rule.target===name);
   if(!rule)return null;
   const source=values.find(value=>value.name===rule.source),sourceQ=source?.q;
-  const targets=CycleRules.targetQuarters(sourceQ,{edgePair:rule.edgePair,sourceLabel:source?.label});
+  const targets=rule.target==='90MIN'?CycleRules.sessionTargetQuarters(sourceQ):CycleRules.targetQuarters(sourceQ,{edgePair:rule.edgePair,sourceLabel:source?.label});
   if(!targets.includes(q))return null;
   const sourceLabel=source?.label==='Q1/Q4'?'Q1/Q4':`Q${sourceQ}`;
   const sessionQ=values.find(value=>value.name==='DAILY')?.q;
@@ -289,7 +289,8 @@ function chainWindows(scope,first=windowStart-2*dayMs,last=windowStart+horizonDa
     const values=valuesAtPseudo(start+1);
     const chains=matchingQuarterGroups(values,startRow,endRow,minimumChainLength);
     if(scope==='ltf'&&!chains.length)continue;
-    const highProbability=scope==='ltf'&&['MICRO','NANO'].every(name=>probabilityFor(name,values.find(v=>v.name===name).q,values));
+    const excluded=CycleRules.excludedSessionWindow(values.find(v=>v.name==='DAILY').q,values.find(v=>v.name==='90MIN').q);
+    const highProbability=scope==='ltf'&&!excluded&&['MICRO','NANO'].every(name=>probabilityFor(name,values.find(v=>v.name===name).q,values));
     windows.push({start,end:Math.min(start+duration,last),chains,highProbability});
   }
   return windows;
@@ -351,7 +352,7 @@ function sessionsForDay(date){
   return sessionNames.map((name,index)=>{
     const start=first+index*dayMs/4,end=start+dayMs/4,q=index+1;
     const values=valuesAtPseudo(start+1);
-    const targets=CycleRules.targetQuarters(q,{edgePair:true});
+    const targets=CycleRules.sessionTargetQuarters(q);
     const eligible=targets.some(target=>probabilityFor('90MIN',target,values));
     const windows=ltf.filter(item=>item.start>=start&&item.end<=end&&item.highProbability&&
       probabilityFor('90MIN',item.chains[0].q,valuesAtPseudo(item.start+1)));

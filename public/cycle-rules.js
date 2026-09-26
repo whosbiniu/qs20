@@ -5,6 +5,15 @@
     return sourceQ >= 1 && sourceQ <= 4 ? [sourceQ] : [];
   }
 
+  function excludedSessionWindow(sessionQ, m90Q) {
+    return sessionQ === 3 && m90Q === 1;
+  }
+
+  function sessionTargetQuarters(sessionQ) {
+    return targetQuarters(sessionQ, { edgePair: true })
+      .filter(q => !excludedSessionWindow(sessionQ, q));
+  }
+
   // Calendar dates of the trading week, independent of holidays and DST.
   // Friday must remain in Monday's month; a crossing week is Q0 in full.
   function fullWeekQuarter(year, month, day) {
@@ -19,7 +28,7 @@
     return Math.min(4, Math.floor((monday.getUTCDate() - firstMonday) / 7) + 1);
   }
 
-  const api = { targetQuarters, fullWeekQuarter };
+  const api = { targetQuarters, sessionTargetQuarters, excludedSessionWindow, fullWeekQuarter };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.CycleRules = api;
 })(typeof globalThis === 'undefined' ? this : globalThis);

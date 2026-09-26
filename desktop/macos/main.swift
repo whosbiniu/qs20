@@ -193,7 +193,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate {
               const source = values.find(v => v.name === rule.source);
               if(source) { source.q=sourceQ; source.label='Q'+sourceQ; }
               else values.push({name:rule.source,q:sourceQ,label:'Q'+sourceQ});
-              return [1,2,3,4].every(q => Boolean(probabilityFor(rule.target,q,values)) === [1,3].includes(q));
+              const expected=rule.target==='90MIN'&&sourceQ===3?[3]:[1,3];
+              return [1,2,3,4].every(q => Boolean(probabilityFor(rule.target,q,values)) === expected.includes(q));
             }));
             const q0Values = valuesAtPseudo(Date.UTC(2022,7,29,12));
             const fullWeekCheck = q0Values.find(v=>v.name==='MONTHLY').q===0 &&
@@ -214,6 +215,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate {
             const fixture=q4Windows[0];
             const panelCheck=windowHtml(fixture,'ltf',fixture.start,true).includes('High probability') &&
               windowHtml(fixture,'ltf',fixture.end,true).includes('minęło');
+            const nyStart=Date.UTC(2026,8,25,6),nyValues=valuesAtPseudo(nyStart);
+            const nyChain=windowTimelines.ltf.find(item=>item.start===nyStart);
+            const nyCell=grid.querySelectorAll('.row')[6].children[Math.floor((nyStart-windowStart)/(dayMs/16))];
+            const nyAmExclusionCheck=probabilityFor('90MIN',1,nyValues)===null &&
+              probabilityFor('90MIN',1,valuesAtPseudo(nyStart+90*60000-1))===null &&
+              !!probabilityFor('90MIN',3,valuesAtPseudo(Date.UTC(2026,8,25,9))) &&
+              !!probabilityFor('90MIN',1,valuesAtPseudo(Date.UTC(2026,8,25,0))) &&
+              !!probabilityFor('90MIN',1,valuesAtPseudo(Date.UTC(2026,8,25,12))) &&
+              nyChain && !nyChain.highProbability &&
+              !windowHtml(nyChain,'ltf',nyStart,true).includes('High probability') &&
+              ltfTip((nyStart-windowStart)/(horizonDays*dayMs))==='' &&
+              !nyCell.classList.contains('probability-match') &&
+              sessionsForDay('2026-09-25')[2].targets.join(',')==='3';
             const nanoRect=document.querySelector('.row.nano').getBoundingClientRect();
             const dateRect=document.getElementById('datebar').getBoundingClientRect();
             const layoutCheck=nanoRect.bottom<=dateRect.top &&
@@ -221,15 +235,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate {
               !!document.querySelector('.row.micro .q4.probability-match') &&
               !!document.querySelector('.row.nano .q4.probability-match');
             const sessionFixtures=sessionsForDay('2026-09-24');
-            const expectedTimes=[['18:00:00','23:54:22,5'],['00:00:00','03:56:15'],['06:00:00','09:56:15'],['12:00:00','17:54:22,5']];
-            const sessionCheck=sessionFixtures.every((session,i)=>session.windows.length===2 &&
+            const expectedTimes=[['18:00:00','23:54:22,5'],['00:00:00','03:56:15'],['09:56:15'],['12:00:00','17:54:22,5']];
+            const sessionCheck=sessionFixtures.every((session,i)=>session.windows.length===expectedTimes[i].length &&
               session.windows.every((item,j)=>preciseTime(item.start)===expectedTimes[i][j] &&
                 item.start>=session.start && item.end<=session.end && item.end-item.start===337500 &&
-                item.chains[0].q===(j===0?1:([0,3].includes(i)?4:3)))) &&
+                item.chains[0].q===(i===2?3:j===0?1:([0,3].includes(i)?4:3)))) &&
               sessionFixtures[0].start===Date.UTC(2026,8,23,18) &&
               !sessionFixtures[1].windows.some(item=>item.chains[0].q===4) &&
               ['2026-09-26','2022-08-29'].every(date=>sessionsForDay(date).every(session=>!session.windows.length)) &&
-              sessionsForDay('2026-09-25').reduce((n,session)=>n+session.windows.length,0)===8 &&
+              sessionsForDay('2026-09-25').reduce((n,session)=>n+session.windows.length,0)===7 &&
               tradingDateKey(Date.UTC(2026,8,24,18))==='2026-09-25' &&
               sessionCardHtml(sessionFixtures[1],sessionFixtures[1].windows[0].start).includes('Trwa') &&
               !sessionCardHtml(sessionFixtures[1],sessionFixtures[1].windows[0].end).includes('Trwa');
@@ -280,11 +294,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate {
               pastCount('2026-09-24','session',londonEnd)===3 &&
               pastCount('2026-09-24','day',dayFirstEnd-1)===0 &&
               pastCount('2026-09-24','day',dayFirstEnd)===1 &&
-              pastCount('2026-09-24','session',Date.UTC(2026,8,25))===8 &&
+              pastCount('2026-09-24','session',Date.UTC(2026,8,25))===7 &&
               pastCount('2026-09-24','day',Date.UTC(2026,8,25))===2 &&
               pastCount('2026-09-25','session',Date.UTC(2026,8,24,12))===0 &&
               pastCount('2022-08-29','day',Date.UTC(2026,8,25))===0 &&
-              sessionsForDay('2026-09-24').reduce((n,card)=>n+card.windows.length,0)===8;
+              sessionsForDay('2026-09-24').reduce((n,card)=>n+card.windows.length,0)===7;
             historyDateInput.value=historyDateInput.min;
             historyDateInput.dispatchEvent(new Event('change'));
             const historyDateCheck=historyDateInput.value===historyDateInput.min && sessionDateInput.value===originalDate;
@@ -329,9 +343,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate {
               cells:document.querySelectorAll('#grid .cell').length,
               clock:document.getElementById('clock').textContent,
               calendar:document.getElementById('economic-status').textContent,
-              ruleChecks,fullWeekCheck,ltfCheck,panelCheck,layoutCheck,sessionCheck,sessionDomCheck,sessionDomDetails,dayCheck,dayDomCheck,restoredSessionCheck,historyCheck,historyDomCheck,routingCheck,
+              ruleChecks,fullWeekCheck,ltfCheck,panelCheck,nyAmExclusionCheck,layoutCheck,sessionCheck,sessionDomCheck,sessionDomDetails,dayCheck,dayDomCheck,restoredSessionCheck,historyCheck,historyDomCheck,routingCheck,
               ok:document.querySelectorAll('#grid .row').length===9 &&
-                 ruleChecks && fullWeekCheck && ltfCheck && panelCheck && layoutCheck && sessionCheck && sessionDomCheck && dayCheck && dayDomCheck && restoredSessionCheck && historyCheck && historyDomCheck && routingCheck &&
+                 ruleChecks && fullWeekCheck && ltfCheck && panelCheck && nyAmExclusionCheck && layoutCheck && sessionCheck && sessionDomCheck && dayCheck && dayDomCheck && restoredSessionCheck && historyCheck && historyDomCheck && routingCheck &&
                  document.getElementById('clock').textContent.length>5 &&
                  document.getElementById('economic-status').textContent.includes('Kopia eksportu')});
             })()

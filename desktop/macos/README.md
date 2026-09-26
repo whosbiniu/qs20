@@ -70,6 +70,12 @@ it checks view navigation, weekly calendar rows and preserved SSMT state.
 Version 1.7.1 places “Aktywne SSMT” first on the Timeline home page,
 directly below the navigation bar, ahead of the timeline and probability panels.
 
+Version 1.7.2 excludes M90 Q1 from High Probability in NY AM (06:00–07:30 ET).
+NY AM session targets now contain only M90 Q3. The Q1/Q1/Q1 LTF chain at
+06:00 retains its quarter labels but loses its High Probability designation.
+Session cards, history and calendar-button availability use the same exclusion;
+other sessions and the daily DAILY/90MIN/MICRO windows retain their rules.
+
 Smoke test: run `dist/UNCsWay.app/Contents/MacOS/UNCsWay --self-test --offline`.
 Checks the timeline, clock, offline calendar, all four daily Q4/Q4/Q4 windows,
 exact boundaries, probability filters and NANO visibility in WebKit.

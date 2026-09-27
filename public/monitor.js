@@ -33,7 +33,7 @@ const Monitor = (() => {
   const rgba = (hex, a) => `rgba(${parseInt(hex.slice(1, 3), 16)},${parseInt(hex.slice(3, 5), 16)},${parseInt(hex.slice(5, 7), 16)},${a})`
   const PATHS = ['cables', 'pipelines', 'shipping']   // layers drawn as lines
   const ORDER = Object.keys(LAYERS)
-  const PANES = ['events', 'risk', 'military', 'ai', 'news', 'tv']
+  const PANES = ['events', 'risk', 'military', 'ai', 'news']
   // Styles specific to the extended monitor; the base .mon-* rules live in index.html.
   document.head.insertAdjacentHTML('beforeend', `<style>
     .mon-bar{flex-wrap:wrap;row-gap:6px}.mon-bar .layers{flex:1 1 100%;order:5;display:flex;flex-wrap:wrap;gap:5px}
@@ -57,7 +57,14 @@ const Monitor = (() => {
     .ai-box{border:1px solid var(--line);padding:8px 10px;line-height:1.55;white-space:pre-wrap;margin-top:8px}
     .mon-side .go{background:var(--ink);color:var(--bg);border:0;font:inherit;padding:5px 10px;cursor:pointer;text-transform:uppercase;letter-spacing:.08em}
     .mon-side .go:disabled{opacity:.5;cursor:wait}
-    .tv-box{position:relative;aspect-ratio:16/9;background:#000;margin-top:2px}.tv-box iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
+    .tv-btn{background:transparent;border:1px solid var(--line);color:var(--ink);font:inherit;font-size:11px;padding:2px 8px;cursor:pointer;text-transform:uppercase;letter-spacing:.06em;white-space:nowrap}
+    .tv-btn:hover{border-color:var(--ink)}.tv-btn.active{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+    .tv-panel{position:absolute;left:10px;bottom:10px;width:clamp(360px,58%,860px);max-width:calc(100% - 20px);background:#000;border:1px solid var(--ink);box-shadow:0 8px 30px rgba(0,0,0,.6);z-index:5;display:flex;flex-direction:column}
+    .tv-panel[hidden]{display:none}
+    .tv-head{display:flex;align-items:center;gap:10px;padding:4px 8px;background:var(--bg);color:var(--dim);font-size:11px;letter-spacing:.06em;text-transform:uppercase}
+    .tv-head b{color:var(--ink);font-weight:400}.tv-head .grow{flex:1}.tv-head a,.tv-head button{color:var(--ink);background:none;border:0;font:inherit;cursor:pointer;text-decoration:none;padding:0 2px}
+    .tv-box{position:relative;aspect-ratio:16/9;background:#000;display:flex;align-items:center;justify-content:center;color:var(--dim)}.tv-box iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
+    .mon.compact .tv-panel{width:calc(100% - 20px)}
   </style>`)
   const STATIC = ['conflicts', 'bases', 'hotspots', 'nuclear', 'sanctions', 'economic', 'waterways']
   const UI = {
@@ -70,7 +77,7 @@ const Monitor = (() => {
     quake: ['earthquake', 'trzęsienie ziemi'], depth: ['depth', 'głębokość'], plane: ['military aircraft', 'samolot wojskowy'], alt: ['altitude', 'wysokość'], speed: ['speed', 'prędkość'],
     alert: ['alert', 'alert'], cable: ['undersea cable', 'kabel podmorski'], outages: ['Internet outages: source unavailable', 'Awarie internetu: brak źródła'],
     ago: [' ago', ' temu'], min: ['min', 'min'], h: ['h', 'h'], d: ['d', 'd'],
-    tabs: { events: ['Events', 'Zdarzenia'], risk: ['Instability', 'Niestabilność'], military: ['Military', 'Wojsko'], ai: ['AI forecast', 'Prognoza AI'], news: ['Reports', 'Doniesienia'], tv: ['Bloomberg TV', 'Bloomberg TV'] },
+    tabs: { events: ['Events', 'Zdarzenia'], risk: ['Instability', 'Niestabilność'], military: ['Military', 'Wojsko'], ai: ['AI forecast', 'Prognoza AI'], news: ['Reports', 'Doniesienia'] },
     level: { critical: ['critical', 'krytyczny'], high: ['high', 'wysoki'], elevated: ['elevated', 'podwyższony'], low: ['low', 'niski'] },
     riskNote: ['Index 0–100 = 70% structural baseline (editorial) + live signals: military aircraft, M4.5+ quakes and natural events inside the region. Trend compares with the last 24 h recorded in this browser.', 'Indeks 0–100 = 70% wartości bazowej (ocena redakcyjna) + sygnały na żywo: samoloty wojskowe, trzęsienia M4.5+ i zdarzenia naturalne w regionie. Trend porównuje z ostatnimi 24 h zapisanymi w tej przeglądarce.'],
     aircraft: ['aircraft', 'samolotów'], trend: ['trend', 'trend'], noTrend: ['collecting history…', 'zbieram historię…'], score: ['index', 'indeks'],
@@ -361,29 +368,46 @@ const Monitor = (() => {
   const riskRows = () => [...(items.instability || [])].sort((a, b) => b.score - a.score)
   const rowHtml = (i, time, text) => `<a class="item" href="#" data-i="${i}"><time>${time}</time><span class="t">${esc(text)}</span></a>`
 
-  // Bloomberg TV: the embed is kept while the pane stays open, so the 60 s data refresh does not restart the stream.
-  let tvState = { id: '', error: '', busy: false }
-  async function loadTv() {
-    if (tvState.busy) return
-    tvState = { id: '', error: '', busy: true }
-    try { tvState = { id: (await (await fetch('/api/tv')).json()).id || '', error: '', busy: false } }
-    catch { tvState = { id: '', error: 'Bloomberg TV: ' + (pl() ? 'brak transmisji na żywo' : 'no live stream'), busy: false } }
-    if (pane === 'tv') renderPane()
-  }
+  // Bloomberg TV: a floating panel over the map, opened from the button in the footer. The stream is only created while it is open.
+  let tv = { open: false, id: '', error: '', busy: false }
   // In the macOS app the player is a native overlay (YouTube refuses file:// pages); the page only reports where the box is.
   const nativeTv = location.protocol === 'file:' && window.webkit?.messageHandlers?.tv
-  function tvOverlay(id) {
+  function tvOverlay() {
     if (!nativeTv) return
-    const host = id && root?.querySelector('.tv-box')
+    const host = tv.open && tv.id && root?.querySelector('.tv-box')
     if (!host) return nativeTv.postMessage({ hide: true })
     const r = host.getBoundingClientRect()
-    nativeTv.postMessage({ id, x: r.left, y: r.top, w: r.width, h: r.height })
+    nativeTv.postMessage({ id: tv.id, x: r.left, y: r.top, w: r.width, h: r.height })
+  }
+  function renderTv() {
+    if (!root) return
+    const panel = root.querySelector('#monTv'), btn = root.querySelector('#monTvBtn')
+    btn.classList.toggle('active', tv.open)
+    panel.hidden = !tv.open
+    if (!tv.open) { panel.querySelector('.tv-box').replaceChildren(); tvOverlay(); return }
+    const box = panel.querySelector('.tv-box')
+    if (tv.id) {
+      if (nativeTv) box.replaceChildren()
+      if (!nativeTv && !box.querySelector('iframe')) box.innerHTML = `<iframe src="https://www.youtube.com/embed/${tv.id}?autoplay=1&mute=1&rel=0" title="Bloomberg TV" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>`
+      requestAnimationFrame(tvOverlay)
+    } else {
+      box.innerHTML = tv.error ? `<span>${esc(tv.error)} <a href="#" id="monTvRetry" style="color:var(--ink)">↻</a></span>` : `<span>${t('connecting')}</span>`
+      if (!tv.error && !tv.busy) loadTv()
+    }
+  }
+  async function loadTv() {
+    tv.busy = true; tv.error = ''
+    try {
+      const response = await fetch('/api/tv'), body = await response.json()
+      if (!response.ok || !body.id) throw new Error(body.error || 'no live stream')
+      tv.id = body.id
+    } catch { tv.id = ''; tv.error = 'Bloomberg TV: ' + (pl() ? 'brak transmisji na żywo' : 'no live stream') }
+    tv.busy = false
+    renderTv()
   }
   function renderPane() {
     if (!root) return
-    if (pane !== 'tv') tvOverlay('')
     const box = root.querySelector('#monPane'), rows = []
-    if (pane === 'tv' && tvState.id && box.querySelector('.tv-box')) { root.querySelector('#monTabs').querySelectorAll('button').forEach(b => b.classList.toggle('active', b.dataset.p === pane)); return }
     root.querySelector('#monTabs').innerHTML = PANES.map(k => `<button data-p="${k}" class="${k === pane ? 'active' : ''}">${esc(UI.tabs[k][pl() ? 1 : 0])}</button>`).join('')
     box.onclick = null
     if (pane === 'events') {
@@ -415,12 +439,6 @@ const Monitor = (() => {
         top.map((r, i) => `<a class="risk" href="#" data-i="${i}" style="--c:${LEVELS[levelOf(r.projected)]}"><div class="row"><span class="n">${esc(pl() ? r.namePl : r.name)}</span><span class="s">${r.score} ${arrow(r)} ${r.projected}</span></div></a>`).join('') +
         `<div class="pane-note">${t('fcNote')}</div><button class="go" id="monAi"${aiState.busy ? ' disabled' : ''}>${aiState.busy ? t('aiBusy') : t('aiButton')}</button>` +
         (aiState.error ? `<div class="ai-box" style="color:#ff7a7a">${esc(aiState.error)}</div>` : aiState.text && aiState.lang === (pl() ? 'pl' : 'en') ? `<div class="ai-box">${esc(aiState.text)}</div><div class="pane-note">${t('aiNote')}</div>` : '')
-    } else if (pane === 'tv') {
-      if (!tvState.id && !tvState.error && !tvState.busy) loadTv()
-      box.innerHTML = tvState.id
-        ? `<div class="tv-box">${nativeTv ? '' : `<iframe src="https://www.youtube.com/embed/${tvState.id}?autoplay=1&mute=1&rel=0" title="Bloomberg TV" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>`}</div><div class="pane-note"><a href="https://www.youtube.com/@markets/live" target="_blank" rel="noopener noreferrer" style="color:var(--ink)">${pl() ? 'otwórz na YouTube ↗' : 'open on YouTube ↗'}</a></div>`
-        : `<div class="none">${tvState.error ? esc(tvState.error) + ' <a href="#" id="monTvRetry" style="color:var(--ink)">↻</a>' : t('connecting')}</div>`
-      requestAnimationFrame(() => tvOverlay(pane === 'tv' ? tvState.id : ''))
     } else {
       box.innerHTML = (data?.articles || []).map(a =>
         `<a class="item" href="${esc(a.url)}" target="_blank" rel="noopener noreferrer" title="${esc(a.domain)}"><time>${hhmm(a.time)}</time><span class="t">${esc(pl() && a.pl ? a.pl : a.title)}</span></a>`).join('')
@@ -428,7 +446,6 @@ const Monitor = (() => {
     }
     box.onclick = e => {
       if (e.target.closest('#monAi')) return askAi()
-      if (e.target.closest('#monTvRetry')) { e.preventDefault(); tvState.error = ''; return loadTv() }
       const a = e.target.closest('[data-i]'); if (!a || !rows.length) return
       e.preventDefault(); select(rows[+a.dataset.i], true)
     }
@@ -526,8 +543,9 @@ const Monitor = (() => {
           <div class="mon-bar"><span id="monLabel"></span><div id="monLayers" class="layers"></div><span class="grow"></span>
             <span id="monRangeLabel"></span><div id="monRange" class="ranges"></div>
             <button data-z="in">+</button><button data-z="out">−</button><button data-z="reset">⌂</button><button id="monLang" class="lang">PL</button></div>
-          <div class="mon-map"><canvas id="monCanvas"></canvas><div id="monTip" hidden></div></div>
-          <div class="mon-foot"><span id="monLegend" class="legend"></span><span class="grow"></span><span id="monStatus"></span><span id="monUpdated"></span></div>
+          <div class="mon-map"><canvas id="monCanvas"></canvas><div id="monTip" hidden></div>
+            <div class="tv-panel" id="monTv" hidden><div class="tv-head"><b>Bloomberg TV</b><span class="grow"></span><a href="https://www.youtube.com/@markets/live" target="_blank" rel="noopener noreferrer">YouTube ↗</a><button id="monTvClose" title="Zamknij">×</button></div><div class="tv-box"></div></div></div>
+          <div class="mon-foot"><button class="tv-btn" id="monTvBtn">▶ Bloomberg TV</button><span id="monLegend" class="legend"></span><span class="grow"></span><span id="monStatus"></span><span id="monUpdated"></span></div>
         </div>
         <aside class="mon-side"><h4 id="monH-sel"></h4><div id="monSel" class="sel"></div>
           <div class="mon-tabs" id="monTabs"></div><div class="feed" id="monPane"></div></aside>
@@ -586,8 +604,10 @@ const Monitor = (() => {
     })
     canvas.addEventListener('pointerleave', () => { tip.hidden = true })
     new ResizeObserver(resize).observe(canvas.parentElement)
-    new ResizeObserver(() => { if (pane === 'tv') tvOverlay(tvState.id) }).observe(root)
-    root.querySelector('#monPane').addEventListener('scroll', () => { if (pane === 'tv') tvOverlay(tvState.id) })
+    new ResizeObserver(tvOverlay).observe(root)
+    root.querySelector('#monTvBtn').onclick = () => { tv.open = !tv.open; renderTv() }
+    root.querySelector('#monTvClose').onclick = () => { tv.open = false; renderTv() }
+    root.querySelector('#monTv').onclick = e => { if (e.target.closest('#monTvRetry')) { e.preventDefault(); loadTv() } }
     window.addEventListener('themechange', redraw)
     build(); renderBar(); renderLists(); renderSelection(); resize()
   }
@@ -600,7 +620,7 @@ const Monitor = (() => {
       else { resize(); load() }
       clearInterval(timer); timer = setInterval(() => { if (!document.hidden && visible) load() }, 60000)
     },
-    hide() { visible = false; clearInterval(timer); tvOverlay(''); root?.querySelector('.tv-box')?.remove() },
+    hide() { visible = false; clearInterval(timer); if (tv.open) { tv.open = false; renderTv() } },
     // Called by the shell whenever the PL / EN switch changes.
     rerender, rerenderLists: rerender,
   }

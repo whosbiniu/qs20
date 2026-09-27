@@ -483,18 +483,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
             // Bloomberg TV pane of the monitor: the live id comes through the proxy, the embed must survive the navigation policy.
             selfTestStarted = true
             DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
-                webView.evaluateJavaScript("document.querySelector('nav button[data-tab=\"monitor\"]').click(); setTimeout(() => document.querySelector('#monTabs [data-p=\"tv\"]').click(), 500); 0") { _, _ in }
+                webView.evaluateJavaScript("document.querySelector('nav button[data-tab=\"monitor\"]').click(); setTimeout(() => document.querySelector('#monTvBtn').click(), 500); 0") { _, _ in }
             }
             DispatchQueue.main.asyncAfter(deadline: .now() + 15) {
-                webView.evaluateJavaScript("(() => { const f = document.querySelector('.tv-box iframe'); return JSON.stringify({iframe: f ? f.src : null, note: document.querySelector('#monPane').innerText.slice(0, 80)}) })()") { result, error in
+                webView.evaluateJavaScript("(() => { const p = document.querySelector('#monTv'); return JSON.stringify({open: !p.hidden, box: p.querySelector('.tv-box').getBoundingClientRect().width}) })()") { result, error in
                     print("tv:", result as Any, error as Any)
                     webView.callAsyncJavaScript("const r = await fetch('/api/tv'); return r.status + ' ' + (await r.text()).slice(0, 120)", arguments: [:], in: nil, in: .page) { r in print("api/tv:", r) }
                     webView.callAsyncJavaScript("const r = await window.webkit.messageHandlers.proxy.postMessage('https://www.youtube.com/@markets/live'); const t = r.text; return r.status + ' len=' + t.length + ' live=' + t.includes('isLiveNow') + ' canon=' + (t.match(/rel=.canonical. href=.([^\"]*)/) || [])[1] + ' consent=' + t.includes('consent')", arguments: [:], in: nil, in: .page) { r in print("raw:", r) }
-                    (self.tv.overlay ?? webView).takeSnapshot(with: nil) { image, _ in
+                    func save(_ image: NSImage?, _ path: String) {
                         if let image, let tiff = image.tiffRepresentation,
                            let bitmap = NSBitmapImageRep(data: tiff), let png = bitmap.representation(using: .png, properties: [:]) {
-                            try? png.write(to: URL(fileURLWithPath: "/tmp/qs-tv-preview.png"))
+                            try? png.write(to: URL(fileURLWithPath: path))
                         }
+                    }
+                    self.tv.overlay?.takeSnapshot(with: nil) { image, _ in save(image, "/tmp/qs-tv-video.png") }
+                    webView.takeSnapshot(with: nil) { image, _ in
+                        save(image, "/tmp/qs-tv-preview.png")
                         DispatchQueue.main.asyncAfter(deadline: .now() + 6) { exit(0) }
                     }
                 }

@@ -11,6 +11,8 @@
     try { const i = JSON.parse(ls.getItem(INDEX) || '{}'); return i && typeof i === 'object' ? i : {}; } catch { return {}; }
   }
   function writeIndex(index) { try { ls.setItem(INDEX, JSON.stringify(index)); } catch {} }
+  // Strictly newer than every entry, so a read and a write in the same millisecond still keep their order.
+  const stamp = index => Object.values(index).reduce((t, e) => Math.max(t, (e.t || 0) + 1), Date.now());
   // Drop stash entries, oldest first, until the stash fits the budget (or until `need` bytes are freed).
   function trim(index, need = 0) {
     const keys = Object.keys(index).sort((a, b) => index[a].t - index[b].t);
@@ -38,7 +40,7 @@
         const raw = ls.getItem(PREFIX + key);
         if (raw === null) return null;
         const index = readIndex();
-        if (index[key]) { index[key].t = Date.now(); writeIndex(index); }
+        if (index[key]) { index[key].t = stamp(index); writeIndex(index); }
         return JSON.parse(raw);
       } catch { return null; }
     },
@@ -48,7 +50,7 @@
       try { text = JSON.stringify(value); } catch { return false; }
       if (text.length > STASH_BUDGET / 3) return false;   // never let one copy crowd out the rest
       const index = readIndex();
-      index[key] = { t: Date.now(), n: text.length };
+      index[key] = { t: stamp(index), n: text.length };
       trim(index);
       for (let attempt = 0; attempt < 3; attempt++) {
         try { ls.setItem(PREFIX + key, text); writeIndex(index); return true; }

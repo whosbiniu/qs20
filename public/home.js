@@ -11,6 +11,7 @@ const Home = (() => {
     quarters: { title: 'Kwartały', url: () => QUARTERS_URL },
     highs: { title: 'Aktualne L/H', url: () => HIGHS_URL },
     monitor: { title: 'Monitor', move: true },
+    tv: { title: 'Bloomberg TV', url: () => TV_URL },
   };
   // size 0: one column, 1: full width, 2: full width and tall
   const SIZES = [{ span: 1, height: 420, icon: '▫' }, { span: 2, height: 420, icon: '▭' }, { span: 2, height: 720, icon: '▣' }];
@@ -61,7 +62,7 @@ const Home = (() => {
         <button data-act="down" data-tip="Przesuń panel niżej (albo przeciągnij go za nagłówek)" aria-label="Przesuń panel niżej"${index === items.length - 1 ? ' disabled' : ''}>↓</button>
         <button data-act="remove" data-tip="Zamknij panel — usuwa go ze strony głównej (możesz dodać go ponownie u góry)" aria-label="Zamknij panel: usuń ze strony głównej">✕</button></header><div class="wbody"></div>`;
       const body = widget.querySelector('.wbody');
-      if (def.url) body.innerHTML = `<iframe src="${esc(def.url())}" title="${esc(def.title)}" loading="lazy"></iframe>`;
+      if (def.url) body.innerHTML = `<iframe src="${esc(def.url())}" title="${esc(def.title)}" loading="lazy" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>`;
       else if (def.news) body.innerHTML = '<div class="feed" data-news></div>';
       grid.append(widget);
       if (def.move) {

@@ -139,3 +139,58 @@ window.MONITOR_GEO = {
     ['Arctic Connect / Polar Express', 'Arctic Connect / Polar Express', [[24.9, 60.2], [25, 70], [70, 78], [130, 76], [177, 65]]],
   ],
 }
+
+// Pipelines and sea lanes: [name-en, name-pl, path [[lon, lat], ...], note-en, note-pl]. Schematic routes.
+Object.assign(window.MONITOR_GEO, {
+  pipelines: [
+    ['Nord Stream 1/2 (damaged)', 'Nord Stream 1/2 (uszkodzone)', [[28.7, 60.6], [23, 59.6], [19, 57.5], [15, 55.2], [13.6, 54.1]], 'Russia–Germany gas, sabotaged in 2022.', 'Gaz Rosja–Niemcy, uszkodzony w 2022 r.'],
+    ['Yamal–Europe', 'Jamał–Europa', [[70, 67], [60, 62], [48, 57], [35, 54], [28, 53], [21, 52.2], [14.5, 52.4]], 'Russian gas via Belarus and Poland.', 'Rosyjski gaz przez Białoruś i Polskę.'],
+    ['Druzhba (oil)', 'Przyjaźń (ropa)', [[52.3, 54.9], [50, 53], [32.7, 52.8], [29.2, 52], [23.6, 52.2], [19.7, 52.5], [14.3, 53.1]], 'Russia–Central Europe crude oil.', 'Ropa z Rosji do Europy Środkowej.'],
+    ['Druzhba south', 'Przyjaźń – odnoga południowa', [[29.2, 52], [24, 50.4], [22.3, 48.6], [18.9, 47.3]], 'Branch to Slovakia and Hungary.', 'Odnoga na Słowację i Węgry.'],
+    ['TurkStream', 'TurkStream', [[37.2, 44.7], [33, 42.5], [28.5, 41.3]], 'Russia–Türkiye gas under the Black Sea.', 'Gaz Rosja–Turcja pod Morzem Czarnym.'],
+    ['Blue Stream', 'Blue Stream', [[38.7, 44.3], [37, 42.5], [36.3, 41.3]], 'Russia–Türkiye gas.', 'Gaz Rosja–Turcja.'],
+    ['Power of Siberia', 'Siła Syberii', [[112, 61], [118, 58], [124, 53], [127.5, 50.3]], 'Russia–China gas.', 'Gaz Rosja–Chiny.'],
+    ['ESPO oil pipeline', 'Rurociąg ESPO', [[102, 56], [111, 56], [124, 53.5], [133, 48.5], [132.9, 42.8]], 'Eastern Siberia–Pacific oil.', 'Ropa ze wschodniej Syberii na Pacyfik.'],
+    ['Baku–Tbilisi–Ceyhan', 'Baku–Tbilisi–Ceyhan', [[49.9, 40.4], [44.8, 41.7], [41.5, 40.5], [35.9, 36.9]], 'Caspian oil to the Mediterranean.', 'Ropa z Kaspiju do Morza Śródziemnego.'],
+    ['Kirkuk–Ceyhan', 'Kirkuk–Ceyhan', [[44.4, 35.5], [42.5, 36.5], [40, 37.3], [35.9, 36.9]], 'Iraq–Türkiye oil.', 'Ropa Irak–Turcja.'],
+    ['East–West (Petroline)', 'Wschód–Zachód (Petroline)', [[49.6, 26.3], [43, 25], [38.1, 24.1]], 'Saudi crude to the Red Sea.', 'Saudyjska ropa do Morza Czerwonego.'],
+    ['Baltic Pipe', 'Baltic Pipe', [[3.2, 56.5], [8.2, 55.6], [12, 55.3], [14.5, 54.7], [15.1, 54.3]], 'Norway–Denmark–Poland gas.', 'Gaz Norwegia–Dania–Polska.'],
+    ['Trans Adriatic (TAP)', 'Trans-Adriatycki (TAP)', [[26.2, 40.9], [20.8, 40.7], [19.5, 40.5], [18.3, 40.4]], 'Azerbaijan gas to Italy.', 'Gaz z Azerbejdżanu do Włoch.'],
+    ['Central Asia–China', 'Azja Środkowa–Chiny', [[62.2, 37.5], [69, 42], [80.4, 44.2], [87.6, 43.8]], 'Turkmen gas to China.', 'Turkmeński gaz do Chin.'],
+    ['Trans-Alaska', 'Trans-Alaska', [[-148.3, 70.3], [-149, 65], [-146.3, 61.1]], 'Prudhoe Bay to Valdez.', 'Z Prudhoe Bay do Valdez.'],
+    ['Keystone', 'Keystone', [[-110, 54], [-104, 50], [-97.5, 42], [-97.3, 37], [-95, 29.7]], 'Canada–US Gulf Coast oil.', 'Ropa Kanada–wybrzeże Zatoki Meksykańskiej.'],
+    ['Trans-Mediterranean', 'Trans-Śródziemnomorski', [[3.2, 32.9], [8, 35], [10.5, 37], [12.5, 37.5], [14, 42], [9, 45]], 'Algeria–Italy gas.', 'Gaz Algieria–Włochy.'],
+  ],
+  shipping: [
+    ['Asia–Europe via Suez', 'Azja–Europa przez Suez', [[-5.6, 36], [10, 37.5], [32.4, 31.2], [43.3, 12.6], [58, 20], [76, 7], [80, 5.9], [95, 5.5], [103.8, 1.2], [110, 7], [114, 17], [122, 25], [125, 31]], 'Busiest container route.', 'Najruchliwszy szlak kontenerowy.'],
+    ['Cape route', 'Szlak wokół Afryki', [[-9.5, 38.5], [-20, 20], [-10, 0], [5, -20], [18.5, -35], [35, -30], [50, -15], [70, -5], [80, 5.9]], 'Alternative to Suez and the Red Sea.', 'Alternatywa dla Suezu i Morza Czerwonego.'],
+    ['North Atlantic', 'Północny Atlantyk', [[-74, 40.5], [-50, 44], [-30, 48], [-5, 49.7], [1.5, 51]], 'US–Europe.', 'USA–Europa.'],
+    ['Transpacific', 'Transpacyficzny', [[-118, 33.7], [-150, 35], [-180, 38], [160, 38], [140, 34.9]], 'US West Coast–Japan.', 'Zachodnie wybrzeże USA–Japonia.'],
+    ['Panama–Asia', 'Panama–Azja', [[-79.5, 8.9], [-110, 15], [-150, 25], [-180, 30], [150, 32], [140, 35]], 'Panama Canal to East Asia.', 'Kanał Panamski–Azja Wschodnia.'],
+    ['Persian Gulf oil route', 'Szlak ropy z Zatoki Perskiej', [[50, 27], [56.4, 26.6], [60, 24], [72, 19]], 'Tankers through the Strait of Hormuz.', 'Tankowce przez Cieśninę Ormuz.'],
+    ['Northern Sea Route', 'Północna Droga Morska', [[29, 70], [60, 73], [100, 77], [140, 72], [170, 69.5], [-170, 66]], 'Arctic route along Russia.', 'Arktyczny szlak wzdłuż Rosji.'],
+    ['Black Sea corridor', 'Korytarz Morza Czarnego', [[30.7, 46.4], [31, 44], [29, 41.2]], 'Ukrainian grain and Russian exports.', 'Ukraińskie zboże i rosyjski eksport.'],
+  ],
+  // Regions for the instability index: [id, lat, lon, radius km, baseline 0-100, name-en, name-pl]
+  // The baseline is an editorial judgement of structural risk; live signals are added on top.
+  regions: [
+    ['ukraine', 49, 34, 700, 92, 'Ukraine / Russia', 'Ukraina / Rosja'],
+    ['gaza', 31.4, 34.8, 250, 90, 'Israel / Gaza / Lebanon', 'Izrael / Gaza / Liban'],
+    ['sudan', 15.5, 31, 800, 86, 'Sudan', 'Sudan'],
+    ['myanmar', 21, 96.5, 600, 74, 'Myanmar', 'Mjanma'],
+    ['yemen', 15, 45, 550, 80, 'Yemen / Red Sea', 'Jemen / Morze Czerwone'],
+    ['syria', 34.8, 38.5, 450, 72, 'Syria / Iraq', 'Syria / Irak'],
+    ['gulf', 27, 53, 700, 62, 'Iran / Persian Gulf', 'Iran / Zatoka Perska'],
+    ['sahel', 14, 0, 1100, 70, 'Sahel', 'Sahel'],
+    ['drc', -1.5, 28.5, 600, 72, 'Eastern DR Congo', 'Wschodnia DR Konga'],
+    ['horn', 6, 45, 700, 64, 'Horn of Africa', 'Róg Afryki'],
+    ['libya', 30, 17, 700, 55, 'Libya', 'Libia'],
+    ['haiti', 19, -72.5, 350, 66, 'Haiti / Caribbean', 'Haiti / Karaiby'],
+    ['taiwan', 24, 120.5, 600, 58, 'Taiwan Strait', 'Cieśnina Tajwańska'],
+    ['scs', 12, 114, 800, 52, 'South China Sea', 'Morze Południowochińskie'],
+    ['korea', 38, 127, 450, 55, 'Korean Peninsula', 'Półwysep Koreański'],
+    ['kashmir', 33.5, 74.5, 500, 56, 'Kashmir / India–Pakistan', 'Kaszmir / Indie–Pakistan'],
+    ['baltic', 55, 21, 600, 50, 'Baltic / Kaliningrad', 'Bałtyk / Kaliningrad'],
+    ['caucasus', 41, 45, 450, 44, 'South Caucasus', 'Południowy Kaukaz'],
+  ],
+})

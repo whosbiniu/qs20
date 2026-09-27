@@ -6,28 +6,57 @@ const Monitor = (() => {
   const BG = '#050505'
   const MAX_LAT = 85
   const RANGES = ['24h', '48h', '7d', '30d']
-  // key → [shape, glyph, label en, label pl, legend en, legend pl]
+  // key → [shape, glyph, label en, label pl]. Every layer has its own colour (COLORS); shape and glyph stay as a second cue.
   const LAYERS = {
     conflicts: ['circle', '✕', 'Conflicts', 'Konflikty'],
-    bases: ['square', 'B', 'Military bases', 'Bazy wojskowe'],
-    cables: ['line', '', 'Undersea cables', 'Kable podmorskie'],
+    instability: ['zone', '', 'Instability', 'Niestabilność'],
+    military: ['plane', '', 'Military flights', 'Loty wojskowe'],
     hotspots: ['triangle', '!', 'Hotspots', 'Punkty zapalne'],
+    bases: ['square', 'B', 'Military bases', 'Bazy wojskowe'],
     nuclear: ['hex', 'N', 'Nuclear', 'Obiekty jądrowe'],
+    cables: ['line', '', 'Undersea cables', 'Kable podmorskie'],
+    pipelines: ['line', '', 'Pipelines', 'Rurociągi'],
+    shipping: ['line', '', 'Shipping lanes', 'Szlaki morskie'],
+    waterways: ['square', '≈', 'Waterways', 'Cieśniny i kanały'],
     sanctions: ['slash', '', 'Sanctions', 'Sankcje'],
     weather: ['round', 'W', 'Weather alerts', 'Alerty pogodowe'],
     canadaAlerts: ['round', 'CA', 'Canada alerts', 'Alerty Kanady'],
     economic: ['diamond', '$', 'Economic centres', 'Centra ekonomiczne'],
-    waterways: ['square', '≈', 'Waterways', 'Szlaki wodne'],
-    military: ['plane', '', 'Military flights', 'Loty wojskowe'],
     natural: ['quake', '', 'Natural events', 'Zdarzenia naturalne'],
   }
+  const COLORS = {
+    conflicts: '#ff4d4d', instability: '#ff9a1f', military: '#ff9a1f', hotspots: '#ff7ac6', bases: '#a78bfa', nuclear: '#a3e635',
+    cables: '#38bdf8', pipelines: '#d4a017', shipping: '#2dd4bf', waterways: '#2dd4bf', sanctions: '#cbd5e1',
+    weather: '#fde047', canadaAlerts: '#f0abfc', economic: '#86efac', natural: '#f5f5f5',
+  }
+  const LEVELS = { critical: '#ff4d4d', high: '#ff9a1f', elevated: '#fde047', low: '#4ade80' }
+  const rgba = (hex, a) => `rgba(${parseInt(hex.slice(1, 3), 16)},${parseInt(hex.slice(3, 5), 16)},${parseInt(hex.slice(5, 7), 16)},${a})`
+  const PATHS = ['cables', 'pipelines', 'shipping']   // layers drawn as lines
   const ORDER = Object.keys(LAYERS)
-  // Styles specific to the extended monitor bar; the base .mon-* rules live in index.html.
+  const PANES = ['events', 'risk', 'military', 'ai', 'news']
+  // Styles specific to the extended monitor; the base .mon-* rules live in index.html.
   document.head.insertAdjacentHTML('beforeend', `<style>
-    .mon-bar{flex-wrap:nowrap}.mon-bar>*{flex:none}.mon-bar .layers{flex:1 1 0;min-width:0;overflow-x:auto;scrollbar-width:thin;scrollbar-color:var(--line) var(--bg)}
-    .mon-bar .layers,.mon-bar .ranges{display:flex;gap:6px}.mon-bar .grow{display:none}
-    .mon-bar button{padding:2px 8px;font-size:11px;white-space:nowrap}.mon-foot .legend{display:flex;flex-wrap:wrap;gap:4px 14px}
-    .mon-side .feed{max-height:22vh}.mon.compact .legend{display:none}.mon.compact .mon-foot{padding:3px 10px}
+    .mon-bar{flex-wrap:wrap;row-gap:6px}.mon-bar .layers{flex:1 1 100%;order:5;display:flex;flex-wrap:wrap;gap:5px}
+    .mon-bar .ranges{display:flex;gap:6px}.mon-bar .grow{flex:1}
+    .mon.compact .mon-bar{flex-wrap:nowrap}.mon.compact .mon-bar>*{flex:none}.mon.compact .mon-bar .layers{flex:1 1 0;order:0;min-width:0;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:thin;scrollbar-color:var(--line) var(--bg)}.mon.compact .mon-bar .grow{display:none}
+    .mon-bar button b{font-weight:400;margin-right:4px}
+    .mon-bar button{padding:2px 8px;font-size:11px;white-space:nowrap}
+    .mon-bar button[data-l]{border-left:3px solid var(--c)}
+    .mon-bar button[data-l].active{background:var(--c);border-color:var(--c);color:#050505}
+    .mon-foot .legend{display:flex;flex-wrap:wrap;gap:4px 14px}.mon-foot .legend b{font-weight:400;color:var(--c)}
+    .mon.compact .legend{display:none}.mon.compact .mon-foot{padding:3px 10px}
+    .mon-side{gap:0}.mon-side #monPane{flex:1 1 auto;min-height:160px;max-height:none;overflow-y:auto}
+    .mon-tabs{display:flex;flex-wrap:wrap;gap:4px;margin:10px 0 6px}
+    .mon-tabs button{background:transparent;border:1px solid var(--line);color:var(--dim);font:inherit;font-size:11px;padding:2px 7px;cursor:pointer;text-transform:uppercase;letter-spacing:.06em}
+    .mon-tabs button:hover{color:var(--ink);border-color:var(--ink)}.mon-tabs button.active{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+    .risk{display:block;padding:7px 0;border-top:1px solid var(--faint);color:var(--ink);text-decoration:none}
+    .risk .row{display:flex;gap:8px;align-items:baseline}.risk .n{flex:1;min-width:0}.risk .s{font-weight:700;color:var(--c)}
+    .risk .bar{height:4px;background:var(--faint);margin-top:5px}.risk .bar i{display:block;height:100%;background:var(--c)}
+    .risk .sub{color:var(--dim);font-size:11px;margin-top:3px}
+    .pane-note{color:var(--dim);font-size:11px;line-height:1.5;padding:6px 0;border-top:1px solid var(--faint)}
+    .ai-box{border:1px solid var(--line);padding:8px 10px;line-height:1.55;white-space:pre-wrap;margin-top:8px}
+    .mon-side .go{background:var(--ink);color:var(--bg);border:0;font:inherit;padding:5px 10px;cursor:pointer;text-transform:uppercase;letter-spacing:.08em}
+    .mon-side .go:disabled{opacity:.5;cursor:wait}
   </style>`)
   const STATIC = ['conflicts', 'bases', 'hotspots', 'nuclear', 'sanctions', 'economic', 'waterways']
   const UI = {
@@ -38,8 +67,19 @@ const Monitor = (() => {
     gdeltDown: ['GDELT temporarily unavailable (rate limit)', 'GDELT chwilowo niedostępny (limit zapytań)'], missing: ['no data: ', 'brak danych: '],
     fetchError: ['data error: ', 'błąd pobierania danych: '], source: ['open source ↗', 'otwórz źródło ↗'], zoom: ['zoom ×', 'zoom ×'],
     quake: ['earthquake', 'trzęsienie ziemi'], depth: ['depth', 'głębokość'], plane: ['military aircraft', 'samolot wojskowy'], alt: ['altitude', 'wysokość'], speed: ['speed', 'prędkość'],
-    alert: ['alert', 'alert'], cable: ['undersea cable', 'kabel podmorski'], outages: ['Internet outages: source unavailable', 'Awarie internetu: źródło niedostępne'],
+    alert: ['alert', 'alert'], cable: ['undersea cable', 'kabel podmorski'], outages: ['Internet outages: source unavailable', 'Awarie internetu: brak źródła'],
     ago: [' ago', ' temu'], min: ['min', 'min'], h: ['h', 'h'], d: ['d', 'd'],
+    tabs: { events: ['Events', 'Zdarzenia'], risk: ['Instability', 'Niestabilność'], military: ['Military', 'Wojsko'], ai: ['AI forecast', 'Prognoza AI'], news: ['Reports', 'Doniesienia'] },
+    level: { critical: ['critical', 'krytyczny'], high: ['high', 'wysoki'], elevated: ['elevated', 'podwyższony'], low: ['low', 'niski'] },
+    riskNote: ['Index 0–100 = 70% structural baseline (editorial) + live signals: military aircraft, M4.5+ quakes and natural events inside the region. Trend compares with the last 24 h recorded in this browser.', 'Indeks 0–100 = 70% wartości bazowej (ocena redakcyjna) + sygnały na żywo: samoloty wojskowe, trzęsienia M4.5+ i zdarzenia naturalne w regionie. Trend porównuje z ostatnimi 24 h zapisanymi w tej przeglądarce.'],
+    aircraft: ['aircraft', 'samolotów'], trend: ['trend', 'trend'], noTrend: ['collecting history…', 'zbieram historię…'], score: ['index', 'indeks'],
+    milNote: ['Military aircraft (adsb.lol) per region. Only aircraft that broadcast ADS-B are visible, so counts are a lower bound.', 'Samoloty wojskowe (adsb.lol) w regionach. Widać tylko maszyny nadające ADS-B, więc liczby są dolną granicą.'],
+    milTotal: ['military aircraft tracked worldwide', 'śledzonych samolotów wojskowych na świecie'], outside: ['outside monitored regions', 'poza monitorowanymi regionami'], types: ['types', 'typy'],
+    fcTitle: ['Outlook for the next 24 h (heuristic)', 'Perspektywa na najbliższe 24 h (heurystyka)'], fcNote: ['Projection = index + 60% of the recent change. It is a trend extrapolation, not a prediction of events.', 'Projekcja = indeks + 60% ostatniej zmiany. To ekstrapolacja trendu, nie przewidywanie zdarzeń.'],
+    aiButton: ['Generate AI briefing', 'Wygeneruj analizę AI'], aiBusy: ['Analysing…', 'Analizuję…'], aiNote: ['Written by Claude from the scores and headlines above. It can be wrong; treat it as a summary, not intelligence.', 'Tekst pisze Claude na podstawie powyższych wyników i nagłówków. Może się mylić — to streszczenie, nie wywiad.'],
+    aiOff: ['AI briefing is not configured on the server (set ANTHROPIC_API_KEY).', 'Analiza AI nie jest skonfigurowana na serwerze (ustaw ANTHROPIC_API_KEY).'], aiFail: ['AI briefing failed: ', 'Analiza AI nie powiodła się: '],
+    region: ['region', 'region'], rising: ['rising', 'rośnie'], falling: ['falling', 'spada'], steady: ['steady', 'stabilnie'],
+    pipeline: ['pipeline', 'rurociąg'], lane: ['shipping lane', 'szlak morski'],
     static: { conflicts: ['conflict zone', 'strefa konfliktu'], bases: ['military base', 'baza wojskowa'], hotspots: ['hotspot', 'punkt zapalny'], nuclear: ['nuclear facility', 'obiekt jądrowy'],
       sanctions: ['sanctioned country', 'kraj objęty sankcjami'], economic: ['economic centre', 'centrum ekonomiczne'], waterways: ['strategic waterway', 'strategiczny szlak wodny'] },
     sev: { Extreme: ['Extreme', 'Ekstremalne'], Severe: ['Severe', 'Poważne'], yellow: ['Yellow', 'Żółty'], orange: ['Orange', 'Pomarańczowy'], red: ['Red', 'Czerwony'] },
@@ -71,18 +111,58 @@ const Monitor = (() => {
   const sev = s => UI.sev[s] ? UI.sev[s][pl() ? 1 : 0] : s
   const quakePlace = place => pl() ? place.replace(/^(\d+) km ([NSEW]{1,3}) of /, '$1 km na $2 od ') : place
 
+  const REGIONS = () => (window.MONITOR_GEO?.regions || []).map(r => ({ id: r[0], lat: r[1], lon: r[2], km: r[3], base: r[4], name: r[5], namePl: r[6] }))
+  const distanceKm = (aLat, aLon, bLat, bLon) => {
+    const rad = Math.PI / 180, dLat = (bLat - aLat) * rad, dLon = (bLon - aLon) * rad
+    const h = Math.sin(dLat / 2) ** 2 + Math.cos(aLat * rad) * Math.cos(bLat * rad) * Math.sin(dLon / 2) ** 2
+    return 12742 * Math.asin(Math.sqrt(h))
+  }
+  const levelOf = score => score >= 75 ? 'critical' : score >= 55 ? 'high' : score >= 35 ? 'elevated' : 'low'
+  // Per-browser history of (aircraft, score) per region: the only source for trends, sampled at most every 10 minutes.
+  let history = {}
+  try { history = JSON.parse(localStorage.getItem('monHist') || '{}') } catch {}
+  function recordHistory(rows) {
+    const now = Date.now()
+    for (const r of rows) {
+      const list = history[r.id] = (history[r.id] || []).filter(x => now - x[0] < 48 * 3600000)
+      if (!list.length || now - list[list.length - 1][0] >= 600000) list.push([now, r.aircraft, r.score])
+    }
+    try { localStorage.setItem('monHist', JSON.stringify(history)) } catch {}
+  }
+  function analyse(live) {
+    const rows = REGIONS().map(r => {
+      const inside = i => distanceKm(r.lat, r.lon, i.lat, i.lon) <= r.km
+      const planes = live.aircraft.filter(inside)
+      const quakes = live.quakes.filter(q => q.mag >= 4.5 && inside(q)).length, events = live.events.filter(inside).length
+      const score = Math.min(100, Math.round(r.base * 0.7 + Math.min(20, planes.length * 2.5) + Math.min(6, quakes * 2) + Math.min(4, events)))
+      const types = {}
+      for (const a of planes) if (a.type) types[a.type] = (types[a.type] || 0) + 1
+      return { ...r, score, level: levelOf(score), aircraft: planes.length, quakes, events, types: Object.entries(types).sort((a, b) => b[1] - a[1]).slice(0, 4) }
+    })
+    // trend: current score against the average of samples 30 min – 24 h old (needs two of them)
+    const now = Date.now()
+    for (const r of rows) {
+      const old = (history[r.id] || []).filter(x => now - x[0] > 1800000 && now - x[0] < 86400000)
+      r.delta = old.length >= 2 ? Math.round(r.score - old.reduce((a, x) => a + x[2], 0) / old.length) : null
+      r.projected = Math.max(0, Math.min(100, Math.round(r.score + (r.delta ?? 0) * 0.6)))
+    }
+    recordHistory(rows)
+    return rows
+  }
+
   function build() {
     const geo = window.MONITOR_GEO || {}
     for (const layer of STATIC) items[layer] = (geo[layer] || []).map((r, i) => ({ id: layer + i, layer, lat: r[0], lon: r[1], name: r[2], namePl: r[3], note: r[4], notePl: r[5] }))
-    items.cables = (geo.cables || []).map((c, i) => {
+    for (const layer of PATHS) items[layer] = (geo[layer] || []).map((c, i) => {
       const path = c[2], mid = path[Math.floor(path.length / 2)]
-      return { id: 'cable' + i, layer: 'cables', lat: mid[1], lon: mid[0], name: c[0], namePl: c[1], path, note: '', notePl: '' }
+      return { id: layer + i, layer, lat: mid[1], lon: mid[0], name: c[0], namePl: c[1], path, note: c[3] || '', notePl: c[4] || '' }
     })
     const live = data || { quakes: [], events: [], aircraft: [], weather: [], canada: [] }
     items.natural = [...live.quakes.map(q => ({ ...q, layer: 'natural', kind: 'quake' })), ...live.events.map(e => ({ ...e, layer: 'natural', kind: 'event' }))]
     items.military = live.aircraft.map(a => ({ ...a, layer: 'military' }))
     items.weather = live.weather.map(w => ({ ...w, layer: 'weather' }))
     items.canadaAlerts = live.canada.map(w => ({ ...w, layer: 'canadaAlerts' }))
+    items.instability = loadedOnce ? analyse(live).map(r => ({ ...r, id: 'risk-' + r.id, layer: 'instability' })) : []
   }
   const flat = () => ORDER.flatMap(k => items[k] || [])
 
@@ -181,10 +261,20 @@ const Monitor = (() => {
       }
     }
     ctx.lineJoin = 'round'
-    // cables: dashed paths (their hit points are the vertices)
-    if (on('cables')) {
-      ctx.strokeStyle = DIM; ctx.lineWidth = 1; ctx.setLineDash([5, 3])
-      for (const c of items.cables) for (const k of copies) {
+    // instability zones sit under everything else: a translucent disc per region, coloured by level
+    if (on('instability')) for (const r of items.instability) place(r, (x, y) => {
+      const col = LEVELS[r.level], rad = Math.max(10, r.km / 111.32 / Math.max(.2, Math.cos(r.lat * Math.PI / 180)) * view.scale / 360)
+      ctx.beginPath(); ctx.arc(x, y, rad, 0, 7); ctx.fillStyle = rgba(col, .1); ctx.fill()
+      ctx.strokeStyle = rgba(col, .6); ctx.lineWidth = 1; ctx.setLineDash([4, 4]); ctx.stroke(); ctx.setLineDash([])
+      ctx.fillStyle = col; ctx.font = '700 11px ui-monospace,Menlo,monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+      ctx.fillText(String(r.score), x, y); ctx.textAlign = 'start'; ctx.textBaseline = 'alphabetic'
+    })
+    // lines: each layer has its own colour and dash style (cables dashed, pipelines solid and thick, sea lanes dotted)
+    const DASH = { cables: [5, 3], pipelines: [], shipping: [1, 4] }
+    for (const layer of PATHS) {
+      if (!on(layer)) continue
+      ctx.strokeStyle = COLORS[layer]; ctx.lineWidth = layer === 'pipelines' ? 2 : 1.4; ctx.setLineDash(DASH[layer]); ctx.lineCap = layer === 'shipping' ? 'round' : 'butt'
+      for (const c of items[layer]) for (const k of copies) {
         ctx.beginPath()
         let previous = null
         c.path.forEach(([lon, lat], i) => {
@@ -194,19 +284,19 @@ const Monitor = (() => {
         })
         ctx.stroke()
       }
-      ctx.setLineDash([])
-      for (const c of items.cables) place(c, (x, y) => { ctx.fillStyle = INK; ctx.fillRect(x - 2, y - 2, 4, 4) })
+      ctx.setLineDash([]); ctx.lineCap = 'butt'
+      for (const c of items[layer]) place(c, (x, y) => { ctx.fillStyle = COLORS[layer]; ctx.fillRect(x - 2.5, y - 2.5, 5, 5) })
     }
-    // reference points: outlined shape + glyph
+    // reference points: outlined shape + glyph in the layer colour
     for (const layer of ['sanctions', 'economic', 'waterways', 'bases', 'nuclear', 'hotspots', 'conflicts', 'weather', 'canadaAlerts']) {
       if (!on(layer)) continue
-      const [kind, glyph] = LAYERS[layer], live = layer === 'weather' || layer === 'canadaAlerts', r = layer === 'conflicts' ? 8 : live ? 6 : 6.5
+      const [kind, glyph] = LAYERS[layer], col = COLORS[layer], live = layer === 'weather' || layer === 'canadaAlerts', r = layer === 'conflicts' ? 8 : live ? 6 : 6.5
       for (const item of items[layer]) place(item, (x, y) => {
         shape(kind === 'slash' || kind === 'round' ? 'circle' : kind, x, y, r)
-        ctx.fillStyle = layer === 'conflicts' ? `rgba(${inkRgb},.28)` : BG; ctx.fill()
-        ctx.strokeStyle = INK; ctx.lineWidth = layer === 'conflicts' ? 1.6 : 1; ctx.stroke()
+        ctx.fillStyle = layer === 'conflicts' ? rgba(col, .3) : BG; ctx.fill()
+        ctx.strokeStyle = col; ctx.lineWidth = layer === 'conflicts' ? 1.6 : 1; ctx.stroke()
         if (kind === 'slash') { ctx.beginPath(); ctx.moveTo(x - r * .7, y + r * .7); ctx.lineTo(x + r * .7, y - r * .7); ctx.stroke() }
-        if (glyph) { ctx.fillStyle = INK; ctx.font = `${glyph.length > 1 ? 7 : 9}px ui-monospace,Menlo,monospace`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(glyph, x, y + .5); ctx.textAlign = 'start'; ctx.textBaseline = 'alphabetic' }
+        if (glyph) { ctx.fillStyle = col; ctx.font = `${glyph.length > 1 ? 7 : 9}px ui-monospace,Menlo,monospace`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(glyph, x, y + .5); ctx.textAlign = 'start'; ctx.textBaseline = 'alphabetic' }
         if (zoom > 3 && !live) { ctx.fillStyle = DIM; ctx.font = '10px ui-monospace,Menlo,monospace'; ctx.fillText(pl() ? item.namePl : item.name, x + r + 4, y + 3) }
       })
     }
@@ -221,26 +311,32 @@ const Monitor = (() => {
       ctx.fillStyle = `rgba(${inkRgb},${fresh ? .35 : .08})`; ctx.fill()
       ctx.strokeStyle = INK; ctx.lineWidth = 1; ctx.stroke()
     })
+    // military flights: an arrow with a short trail behind it showing where it came from
     if (on('military')) for (const a of items.military) place(a, (x, y) => {
+      const col = COLORS.military
       ctx.save(); ctx.translate(x, y); ctx.rotate((a.track || 0) * Math.PI / 180)
-      ctx.fillStyle = INK; ctx.beginPath(); ctx.moveTo(0, -6); ctx.lineTo(4, 5); ctx.lineTo(0, 3); ctx.lineTo(-4, 5); ctx.closePath(); ctx.fill()
+      ctx.strokeStyle = rgba(col, .55); ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(0, 4); ctx.lineTo(0, 24); ctx.stroke()
+      ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(0, -6); ctx.lineTo(4, 5); ctx.lineTo(0, 3); ctx.lineTo(-4, 5); ctx.closePath(); ctx.fill()
       ctx.restore()
       if (zoom > 4 && a.callsign) { ctx.fillStyle = DIM; ctx.font = '10px ui-monospace,Menlo,monospace'; ctx.fillText(a.callsign, x + 8, y + 3) }
     })
     // selection marker
     for (const h of hit) if (h.item === selected) {
-      ctx.strokeStyle = INK; ctx.setLineDash([3, 3]); ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(h.x, h.y, 15, 0, 7); ctx.stroke(); ctx.setLineDash([])
+      ctx.strokeStyle = COLORS[h.item.layer] || INK; ctx.setLineDash([3, 3]); ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(h.x, h.y, 15, 0, 7); ctx.stroke(); ctx.setLineDash([])
     }
     ctx.fillStyle = DIM; ctx.font = '11px ui-monospace,Menlo,monospace'
     ctx.fillText(t('zoom') + (view.scale / Math.max(size.w, size.h * 0.9)).toFixed(1), 10, size.h - 10)
   }
   const redraw = () => { if (!frame) frame = requestAnimationFrame(draw) }
 
+  const trendText = r => r.delta === null ? t('noTrend') : `${r.delta > 2 ? '↑ ' + t('rising') : r.delta < -2 ? '↓ ' + t('falling') : '→ ' + t('steady')} (${r.delta > 0 ? '+' : ''}${r.delta})`
+
   // [title, line 2, line 3] for an item, in the current language.
   function describe(item) {
     const L = pl() ? 1 : 0
     if (STATIC.includes(item.layer)) return [pl() ? item.namePl : item.name, pl() ? item.notePl : item.note, UI.static[item.layer][L]]
-    if (item.layer === 'cables') return [pl() ? item.namePl : item.name, t('cable'), '']
+    if (PATHS.includes(item.layer)) return [pl() ? item.namePl : item.name, pl() ? item.notePl : item.note, item.layer === 'cables' ? t('cable') : item.layer === 'pipelines' ? t('pipeline') : t('lane')]
+    if (item.layer === 'instability') return [`${pl() ? item.namePl : item.name}`, `${t('score')} ${item.score}/100 · ${UI.level[item.level][L]}`, `${item.aircraft} ${t('aircraft')} · ${trendText(item)}`]
     if (item.layer === 'natural' && item.kind === 'quake')
       return [`M${item.mag.toFixed(1)} · ${t('quake')}`, quakePlace(item.place), `${clock(item.time)} (${ago(item.time)}) · ${t('depth')} ${Math.round(item.depth)} km`]
     if (item.layer === 'natural') return [pl() ? UI.cat[item.category] || item.category : item.category || 'event', fixedTitle(item), `${clock(item.time)} (${ago(item.time)})`]
@@ -259,26 +355,86 @@ const Monitor = (() => {
   }
   function select(item, center) { selected = item; renderSelection(center); redraw() }
 
-  function renderLists() {
-    const feedRows = [
-      ...(items.natural || []).filter(i => i.kind === 'event' || i.mag >= 4.5).map(item => ({ item, time: item.time, text: item.kind === 'quake' ? `M${item.mag.toFixed(1)} · ${quakePlace(item.place)}` : `${pl() ? UI.cat[item.category] || item.category : item.category} · ${fixedTitle(item)}` })),
-      ...(items.weather || []).map(item => ({ item, time: item.time, text: `${fixedTitle(item)} · ${item.area}` })),
-      ...(items.canadaAlerts || []).map(item => ({ item, time: item.time, text: `${fixedTitle(item)} · ${item.area}` })),
-    ].filter(r => layersOn[r.item.layer]).sort((a, b) => b.time - a.time).slice(0, 60)
-    const list = root.querySelector('#monList')
-    list.innerHTML = feedRows.map((row, i) => `<a class="item" href="#" data-i="${i}"><time>${hhmm(row.time)}</time><span class="t">${esc(row.text)}</span></a>`).join('') || `<div class="none">${t('noEvents')}</div>`
-    list.onclick = e => { const a = e.target.closest('[data-i]'); if (!a) return; e.preventDefault(); select(feedRows[+a.dataset.i].item, true) }
-    const zones = root.querySelector('#monZones')
-    zones.innerHTML = (items.conflicts || []).map((c, i) => `<a class="item" href="#" data-i="${i}"><time>✕</time><span class="t">${esc(pl() ? c.namePl : c.name)}</span></a>`).join('')
-    zones.onclick = e => { const a = e.target.closest('[data-i]'); if (!a) return; e.preventDefault(); select(items.conflicts[+a.dataset.i], true) }
-    root.querySelector('#monNews').innerHTML = (data?.articles || []).map(a =>
-      `<a class="item" href="${esc(a.url)}" target="_blank" rel="noopener noreferrer" title="${esc(a.domain)}"><time>${hhmm(a.time)}</time><span class="t">${esc(pl() && a.pl ? a.pl : a.title)}</span></a>`).join('')
-      || `<div class="none">${data?.failed.includes('articles') ? t('gdeltDown') : t('noReports')}</div>`
+  let pane = PANES.includes(localStorage.getItem('monPane')) ? localStorage.getItem('monPane') : 'events'
+  let aiState = { text: '', busy: false, error: '', lang: '' }
+  const riskRows = () => [...(items.instability || [])].sort((a, b) => b.score - a.score)
+  const rowHtml = (i, time, text) => `<a class="item" href="#" data-i="${i}"><time>${time}</time><span class="t">${esc(text)}</span></a>`
+
+  function renderPane() {
+    if (!root) return
+    const box = root.querySelector('#monPane'), rows = []
+    root.querySelector('#monTabs').innerHTML = PANES.map(k => `<button data-p="${k}" class="${k === pane ? 'active' : ''}">${esc(UI.tabs[k][pl() ? 1 : 0])}</button>`).join('')
+    box.onclick = null
+    if (pane === 'events') {
+      const feed = [
+        ...(items.natural || []).filter(i => i.kind === 'event' || i.mag >= 4.5).map(item => ({ item, time: item.time, text: item.kind === 'quake' ? `M${item.mag.toFixed(1)} · ${quakePlace(item.place)}` : `${pl() ? UI.cat[item.category] || item.category : item.category} · ${fixedTitle(item)}` })),
+        ...(items.weather || []).map(item => ({ item, time: item.time, text: `${fixedTitle(item)} · ${item.area}` })),
+        ...(items.canadaAlerts || []).map(item => ({ item, time: item.time, text: `${fixedTitle(item)} · ${item.area}` })),
+      ].filter(r => layersOn[r.item.layer]).sort((a, b) => b.time - a.time).slice(0, 60)
+      feed.forEach(r => rows.push(r.item))
+      box.innerHTML = feed.map((r, i) => rowHtml(i, hhmm(r.time), r.text)).join('') || `<div class="none">${t('noEvents')}</div>`
+    } else if (pane === 'risk') {
+      const list = riskRows()
+      list.forEach(r => rows.push(r))
+      box.innerHTML = list.map((r, i) => `<a class="risk" href="#" data-i="${i}" style="--c:${LEVELS[r.level]}"><div class="row"><span class="n">${esc(pl() ? r.namePl : r.name)}</span><span class="s">${r.score}</span></div>
+        <div class="bar"><i style="width:${r.score}%"></i></div><div class="sub">${UI.level[r.level][pl() ? 1 : 0]} · ${esc(trendText(r))} · ${r.aircraft} ${t('aircraft')}</div></a>`).join('') + `<div class="pane-note">${t('riskNote')}</div>`
+    } else if (pane === 'military') {
+      const list = riskRows().filter(r => r.aircraft).sort((a, b) => b.aircraft - a.aircraft)
+      const total = (items.military || []).length, inRegions = list.reduce((n, r) => n + r.aircraft, 0)
+      list.forEach(r => rows.push(r))
+      const max = Math.max(1, ...list.map(r => r.aircraft))
+      box.innerHTML = `<div class="pane-note" style="border:0;padding-top:0"><b style="color:${COLORS.military}">${total}</b> ${t('milTotal')} · ${Math.max(0, total - inRegions)} ${t('outside')}</div>` +
+        list.map((r, i) => `<a class="risk" href="#" data-i="${i}" style="--c:${COLORS.military}"><div class="row"><span class="n">${esc(pl() ? r.namePl : r.name)}</span><span class="s">${r.aircraft}</span></div>
+          <div class="bar"><i style="width:${r.aircraft / max * 100}%"></i></div><div class="sub">${r.types.length ? t('types') + ': ' + esc(r.types.map(([n, c]) => n + '×' + c).join(', ')) : '—'}</div></a>`).join('') + `<div class="pane-note">${t('milNote')}</div>`
+    } else if (pane === 'ai') {
+      const top = riskRows().map(r => ({ ...r })).sort((a, b) => b.projected - a.projected).slice(0, 6)
+      top.forEach(r => rows.push(r))
+      const arrow = r => r.projected - r.score > 1 ? '↑' : r.projected - r.score < -1 ? '↓' : '→'
+      box.innerHTML = `<div class="pane-note" style="border:0;padding-top:0"><b>${t('fcTitle')}</b></div>` +
+        top.map((r, i) => `<a class="risk" href="#" data-i="${i}" style="--c:${LEVELS[levelOf(r.projected)]}"><div class="row"><span class="n">${esc(pl() ? r.namePl : r.name)}</span><span class="s">${r.score} ${arrow(r)} ${r.projected}</span></div></a>`).join('') +
+        `<div class="pane-note">${t('fcNote')}</div><button class="go" id="monAi"${aiState.busy ? ' disabled' : ''}>${aiState.busy ? t('aiBusy') : t('aiButton')}</button>` +
+        (aiState.error ? `<div class="ai-box" style="color:#ff7a7a">${esc(aiState.error)}</div>` : aiState.text && aiState.lang === (pl() ? 'pl' : 'en') ? `<div class="ai-box">${esc(aiState.text)}</div><div class="pane-note">${t('aiNote')}</div>` : '')
+    } else {
+      box.innerHTML = (data?.articles || []).map(a =>
+        `<a class="item" href="${esc(a.url)}" target="_blank" rel="noopener noreferrer" title="${esc(a.domain)}"><time>${hhmm(a.time)}</time><span class="t">${esc(pl() && a.pl ? a.pl : a.title)}</span></a>`).join('')
+        || `<div class="none">${data?.failed.includes('articles') ? t('gdeltDown') : t('noReports')}</div>`
+    }
+    box.onclick = e => {
+      if (e.target.closest('#monAi')) return askAi()
+      const a = e.target.closest('[data-i]'); if (!a || !rows.length) return
+      e.preventDefault(); select(rows[+a.dataset.i], true)
+    }
+  }
+  const renderLists = renderPane
+
+  // Optional AI briefing: the server (which holds the API key) asks Claude to summarise the scores and headlines.
+  async function askAi() {
+    if (aiState.busy || !data) return
+    const language = pl() ? 'pl' : 'en'
+    aiState = { text: '', busy: true, error: '', lang: language }; renderPane()
+    try {
+      const response = await fetch('/api/forecast', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          lang: language,
+          regions: riskRows().slice(0, 14).map(r => ({ name: r.name, score: r.score, projected: r.projected, aircraft: r.aircraft, trend: r.delta })),
+          headlines: [...(data.articles || []).map(a => a.title), ...(data.events || []).map(e => e.title)].slice(0, 16),
+        }),
+      })
+      const payload = await response.json()
+      if (response.status === 503) throw Object.assign(new Error(t('aiOff')), { plain: true })
+      if (!response.ok) throw new Error(payload.error || response.status)
+      aiState = { text: payload.text, busy: false, error: '', lang: language }
+    } catch (error) {
+      aiState = { text: '', busy: false, error: error.plain ? error.message : t('aiFail') + error.message, lang: language }
+    }
+    renderPane()
   }
 
   function renderBar() {
+    const glyph = { conflicts: '✕', instability: '◌', military: '▲', hotspots: '!', bases: 'B', nuclear: 'N', cables: '┄', pipelines: '━', shipping: '⋯', waterways: '≈', sanctions: '⊘', weather: 'W', canadaAlerts: 'CA', economic: '$', natural: '◯' }
     root.querySelector('#monLayers').innerHTML = ORDER.map(key =>
-      `<button data-l="${key}" class="${layersOn[key] ? 'active' : ''}">${esc(label(key))}${loadedOnce ? ` <i>${items[key].length}</i>` : ''}</button>`).join('')
+      `<button data-l="${key}" style="--c:${COLORS[key]}" class="${layersOn[key] ? 'active' : ''}"><b>${glyph[key]}</b>${esc(label(key))}${loadedOnce ? ` <i>${(items[key] || []).length}</i>` : ''}</button>`).join('')
     root.querySelector('#monRange').innerHTML = RANGES.map(r => `<button data-r="${r}" class="${r === range ? 'active' : ''}">${r}</button>`).join('')
     root.querySelector('#monLang').textContent = pl() ? 'PL' : 'EN'
     root.querySelector('#monLabel').textContent = t('layers')
@@ -287,10 +443,7 @@ const Monitor = (() => {
     root.querySelector('[data-z="out"]').setAttribute('aria-label', t('zoomOut'))
     root.querySelector('[data-z="reset"]').setAttribute('aria-label', t('world'))
     root.querySelector('#monH-sel').textContent = t('selected')
-    root.querySelector('#monH-zones').textContent = t('situation')
-    root.querySelector('#monH-events').textContent = t('events')
-    root.querySelector('#monH-news').firstChild.textContent = t('reports') + ' '
-    root.querySelector('#monLegend').innerHTML = ORDER.filter(k => k !== 'military' && k !== 'natural').map(k => `<span>${LAYERS[k][1] || '┄'} ${esc(label(k))}</span>`).join('') + `<span>▲ ${esc(label('military'))}</span><span>◯ ◇ ${esc(label('natural'))}</span><span title="${esc(t('outages'))}">⚠ ${esc(t('outages'))}</span>`
+    root.querySelector('#monLegend').textContent = '⚠ ' + t('outages')
     const status = root.querySelector('#monStatus')
     if (!data) { status.textContent = t('connecting'); return }
     const names = { quakes: 'USGS', events: 'NASA EONET', aircraft: 'adsb.lol', articles: 'GDELT', weather: 'NWS', canada: 'Environment Canada' }
@@ -349,9 +502,7 @@ const Monitor = (() => {
           <div class="mon-foot"><span id="monLegend" class="legend"></span><span class="grow"></span><span id="monStatus"></span><span id="monUpdated"></span></div>
         </div>
         <aside class="mon-side"><h4 id="monH-sel"></h4><div id="monSel" class="sel"></div>
-          <h4 id="monH-zones"></h4><div class="feed" id="monZones"></div>
-          <h4 id="monH-events"></h4><div class="feed" id="monList"></div>
-          <h4 id="monH-news">&nbsp;<i>gdelt</i></h4><div class="feed" id="monNews"></div></aside>
+          <div class="mon-tabs" id="monTabs"></div><div class="feed" id="monPane"></div></aside>
       </div>`
     canvas = root.querySelector('#monCanvas'); ctx = canvas.getContext('2d'); tip = root.querySelector('#monTip')
     root.querySelector('#monLayers').onclick = e => {
@@ -360,13 +511,18 @@ const Monitor = (() => {
       layersOn[key] = !layersOn[key]
       localStorage.setItem('monLayers2', JSON.stringify(layersOn))
       if (selected && !layersOn[selected.layer]) select(null)
-      renderBar(); renderLists(); redraw()
+      renderBar(); renderPane(); redraw()
     }
     root.querySelector('#monRange').onclick = e => {
       const r = e.target.closest('[data-r]')?.dataset.r
       if (!r || r === range) return
       range = r; localStorage.setItem('monRange', r)
       renderBar(); load()
+    }
+    root.querySelector('#monTabs').onclick = e => {
+      const k = e.target.closest('[data-p]')?.dataset.p
+      if (!k || k === pane) return
+      pane = k; localStorage.setItem('monPane', k); renderPane()
     }
     // The language switch is global (headlines, side panel, monitor): delegate to the shell's own toggle.
     root.querySelector('#monLang').onclick = () => document.querySelector('[data-lang]:not(#monLang)')?.click()

@@ -1,6 +1,12 @@
 import Cocoa
 import WebKit
 
+// Only pages shipped inside the app bundle (main frame or the terminal's iframes) may use the bridges.
+func isBundledPage(_ frame: WKFrameInfo) -> Bool {
+    guard let url = frame.request.url, url.isFileURL else { return false }
+    return url.standardizedFileURL.path.hasPrefix(Bundle.main.resourceURL!.path + "/public/")
+}
+
 final class CalendarBridge: NSObject, WKScriptMessageHandlerWithReply {
     var cached: [String: Any]?
     var expires = Date.distantPast
@@ -16,7 +22,7 @@ final class CalendarBridge: NSObject, WKScriptMessageHandlerWithReply {
     func userContentController(_ userContentController: WKUserContentController,
                                didReceive message: WKScriptMessage,
                                replyHandler: @escaping (Any?, String?) -> Void) {
-        guard message.frameInfo.isMainFrame, message.frameInfo.request.url?.isFileURL == true else {
+        guard isBundledPage(message.frameInfo) else {
             replyHandler(nil, "Unsupported origin"); return
         }
         if let cached, expires > Date() { replyHandler(cached, nil); return }
@@ -63,18 +69,20 @@ final class MarketHighsBridge: NSObject, WKScriptMessageHandlerWithReply {
     func userContentController(_ userContentController: WKUserContentController,
                                didReceive message: WKScriptMessage,
                                replyHandler: @escaping (Any?, String?) -> Void) {
-        guard message.frameInfo.isMainFrame,
-              let origin = message.frameInfo.request.url, origin.isFileURL,
-              origin.standardizedFileURL.path.hasPrefix(Bundle.main.resourceURL!.path + "/public/") else {
+        guard isBundledPage(message.frameInfo) else {
             replyHandler(nil, "Unsupported origin"); return
         }
         let assets = [("NQ1!", "NQ=F"), ("ES1!", "ES=F"), ("YM1!", "YM=F")]
-        if CommandLine.arguments.contains("--self-test") {
+        if CommandLine.arguments.contains("--self-test") || CommandLine.arguments.contains("--self-test-highs") {
             var charts: [String: Any] = [:]
             for (symbol, feed) in assets {
-                charts[symbol] = ["meta": ["symbol": feed, "shortName": "Test fixture"],
+                let intraday: [String: Any] = ["meta": ["symbol": feed, "shortName": "Test fixture"],
                     "timestamp": [1790308800, 1790310120],
-                    "indicators": ["quote": [["high": [100, 110], "volume": [10, 10]]]]]
+                    "indicators": ["quote": [["high": [100, 110], "low": [90, 80], "volume": [10, 10]]]]]
+                let history: [String: Any] = ["meta": ["symbol": feed, "shortName": "Test fixture"],
+                    "timestamp": [1788213600, 1790128800, 1790310000],
+                    "indicators": ["quote": [["high": [100, 150, 110], "low": [90, 50, 80], "volume": [10, 10, 10]]]]]
+                charts[symbol] = ["intraday": intraday, "history": history]
             }
             replyHandler(["charts": charts, "fetchedAt": Date().timeIntervalSince1970 * 1000], nil); return
         }
@@ -85,13 +93,14 @@ final class MarketHighsBridge: NSObject, WKScriptMessageHandlerWithReply {
         waiting.append(replyHandler)
         if waiting.count > 1 { return }
         var charts: [String: Any] = [:]
-        var remaining = assets.count
+        var remaining = assets.count * 2
         for (symbol, feed) in assets {
+          for (kind, interval, range) in [("intraday", "1m", "5d"), ("history", "5m", "60d")] {
             var components = URLComponents(string: "https://query1.finance.yahoo.com/v8/finance/chart/" + feed)!
-            components.queryItems = [URLQueryItem(name: "interval", value: "1m"),
-                URLQueryItem(name: "range", value: "5d"), URLQueryItem(name: "includePrePost", value: "true")]
+            components.queryItems = [URLQueryItem(name: "interval", value: interval),
+                URLQueryItem(name: "range", value: range), URLQueryItem(name: "includePrePost", value: "true")]
             var request = URLRequest(url: components.url!)
-            request.timeoutInterval = 12
+            request.timeoutInterval = 15
             request.setValue("Mozilla/5.0", forHTTPHeaderField: "User-Agent")
             URLSession.shared.dataTask(with: request) { data, response, error in
                 DispatchQueue.main.async {
@@ -99,7 +108,9 @@ final class MarketHighsBridge: NSObject, WKScriptMessageHandlerWithReply {
                        let data, let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                        let chart = root["chart"] as? [String: Any],
                        let result = chart["result"] as? [[String: Any]], let first = result.first {
-                        charts[symbol] = first
+                        var assetCharts = charts[symbol] as? [String: Any] ?? [:]
+                        assetCharts[kind] = first
+                        charts[symbol] = assetCharts
                     }
                     remaining -= 1
                     if remaining == 0 {
@@ -112,7 +123,33 @@ final class MarketHighsBridge: NSObject, WKScriptMessageHandlerWithReply {
                     }
                 }
             }.resume()
+          }
         }
+    }
+}
+
+/// Generic GET for the terminal's data layer (terminal-data.js). Only the data providers it uses are reachable.
+final class ProxyBridge: NSObject, WKScriptMessageHandlerWithReply {
+    static let hosts: Set<String> = ["query1.finance.yahoo.com", "www.financialjuice.com", "translate.googleapis.com"]
+
+    func userContentController(_ userContentController: WKUserContentController,
+                               didReceive message: WKScriptMessage,
+                               replyHandler: @escaping (Any?, String?) -> Void) {
+        guard isBundledPage(message.frameInfo), let text = message.body as? String,
+              let url = URL(string: text), url.scheme == "https", let host = url.host,
+              ProxyBridge.hosts.contains(host) else {
+            replyHandler(nil, "Unsupported request"); return
+        }
+        if CommandLine.arguments.contains("--offline") { replyHandler(["status": 503, "text": ""], nil); return }
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 15
+        request.setValue("Mozilla/5.0", forHTTPHeaderField: "User-Agent")
+        URLSession.shared.dataTask(with: request) { data, response, error in
+            DispatchQueue.main.async {
+                guard error == nil, let http = response as? HTTPURLResponse else { replyHandler(nil, "Network error"); return }
+                replyHandler(["status": http.statusCode, "text": String(data: data ?? Data(), encoding: .utf8) ?? ""], nil)
+            }
+        }.resume()
     }
 }
 
@@ -121,9 +158,7 @@ final class CalendarExportBridge: NSObject, WKScriptMessageHandlerWithReply {
     func userContentController(_ userContentController: WKUserContentController,
                                didReceive message: WKScriptMessage,
                                replyHandler: @escaping (Any?, String?) -> Void) {
-        guard message.frameInfo.isMainFrame,
-              let origin = message.frameInfo.request.url, origin.isFileURL,
-              origin.standardizedFileURL.path.hasPrefix(Bundle.main.resourceURL!.path + "/public/"),
+        guard isBundledPage(message.frameInfo),
               let payload = message.body as? [String: String],
               let filename = payload["filename"],
               filename.range(of: "^uncsway-(day-)?[0-9]+-[134]\\.ics$", options: .regularExpression) != nil,
@@ -153,12 +188,13 @@ final class CalendarExportBridge: NSObject, WKScriptMessageHandlerWithReply {
     }
 }
 
-final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUIDelegate {
     var window: NSWindow!
     var webView: WKWebView!
     let calendar = CalendarBridge()
     let calendarExport = CalendarExportBridge()
     let marketHighs = MarketHighsBridge()
+    let proxy = ProxyBridge()
     var selfTestStarted = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -166,6 +202,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate {
         config.userContentController.addScriptMessageHandler(calendar, contentWorld: .page, name: "calendar")
         config.userContentController.addScriptMessageHandler(calendarExport, contentWorld: .page, name: "calendarExport")
         config.userContentController.addScriptMessageHandler(marketHighs, contentWorld: .page, name: "marketHighs")
+        config.userContentController.addScriptMessageHandler(proxy, contentWorld: .page, name: "proxy")
         config.userContentController.addUserScript(WKUserScript(source: """
         (() => {
           const original = window.fetch.bind(window);
@@ -179,11 +216,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate {
               const payload = await window.webkit.messageHandlers.marketHighs.postMessage(null);
               return new Response(JSON.stringify(payload), {headers: {'Content-Type': 'application/json'}});
             }
+            const terminalRoutes = ['/api/chart', '/api/highs', '/api/tape', '/api/news'];
+            const url = new URL(path, 'https://terminal.invalid');
+            if (terminalRoutes.includes(url.pathname)) {
+              // Same data layer as the web server, with the native app as its transport.
+              const data = window.__terminalData ||= TerminalData.create(async target => {
+                const reply = await window.webkit.messageHandlers.proxy.postMessage(target);
+                return {status: reply.status, text: reply.text};
+              });
+              const json = body => new Response(JSON.stringify(body), {headers: {'Content-Type': 'application/json'}});
+              try {
+                const q = url.searchParams;
+                if (url.pathname === '/api/chart') return json(await data.chart(q.get('symbol') || '', q.get('interval') || '1D'));
+                if (url.pathname === '/api/highs') return json(await data.highs(q.get('symbol') || ''));
+                if (url.pathname === '/api/tape') return json({quotes: await data.tape()});
+                return json(await data.news());
+              } catch (error) {
+                return new Response(JSON.stringify({error: String(error.message || error)}),
+                  {status: error.status || 502, headers: {'Content-Type': 'application/json'}});
+              }
+            }
             return original(input, options);
           };
         })();
-        """, injectionTime: .atDocumentStart, forMainFrameOnly: true))
-        if CommandLine.arguments.contains("--self-test") {
+        """, injectionTime: .atDocumentStart, forMainFrameOnly: false))
+        if CommandLine.arguments.contains("--self-test") || CommandLine.arguments.contains("--self-test-highs") {
             // Keep the existing weekday/window fixtures reproducible on weekends.
             config.userContentController.addUserScript(WKUserScript(source: """
             (() => {
@@ -193,24 +250,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate {
                 static now(){return fixed;}
               };
             })();
-            """, injectionTime: .atDocumentStart, forMainFrameOnly: true))
+            """, injectionTime: .atDocumentStart, forMainFrameOnly: false))
         }
         webView = WKWebView(frame: .zero, configuration: config)
         webView.navigationDelegate = self
+        webView.uiDelegate = self
         window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1400, height: 900),
                           styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
-        window.title = "UNC’sWay — Quarterly Timeline"
+        window.title = "UNC Terminal"
         window.minSize = NSSize(width: 850, height: 600)
         window.contentView = webView
         window.setFrameAutosaveName("QuarterlyTimeline")
         window.center()
         makeMenu()
         let root = Bundle.main.resourceURL!.appendingPathComponent("public")
-        webView.loadFileURL(root.appendingPathComponent("index.html"), allowingReadAccessTo: root)
+        // The self-tests exercise the Kwartały page / the L/H page directly, not the terminal shell.
+        let entry = CommandLine.arguments.contains("--self-test") ? "quarters/index.html"
+            : CommandLine.arguments.contains("--self-test-highs") ? "quarters/highs.html" : "index.html"
+        webView.loadFileURL(root.appendingPathComponent(entry), allowingReadAccessTo: root)
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
-        if CommandLine.arguments.contains("--self-test") {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 25) { fputs("Self-test timeout\n", stderr); exit(1) }
+        if CommandLine.arguments.contains("--self-test") || CommandLine.arguments.contains("--self-test-highs") || CommandLine.arguments.contains("--self-test-terminal") {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 40) { fputs("Self-test timeout\n", stderr); exit(1) }
         }
     }
 
@@ -248,7 +309,72 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate {
         } else { decisionHandler(.cancel) }
     }
 
+    func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration,
+                 for action: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {
+        if let url = action.request.url, ["https", "http"].contains(url.scheme ?? "") { NSWorkspace.shared.open(url) }
+        return nil
+    }
+
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        if CommandLine.arguments.contains("--self-test-terminal"), !selfTestStarted {
+            // Terminal shell with live data through the native proxy: charts, cycles, tape and headlines.
+            selfTestStarted = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + 20) {
+                webView.evaluateJavaScript("""
+                (() => {
+                const count = selector => document.querySelectorAll(selector).length;
+                const state = {charts: count('#charts .cell'), errors: count('#charts .err'),
+                  cycles: [...document.querySelectorAll('#charts .cyc b')].filter(b => /Q/.test(b.textContent)).length,
+                  tape: count('#tapeTrack .q'), news: count('#newsSide .item'),
+                  translated: [...document.querySelectorAll('#newsSide .item .t[title]')].length};
+                state.ok = state.charts === 4 && state.errors === 0 && state.cycles >= 12 && state.tape === 100 && state.news > 20;
+                return JSON.stringify(state);
+                })()
+                """) { result, error in
+                    guard error == nil, let output = result as? String else { print("FAIL", error as Any); exit(1) }
+                    print(output)
+                    webView.callAsyncJavaScript("const r = await fetch('/api/news'); return r.status + ' ' + (await r.text()).slice(0, 160)",
+                                                arguments: [:], in: nil, in: .page) { news in print("news:", news) }
+                    webView.takeSnapshot(with: nil) { image, _ in
+                        if let image, let tiff = image.tiffRepresentation,
+                           let bitmap = NSBitmapImageRep(data: tiff), let png = bitmap.representation(using: .png, properties: [:]) {
+                            try? png.write(to: URL(fileURLWithPath: "/tmp/qs-terminal-preview.png"))
+                        }
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 1) { exit(output.contains("\"ok\":true") ? 0 : 1) }
+                    }
+                }
+            }
+            return
+        }
+        if CommandLine.arguments.contains("--self-test-highs"), !selfTestStarted {
+            // Aktualne L/H page: six panels filled from the fixture bridge (`--offline` keeps the network out).
+            selfTestStarted = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                webView.evaluateJavaScript("""
+                (() => {
+                const dayHighsCheck=document.querySelector('#day-highs-panel')!==null &&
+                  document.querySelectorAll('#day-highs-body tr').length===3 &&
+                  [...document.querySelectorAll('#day-highs-body tr')].every(row=>row.cells.length===5 &&
+                    row.cells[1].textContent==='Q1/Q4' && row.cells[2].textContent==='Q2' &&
+                    row.cells[3].textContent==='Q1' && row.cells[4].textContent==='Q1 / Q2');
+                const extremesCheck=document.querySelectorAll('details.extremes-panel').length===6 &&
+                  [...document.querySelectorAll('.extremes-panel tbody')].every(body=>body.rows.length===3) &&
+                  [...document.querySelectorAll('#day-lows-body tr')].every(row=>row.cells.length===5) &&
+                  [...document.querySelectorAll('#month-highs-body tr, #month-lows-body tr')].every(row=>row.cells.length===4) &&
+                  [...document.querySelectorAll('#week-highs-body tr, #week-lows-body tr')].every(row=>row.cells.length===5 && row.querySelector('.extreme-session').textContent!=='—');
+                document.querySelector('#day-highs-panel summary').click();
+                const collapseCheck=!document.getElementById('day-highs-panel').open;
+                document.querySelector('#day-highs-panel summary').click();
+                return JSON.stringify({dayHighsCheck,extremesCheck,collapseCheck,dayHighs:document.getElementById('day-highs-body').innerText,status:document.getElementById('day-highs-status').textContent,ok:dayHighsCheck&&extremesCheck&&collapseCheck&&document.getElementById('day-highs-panel').open});
+                })()
+                """) { result, error in
+                    guard error == nil, let output = result as? String else { print("FAIL", error as Any); exit(1) }
+                    print(output)
+                    exit(output.contains("\"ok\":true") ? 0 : 1)
+                }
+            }
+            return
+        }
         guard CommandLine.arguments.contains("--self-test"), !selfTestStarted else { return }
         selfTestStarted = true
         DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
@@ -383,6 +509,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate {
               document.getElementById('timeline-page').firstElementChild.id==='ssmt-panel' &&
               document.getElementById('timeline-page').lastElementChild.id==='history-panel';
             const monthlyCheckbox=document.querySelector('[aria-controls="ssmt-monthly"]');
+            document.getElementById('ssmt-panel').open=true;
             monthlyCheckbox.click();
             const homeCalendarRemoved=!document.querySelector('#timeline-page .economic') && document.getElementById('events-page').hidden;
             document.getElementById('nav-events').click();
@@ -406,17 +533,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate {
               if(focus)timeline.scrollLeft=((focus.start-windowStart)/(horizonDays*dayMs))*grid.scrollWidth-timeline.clientWidth*.75;
               document.getElementById('history-panel').scrollIntoView({block:'end'});
             });
-            const dayHighsCheck=document.querySelector('#ssmt-panel + #day-highs-panel')!==null &&
-              document.querySelectorAll('#day-highs-body tr').length===3 &&
-              [...document.querySelectorAll('#day-highs-body tr')].every(row=>row.cells.length===5 &&
-                row.cells[1].textContent==='Q1/Q4' && row.cells[2].textContent==='Q2' &&
-                row.cells[3].textContent==='Q1' && row.cells[4].textContent==='Q1 / Q2');
-            return JSON.stringify({dayHighsCheck,rows:document.querySelectorAll('#grid .row').length,
+            return JSON.stringify({rows:document.querySelectorAll('#grid .row').length,
               cells:document.querySelectorAll('#grid .cell').length,
               clock:document.getElementById('clock').textContent,
               calendar:document.getElementById('economic-status').textContent,
               ruleChecks,fullWeekCheck,ltfCheck,panelCheck,nyAmExclusionCheck,layoutCheck,sessionCheck,sessionDomCheck,sessionDomDetails,dayCheck,dayDomCheck,restoredSessionCheck,historyCheck,historyDomCheck,routingCheck,
-              ok:dayHighsCheck && document.querySelectorAll('#grid .row').length===9 &&
+              ok:document.querySelectorAll('#grid .row').length===9 &&
                  ruleChecks && fullWeekCheck && ltfCheck && panelCheck && nyAmExclusionCheck && layoutCheck && sessionCheck && sessionDomCheck && dayCheck && dayDomCheck && restoredSessionCheck && historyCheck && historyDomCheck && routingCheck &&
                  document.getElementById('clock').textContent.length>5 &&
                  document.getElementById('economic-status').textContent.includes('Kopia eksportu')});

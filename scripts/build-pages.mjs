@@ -1,4 +1,5 @@
 import { mkdir, readFile, writeFile, rm } from 'node:fs/promises'
+import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { deriveSiteKey, encryptSiteContent } from './site-crypto.mjs'
 import { marketHighs } from '../lib/market-data.mjs'
@@ -10,7 +11,18 @@ const output = join(process.cwd(), '_site')
 await rm(output, { recursive: true, force: true })
 await mkdir(output, { recursive: true })
 
-let html = await readFile('public/index.html', 'utf8')
+// GitHub Pages hosts the static part only: the Kwartały page (timeline + events) with the Aktualne L/H
+// panels, as one encrypted document. The full terminal (charts, headlines) needs the server or the Mac app.
+let html = await readFile('public/quarters/index.html', 'utf8')
+for (const sheet of [...html.matchAll(/<link rel="stylesheet" href="([a-z-]+\.css)" \/>/g)]) {
+  html = html.replace(sheet[0], () => `<style>\n${readFileSync(join('public/quarters', sheet[1]), 'utf8')}</style>`)
+}
+const highs = await readFile('public/quarters/highs.html', 'utf8')
+const panels = highs.slice(highs.indexOf('  <details open class="session-panel'), highs.lastIndexOf('</details>') + '</details>\n'.length).replaceAll('<details open ', '<details ')
+if (!panels.includes('week-highs-panel')) throw new Error('Missing L/H panels')
+if (!html.includes('<p class="rule-summary">')) throw new Error('Missing rule summary marker')
+html = html.replace('<p class="rule-summary">', () => panels + '  <p class="rule-summary">')
+html = html.replace('<script src="../day-highs.js"></script>', () => '<script src="../day-highs.js"></script>\n<script src="../day-highs-panel.js" defer></script>')
 const originalEndpoint = '<meta name="events-endpoint" content="/api/events" />'
 if (!html.includes(originalEndpoint)) throw new Error('Missing events endpoint marker')
 html = html.replace(originalEndpoint, '<meta name="events-endpoint" content="api/events.enc.json" />')
@@ -18,7 +30,7 @@ const marketEndpoint = '<meta name="market-highs-endpoint" content="/api/market-
 if (!html.includes(marketEndpoint)) throw new Error('Missing market endpoint marker')
 html = html.replace(marketEndpoint, '<meta name="market-highs-endpoint" content="api/market-highs.enc.json" />')
 const deferred = []
-for (const match of [...html.matchAll(/<script src="([a-z0-9-]+\.js)"( defer)?><\/script>/g)]) {
+for (const match of [...html.matchAll(/<script src="\.\.\/([a-z0-9-]+\.js)"( defer)?><\/script>/g)]) {
   const source = (await readFile(join('public', match[1]), 'utf8')).replace(/<\/script/gi, '<\\/script')
   const inline = `<script>\n${source}\n</script>`
   if (match[2]) deferred.push(inline)

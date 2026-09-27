@@ -1,0 +1,495 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="description" content="UNC'sWay — interaktywna mapa zagnieżdżonych cykli Quarterly Theory." />
+  <meta name="events-endpoint" content="/api/events" />
+  <meta name="market-highs-endpoint" content="/api/market-highs" />
+  <title>UNC'sWay — Quarterly Timeline</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ctext y='52' font-size='52'%3E%E2%9B%93%EF%B8%8F%3C/text%3E%3C/svg%3E" />
+  <link rel="stylesheet" href="base.css" />
+  <link rel="stylesheet" href="terminal-theme.css" />
+</head>
+<body>
+<main class="app">
+  <header class="topbar">
+    <div class="brand"><div class="mark" aria-hidden="true">🔗</div><div><b>CHAIN</b></div></div>
+    <nav class="nav" aria-label="Widok"><button type="button" id="nav-timeline" class="active" aria-current="page" aria-controls="timeline-page">Timeline</button><button type="button" id="nav-events" aria-controls="events-page">Wydarzenia</button></nav>
+    <span class="quote">look first, then leap.</span>
+    <button class="action" id="jumpNow">Teraz</button>
+    <div class="legend"><span><i style="background:var(--q1)"></i>Q1</span><span><i style="background:var(--q2)"></i>Q2</span><span><i style="background:var(--q3)"></i>Q3</span><span><i style="background:var(--q4)"></i>Q4</span><span><i style="background:var(--green)"></i>Bank holiday</span></div>
+    <time class="clock" id="clock">--:--:-- CET</time><span class="settings">⚙</span>
+  </header>
+  <div class="app-page" id="timeline-page">
+  <details class="session-panel collapsible-panel" id="ssmt-panel">
+    <summary><h2 id="ssmt-title">Aktywne SSMT</h2></summary>
+    <div class="ssmt-options" role="group" aria-label="Aktywne poziomy SSMT">
+      <label class="ssmt-option"><input type="checkbox" aria-controls="ssmt-monthly" />Monthly</label>
+      <label class="ssmt-option"><input type="checkbox" aria-controls="ssmt-weekly" />Weekly</label>
+      <label class="ssmt-option"><input type="checkbox" aria-controls="ssmt-daily" />Daily</label>
+      <label class="ssmt-option"><input type="checkbox" aria-controls="ssmt-session" />Session</label>
+      <label class="ssmt-option"><input type="checkbox" aria-controls="ssmt-90" />90</label>
+    </div>
+    <div class="ssmt-messages" aria-live="polite" aria-relevant="additions text">
+      <p id="ssmt-monthly" hidden><strong>Monthly</strong>Oczekuj 2S z Weekly / Daily / Session w oknie czasowym lub Z OKNEM czasowym.</p>
+      <p id="ssmt-weekly" hidden><strong>Weekly</strong>Oczekuj 2S z Daily / Session / 90 w oknie czasowym lub Z OKNEM czasowym.</p>
+      <p id="ssmt-daily" hidden><strong>Daily</strong>Oczekuj 2S z Session / 90 / Micro w oknie czasowym lub Z OKNEM czasowym.</p>
+      <p id="ssmt-session" hidden><strong>Session</strong>Oczekuj 2S z 90 / Micro / Nano</p>
+      <p id="ssmt-90" hidden><strong>90</strong>Oczekuj 2S z Micro / Nano w oknie czasowym lub Z OKNEM czasowym.</p>
+    </div>
+  </details>
+  <p class="rule-summary"><strong>LOW lub HIGH: Q2 / Q3 → Q1 lub Q3</strong> · NY AM: M90 Q3 · okna tylko w pełnych tygodniach pon.–pt. jednego miesiąca · newsy i święta bez wykluczeń</p>
+  <section class="stage">
+    <aside class="labels" aria-label="Cykle"><div class="label">4YR</div><div class="label">QUARTERLY</div><div class="label">YEARLY</div><div class="label">MONTHLY</div><div class="label">WEEKLY</div><div class="label dot">DAILY</div><div class="label dot">90MIN</div><div class="label dot">MICRO</div><div class="label">NANO</div></aside>
+    <div class="timeline" id="timeline"><div class="view-tools" aria-label="Sterowanie osią"><button id="zoomOut" aria-label="Oddal">−</button><select id="zoomRange" aria-label="Zakres osi"><option value="6">6 h</option><option value="12">12 h</option><option value="24">24 h</option><option value="48">48 h</option><option value="72">3 d</option><option value="168" selected>7 d</option></select><button id="zoomIn" aria-label="Przybliż">+</button><button id="resetView" aria-label="Wróć do teraz">◎</button></div><div class="grid" id="grid"></div><div class="nowline" id="nowline"></div><div class="tooltip" id="tooltip"></div><div class="datebar" id="datebar"></div></div>
+  </section>
+  <section class="footer">
+    <div class="pane"><div class="chain-pane-heading"><h2>POPRZEDNIE OKNA</h2><div class="chain-filters" role="group" aria-label="Zakres poprzednich łańcuchów" data-panel="previous"><button type="button" data-scope="htf" aria-pressed="true" title="4YR–90MIN">HTF</button><button type="button" data-scope="ltf" aria-pressed="false" title="90MIN–NANO">LTF</button></div></div><div class="chain-list" id="previous"></div></div>
+    <div class="pane"><h2>TERAZ</h2><div class="current"><div><div class="ring"><b id="activeQ">Q3</b></div><p id="activeText">AKTYWNA SEKWENCJA</p><b id="countdown">00:17:18</b></div></div></div>
+    <div class="pane"><div class="chain-pane-heading"><h2>NASTĘPNE OKNA</h2><div class="chain-filters" role="group" aria-label="Zakres nadchodzących łańcuchów" data-panel="next"><button type="button" data-scope="htf" aria-pressed="true" title="4YR–90MIN">HTF</button><button type="button" data-scope="ltf" aria-pressed="false" title="90MIN–NANO">LTF</button></div></div><div class="chain-list" id="next"></div></div>
+  </section>
+  <section class="session-panel" id="session-panel" aria-labelledby="session-title">
+    <header><h2 id="session-title">High Probability Okna w Sesji</h2>
+      <div class="session-controls" role="group" aria-label="Okna i dzień handlowy"><div class="probability-scope" role="group" aria-label="Skala High Probability"><button type="button" data-probability-scope="session" aria-pressed="true">Sesja</button><button type="button" data-probability-scope="day" aria-pressed="false">Dzień</button></div><button type="button" id="session-prev" aria-label="Poprzedni dzień">←</button><input type="date" id="session-date" aria-label="Dzień handlowy" /><button type="button" id="session-next" aria-label="Następny dzień">→</button><button type="button" id="session-today">Bieżący dzień</button></div>
+    </header>
+    <p id="session-summary" role="status"></p>
+    <div class="session-cards" id="session-cards"></div>
+    <p id="session-calendar-status" role="status" hidden></p>
+  </section>
+  <section class="session-panel" id="history-panel" aria-labelledby="history-title">
+    <header><h2 id="history-title">Minione High Probability Okna w Sesji</h2>
+      <div class="session-controls" role="group" aria-label="Minione okna i dzień handlowy"><div class="probability-scope" role="group" aria-label="Skala minionych okien"><button type="button" data-history-scope="session" aria-pressed="true">Sesja</button><button type="button" data-history-scope="day" aria-pressed="false">Dzień</button></div><button type="button" id="history-prev" aria-label="Poprzedni dzień historii">←</button><input type="date" id="history-date" aria-label="Dzień handlowy historii" /><button type="button" id="history-next" aria-label="Następny dzień historii">→</button><button type="button" id="history-today">Bieżący dzień</button></div>
+    </header>
+    <p id="history-summary" class="history-summary" role="status"></p>
+    <div class="session-cards" id="history-cards"></div>
+  </section>
+  </div>
+  <section class="economic" id="events-page" hidden aria-labelledby="economic-title">
+    <header><div><h2 id="economic-title">Wydarzenia</h2><p>USD · czas Nowego Jorku (ET) · minione i nadchodzące</p></div><a href="https://www.forexfactory.com/calendar" target="_blank" rel="noopener noreferrer">Kalendarz Forex Factory ↗</a></header>
+    <div class="economic-filters" role="group" aria-label="Zakres kalendarza"><button type="button" id="eventsToday" aria-pressed="true">Dzisiaj</button><button type="button" id="eventsWeek" aria-pressed="false">Cały tydzień</button></div>
+    <p id="economic-range"></p>
+    <p id="economic-status" role="status">Pobieranie wydarzeń…</p>
+    <div class="economic-scroll"><table><thead><tr><th>Data / czas ET</th><th>Wpływ</th><th>Wydarzenie · USD</th><th>Prognoza</th><th>Poprzednio</th></tr></thead><tbody id="economic-events"></tbody></table></div>
+    <p class="economic-note">Źródło: Forex Factory · odświeżanie co 15 minut. Godziny mogą ulec zmianie. Eksport nie zawiera bieżących wyników publikacji.</p>
+  </section>
+</main>
+<script src="../events.js" defer></script>
+<script src="../day-highs.js"></script>
+<script src="../chains.js"></script>
+<script src="../holidays.js"></script>
+<script src="../cycle-rules.js"></script>
+<script src="../calendar-export.js"></script>
+<script>
+document.querySelectorAll('.ssmt-option input').forEach(checkbox=>checkbox.addEventListener('change',()=>{
+  document.getElementById(checkbox.getAttribute('aria-controls')).hidden=!checkbox.checked;
+  checkbox.closest('.ssmt-option').classList.toggle('is-active',checkbox.checked);
+}));
+const phase={1:['A / X','Akumulacja lub kontynuacja'],2:['M / A','Manipulacja lub akumulacja'],3:['D / M','Dystrybucja lub manipulacja'],4:['X / D','Kontynuacja / Odwrócenie']};
+const grid=document.getElementById('grid');
+const timeline=document.getElementById('timeline'),nowline=document.getElementById('nowline');
+const horizonDays=7,zoomHours=[6,12,24,48,72,168],defaultHours=168;let zoom=24/defaultHours;
+function nyParts(date=new Date()){const parts=new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',year:'numeric',month:'numeric',day:'numeric',weekday:'short',hour:'numeric',minute:'numeric',second:'numeric',hourCycle:'h23'}).formatToParts(date);return Object.fromEntries(parts.filter(p=>p.type!=='literal').map(p=>[p.type,p.value]))}
+function context(date=new Date()){const p=nyParts(date),year=+p.year,month=+p.month,day=+p.day,hour=+p.hour,minute=+p.minute,second=+p.second;const quadrennial=((year-2023)%4+4)%4+1;const yearly=Math.floor((month-1)/3)+1;const quarterly=Math.floor((month-1)/3)+1;const monthly=CycleRules.fullWeekQuarter(year,month,day);const weekly=({Mon:1,Tue:2,Wed:3,Thu:4})[p.weekday]||0;const minutes=(hour*60+minute-1080+1440)%1440;const daily=Math.floor(minutes/360)+1;return {p,year,month,day,hour,minute,second,minutes,quadrennial,yearly,quarterly,monthly,weekly,daily}}
+const state=context();
+function weekStartFor(s){const sessionStart=Date.UTC(s.year,s.month-1,s.day,18)-(s.hour<18?86400000:0);const tradingWeekday=new Date(sessionStart+43200000).getUTCDay();return sessionStart-((tradingWeekday+6)%7)*86400000}
+const windowStart=weekStartFor(state);
+const weekDate=new Intl.DateTimeFormat('pl-PL',{timeZone:'UTC',day:'2-digit',month:'2-digit'});
+const weekLabel=`${weekDate.format(new Date(windowStart+43200000))}–${weekDate.format(new Date(windowStart+(horizonDays-.5)*86400000))}`;
+function livePosition(s=context()){return (Date.UTC(s.year,s.month-1,s.day,s.hour,s.minute,s.second)-windowStart)/(horizonDays*86400000)}
+const cycles=[{name:'4YR',high:true},{name:'QUARTERLY',high:true},{name:'YEARLY',high:true},{name:'MONTHLY',high:true},{name:'WEEKLY',perDay:1},{name:'DAILY',perDay:4},{name:'90MIN',perDay:16},{name:'MICRO',perDay:64},{name:'NANO',perDay:256}];
+function highValuesAt(x){const day=Math.floor(x*horizonDays),date=new Date(windowStart+(day+.5)*86400000),year=date.getUTCFullYear(),month=date.getUTCMonth()+1,dayOfMonth=date.getUTCDate();return {'4YR':((year-2023)%4+4)%4+1,QUARTERLY:Math.floor((month-1)/3)+1,YEARLY:Math.floor((month-1)/3)+1,MONTHLY:CycleRules.fullWeekQuarter(year,month,dayOfMonth)}}
+function weeklyAt(x){
+  const day=Math.floor(x*horizonDays);
+  const weekday=new Date(windowStart+(day+.5)*86400000).getUTCDay();
+  if(weekday===5)return {q:0,label:'Q1/Q4'};
+  return {q:weekday>=1&&weekday<=4?weekday:0,label:weekday>=1&&weekday<=4?'Q'+weekday:'Q0'};
+}
+function valueFor(c,x){return c.high?highValuesAt(x)[c.name]:c.name==='WEEKLY'?weeklyAt(x).q:(Math.floor(x*horizonDays*c.perDay)%4)+1}
+function labelFor(c,x,q){return c.name==='WEEKLY'?weeklyAt(x).label:q===0?'Q0':'Q'+q}
+function valuesAt(x){return cycles.map(c=>{const q=valueFor(c,x);return {name:c.name,q,label:labelFor(c,x,q)}})}
+const probabilityRules=[
+  {source:'QUARTERLY',target:'MONTHLY',scope:'Miesiąca'},
+  {source:'MONTHLY',target:'WEEKLY',scope:'Tygodnia'},
+  {source:'WEEKLY',target:'DAILY',scope:'Dnia',edgePair:true},
+  {source:'DAILY',target:'90MIN',scope:'Sesji',edgePair:true},
+  {source:'90MIN',target:'MICRO',scope:'90 min',edgePair:true},
+  {source:'MICRO',target:'NANO',scope:'Micro',edgePair:true},
+  {source:'QUARTERLY',target:'YEARLY',scope:'Kwartału'}
+];
+const sessionSmtPairs={1:[[1,4]],2:[[2,3]],3:[[2,3],[3,4]],4:[[1,4]]};
+function smtForSession(q){
+  const pairs=sessionSmtPairs[q];
+  return pairs?`SMT: ${pairs.map(([from,to])=>`Q${from} ↔ Q${to}`).join(' lub ')}`:'';
+}
+function probabilityFor(name,q,values){
+  if(q<1||q>4)return null;
+  if(values.find(value=>value.name==='MONTHLY')?.q===0)return null;
+  const weekday=values.find(value=>value.name==='WEEKLY');
+  if(weekday?.q===0&&weekday.label!=='Q1/Q4')return null;
+  const rule=probabilityRules.find(rule=>rule.target===name);
+  if(!rule)return null;
+  const source=values.find(value=>value.name===rule.source),sourceQ=source?.q;
+  const targets=rule.target==='90MIN'?CycleRules.sessionTargetQuarters(sourceQ):CycleRules.targetQuarters(sourceQ,{edgePair:rule.edgePair,sourceLabel:source?.label});
+  if(!targets.includes(q))return null;
+  const sourceLabel=source?.label==='Q1/Q4'?'Q1/Q4':`Q${sourceQ}`;
+  const sessionQ=values.find(value=>value.name==='DAILY')?.q;
+  const smt=rule.target==='90MIN'?smtForSession(sessionQ):'';
+  return {...rule,sourceQ,sourceLabel,text:`High probability Low ${rule.scope} / High ${rule.scope}`,sessionQ,smt};
+}
+function annotateProbability(cell,name,q,x){
+  const match=probabilityFor(name,q,valuesAt(x));
+  if(!match)return;
+  cell.classList.add('probability-match');
+  cell.title+=` · ${match.source} ${match.sourceLabel} → ${name} Q${q} · ${match.text}${match.smt?` · Sesja Q${match.sessionQ} → ${match.smt}`:''}`;
+  cell.setAttribute('aria-label',cell.title);
+  const label=document.createElement('small');
+  label.className='probability-label';
+  const heading=document.createElement('span');heading.textContent='High probability';
+  const detail=document.createElement('span');detail.textContent=`Low ${match.scope} / High ${match.scope}`;
+  label.append(heading,detail);
+  if(match.smt){
+    const arrows=document.createElement('span');arrows.className='smt-arrows';
+    arrows.textContent=match.smt;label.append(arrows);
+  }
+  cell.append(label);
+}
+function build(){grid.innerHTML='';cycles.forEach((c,ri)=>{const segments=(c.high?1:c.perDay)*horizonDays;const row=document.createElement('div');row.className='row '+c.name.toLowerCase();row.style.gridTemplateColumns=`repeat(${segments},1fr)`;for(let i=0;i<segments;){let span=1;if(c.high){const q=valueFor(c,(i+.5)/segments);while(i+span<segments&&valueFor(c,(i+span+.5)/segments)===q)span++}const cell=document.createElement('div');const x=(i+span/2)/segments,q=valueFor(c,x),label=labelFor(c,x,q);cell.className='cell q'+q+(label==='Q1/Q4'?' weekly-mixed':'');cell.style.gridColumn=`span ${span}`;cell.textContent=label;cell.dataset.row=ri;cell.dataset.q=q;if(c.name==='DAILY')cell.dataset.day=String(Math.floor(i/4));if(q>0)cell.title=`${c.name} · Q${q} · ${phase[q][0]} — ${phase[q][1]}`;else cell.title=`${c.name} · ${label} — ${label==='Q0'?'dzień poza cyklem':'piątkowy cykl'}`;annotateProbability(cell,c.name,q,x);row.append(cell);i+=span}grid.append(row)});grid.append(nowline)}
+function clockText(total){const m=((Math.round(total)%1440)+1440)%1440;return `${String(Math.floor(m/60)).padStart(2,'0')}:${String(m%60).padStart(2,'0')} ET`}
+let holidayMarks=[];
+function nyStamp(date){const p=nyParts(date);return Date.UTC(+p.year,+p.month-1,+p.day,+p.hour,+p.minute,+p.second)}
+function quarterLabel(q){return q===0?'Q0':'Q'+q}
+function paintHolidays(){
+  grid.querySelectorAll('.holiday-day').forEach(el=>el.remove());
+  grid.querySelectorAll('.cell.holiday-session').forEach(el=>{
+    el.classList.remove('holiday-session');
+    if(el.dataset.baseTitle)el.title=el.dataset.baseTitle;
+    const probabilityLabel=el.querySelector('.probability-label');
+    el.textContent=quarterLabel(+el.dataset.q);
+    if(probabilityLabel)el.append(probabilityLabel);
+  });
+  const daily=grid.querySelector('.row.daily');
+  if(!daily)return;
+  for(const mark of holidayMarks){
+    const note='Bank holiday · '+mark.labels.join(' · ');
+    if(mark.whole){
+      const band=document.createElement('div');
+      band.className='holiday-day';
+      band.setAttribute('aria-hidden','true');
+      band.style.left=(mark.day/horizonDays*100)+'%';
+      band.style.width=(100/horizonDays)+'%';
+      grid.append(band);
+    }
+    daily.querySelectorAll('.cell').forEach(cell=>{
+      if(cell.dataset.day!==String(mark.day))return;
+      if(!mark.quarters.includes(+cell.dataset.q))return;
+      if(!cell.dataset.baseTitle)cell.dataset.baseTitle=cell.title;
+      cell.classList.add('holiday-session');
+      cell.title=cell.dataset.baseTitle+' · '+note;
+      const main=document.createElement('span');
+      main.textContent=quarterLabel(+cell.dataset.q);
+      const tag=document.createElement('span');
+      tag.className='inverted-cycle';
+      tag.textContent='(bank holiday)';
+      const probabilityLabel=cell.querySelector('.probability-label');
+      cell.replaceChildren(main, tag);
+      if(probabilityLabel)cell.append(probabilityLabel);
+    });
+  }
+}
+function holidayTip(x){
+  const day=Math.floor(x*horizonDays);
+  const q=Math.floor((x*horizonDays*4)%4)+1;
+  const mark=holidayMarks.find(item=>item.day===day);
+  if(!mark)return '';
+  if(!mark.whole&&!mark.quarters.includes(q))return '';
+  return `<div class="tiprow"><span>${mark.whole?'DZIEŃ':'SESJA'}</span><b class="holiday">${mark.labels.join(' · ')}</b></div>`;
+}
+window.addEventListener('calendar-data',event=>{
+  if(!window.BankHolidays)return;
+  holidayMarks=BankHolidays.group(event.detail.holidays||[],windowStart,horizonDays,nyStamp);
+  paintHolidays();
+});
+const tip=document.getElementById('tooltip');
+function placeTip(e){
+  const gap=16,w=tip.offsetWidth||260,h=tip.offsetHeight||280;
+  let left=e.clientX+gap,top=e.clientY+gap;
+  if(left+w>window.innerWidth-8)left=e.clientX-w-gap;
+  if(top+h>window.innerHeight-8)top=e.clientY-h-gap;
+  tip.style.left=Math.max(8,left)+'px';
+  tip.style.top=Math.max(8,top)+'px';
+}
+timeline.addEventListener('mousemove',e=>{
+  if(timeline.classList.contains('dragging')||e.target.closest('.view-tools')){tip.classList.remove('show');return}
+  const r=grid.getBoundingClientRect(),x=Math.max(0,Math.min(.999999,(e.clientX-r.left)/r.width));
+  const elapsed=x*horizonDays*1440;
+  tip.innerHTML=`<div class="tiptime">+${Math.floor(elapsed/1440)}d · ${clockText(1080+elapsed)}</div>`+valuesAt(x).map(v=>{const match=probabilityFor(v.name,v.q,valuesAt(x));return `<div class="tiprow"><span>${v.name}</span><b class="q${v.q}">${v.q===0?v.label:`${v.label} · ${phase[v.q][0]}`}</b></div>`+(match?`<div class="tip-probability">${match.text}<br>${match.source} ${match.sourceLabel} → ${v.name} Q${v.q}${match.smt?`<div class="smt-detail">Sesja Q${match.sessionQ} → ${match.smt}</div>`:''}</div>`:'')}).join('')+ltfTip(x)+holidayTip(x);
+  tip.classList.add('show');
+  placeTip(e);
+});
+timeline.addEventListener('mouseleave',()=>tip.classList.remove('show'));
+function matchingQuarterGroups(values,start,end,minCount){const result=[];for(let q=1;q<=4;q++){let first=-1;for(let row=start;row<=end;row++){const value=values[row],matches=row<end&&(value.q===q||(value.name==='WEEKLY'&&value.label==='Q1/Q4'&&(q===1||q===4)));if(matches){if(first<0)first=row}else if(first>=0){if(row-first>=minCount)result.push({q,indexes:Array.from({length:row-first},(_,i)=>first+i)});first=-1}}}return result}
+const chainRanges={htf:[0,7],ltf:[6,9]};
+const minimumChainLength=3;
+const dayMs=86400000,nanoMs=dayMs/256;
+function valuesAtPseudo(ms){
+  const instant=new Date(ms),hour=instant.getUTCHours();
+  const sessionStart=Date.UTC(instant.getUTCFullYear(),instant.getUTCMonth(),instant.getUTCDate(),18)-(hour<18?dayMs:0);
+  const fraction=(ms-sessionStart)/dayMs;
+  const date=new Date(sessionStart+dayMs/2),year=date.getUTCFullYear(),month=date.getUTCMonth()+1,day=date.getUTCDate();
+  const monthly=CycleRules.fullWeekQuarter(year,month,day);
+  const weekday=new Date(sessionStart+dayMs/2).getUTCDay();
+  const weekly=weekday>=1&&weekday<=4?weekday:0;
+  const quarter=Math.floor((month-1)/3)+1;
+  const cycleQ=(parts)=>Math.floor(fraction*parts)%4+1;
+  const values=[((year-2023)%4+4)%4+1,quarter,quarter,monthly,weekly,cycleQ(4),cycleQ(16),cycleQ(64),cycleQ(256)];
+  return cycles.map((cycle,i)=>({name:cycle.name,q:values[i],label:i===4&&weekday===5?'Q1/Q4':values[i]===0?'Q0':'Q'+values[i]}));
+}
+function chainWindows(scope,first=windowStart-2*dayMs,last=windowStart+horizonDays*dayMs){
+  // Session starts (18:00 ET) and all nested boundaries are multiples of nanoMs.
+  // Sampling whole hours misses the final Q4/Q4/Q4 interval of every session.
+  const [startRow,endRow]=chainRanges[scope],duration=scope==='htf'?dayMs:nanoMs,windows=[];
+  for(let start=first;start<last;start+=duration){
+    const values=valuesAtPseudo(start+1);
+    const chains=matchingQuarterGroups(values,startRow,endRow,minimumChainLength);
+    if(scope==='ltf'&&!chains.length)continue;
+    const excluded=CycleRules.excludedSessionWindow(values.find(v=>v.name==='DAILY').q,values.find(v=>v.name==='90MIN').q);
+    const highProbability=scope==='ltf'&&!excluded&&['MICRO','NANO'].every(name=>probabilityFor(name,values.find(v=>v.name===name).q,values));
+    windows.push({start,end:Math.min(start+duration,last),chains,highProbability});
+  }
+  return windows;
+}
+const windowTimelines={htf:chainWindows('htf'),ltf:chainWindows('ltf')};
+function preciseTime(ms){
+  const date=new Date(ms),time=date.toISOString().slice(11,19);
+  return time+(date.getUTCMilliseconds()?','+String(date.getUTCMilliseconds()).padStart(3,'0').replace(/0+$/,''):'');
+}
+function ltfRange(item){return `${preciseTime(item.start)}–${preciseTime(item.end)} ET`}
+function paintLtfWindows(){
+  grid.querySelectorAll('.ltf-probability-window').forEach(el=>el.remove());
+  for(const item of windowTimelines.ltf){
+    if(!item.highProbability||item.start<windowStart||item.start>=windowStart+horizonDays*dayMs)continue;
+    const band=document.createElement('div');band.className='ltf-probability-window';
+    band.dataset.quarter=String(item.chains[0].q);
+    band.style.left=((item.start-windowStart)/(horizonDays*dayMs)*100)+'%';
+    band.style.width=((item.end-item.start)/(horizonDays*dayMs)*100)+'%';
+    band.setAttribute('aria-label',`High probability · 90MIN / MICRO / NANO Q${item.chains[0].q} · ${ltfRange(item)}`);
+    grid.append(band);
+  }
+}
+function ltfTip(x){
+  const ms=windowStart+x*horizonDays*dayMs;
+  const item=windowTimelines.ltf.find(item=>item.highProbability&&item.start<=ms&&ms<item.end);
+  return item?`<div class="tip-probability ltf-tip"><strong>High probability · Q${item.chains[0].q} ×3</strong><br>90MIN / MICRO / NANO<br>${ltfRange(item)}</div>`:'';
+}
+const selectedChainScope={previous:'htf',next:'htf'};
+const renderedWindowKey={previous:'',next:''};
+function currentPseudoTime(){return windowStart+livePosition()*horizonDays*dayMs}
+function splitWindows(scope,now){const windows=windowTimelines[scope];return {previous:windows.filter(item=>item.start<=now).slice(scope==='htf'?-3:-24).reverse(),next:windows.filter(item=>item.start>now).slice(0,6)}}
+function windowHtml(item,scope,now,open){
+  const labelDate=new Date(item.start+(scope==='htf'?dayMs/2:0));
+  const date=labelDate.toLocaleDateString('pl-PL',{timeZone:'UTC',day:'2-digit',month:'2-digit'});
+  const hour=new Date(item.start).toLocaleTimeString('pl-PL',{timeZone:'UTC',hour:'2-digit',minute:'2-digit',hourCycle:'h23'});
+  const title=scope==='htf'?`${date} · HTF`:`${date} · ${preciseTime(item.start)}`;
+  const status=item.end<=now?'minęło':item.start<=now?'trwa':'następne';
+  const description=scope==='htf'?`Stan na ${hour} ET · okno 24 h`:`${ltfRange(item)} · 5 min 37,5 s`;
+  const chains=item.chains.map(run=>`<div class="chain-window-chain"><b>Q${run.q} ×${run.indexes.length}</b><span>${run.indexes.map(i=>cycles[i].name).join(' + ')}</span></div>`).join('');
+  return `<details class="chain-window${item.highProbability?' high-probability':''}"${open?' open':''}><summary><strong>${title}${item.highProbability?'<small class="ltf-badge">High probability</small>':''}</strong><span>${status} · ${item.chains.length} łańc.</span></summary><div class="chain-window-body"><p>${description}</p>${chains||'<p>Brak łańcucha na początku okna.</p>'}</div></details>`;
+}
+function renderChainPanel(panel,now=currentPseudoTime(),force=false){
+  const scope=selectedChainScope[panel],duration=scope==='htf'?dayMs:nanoMs,key=`${scope}:${Math.floor((now-windowStart)/duration)}`;
+  if(!force&&renderedWindowKey[panel]===key)return;
+  const windows=splitWindows(scope,now)[panel];
+  document.getElementById(panel).innerHTML=windows.map((item,i)=>windowHtml(item,scope,now,i===0)).join('');
+  renderedWindowKey[panel]=key;
+}
+const sessionNames=['Azja','Londyn','NY AM','NY PM'];
+const sessionDateInput=document.getElementById('session-date');
+const dateKey=ms=>new Date(ms).toISOString().slice(0,10);
+const tradingDateKey=ms=>dateKey(ms+6*3600000);
+sessionDateInput.min=dateKey(windowStart+dayMs/2);
+sessionDateInput.max=dateKey(windowStart+(horizonDays-.5)*dayMs);
+let followSessionDay=true,sessionPanelKey='',probabilityScope='session';
+function sessionsForDay(date){
+  const first=Date.parse(date+'T00:00:00Z')-6*3600000;
+  const ltf=chainWindows('ltf',first,first+dayMs);
+  return sessionNames.map((name,index)=>{
+    const start=first+index*dayMs/4,end=start+dayMs/4,q=index+1;
+    const values=valuesAtPseudo(start+1);
+    const targets=CycleRules.sessionTargetQuarters(q);
+    const eligible=targets.some(target=>probabilityFor('90MIN',target,values));
+    const windows=ltf.filter(item=>item.start>=start&&item.end<=end&&item.highProbability&&
+      probabilityFor('90MIN',item.chains[0].q,valuesAtPseudo(item.start+1)));
+    return {name,q,start,end,targets,eligible,windows};
+  });
+}
+function sessionCardHtml(session,now,{calendar=true,pastOnly=false}={}){
+  const scope=session.scope||'session',isDay=scope==='day';
+  const chainNames=isDay?['DAILY','90MIN','MICRO']:['90MIN','MICRO','NANO'];
+  const date=ms=>new Date(ms).toLocaleDateString('pl-PL',{timeZone:'UTC',day:'2-digit',month:'2-digit'});
+  const range=`${date(session.start)} ${preciseTime(session.start).slice(0,5)}–${date(session.end)} ${preciseTime(session.end).slice(0,5)} ET`;
+  const windows=session.windows.map(item=>{
+    const active=item.start<=now&&now<item.end,status=active?'Trwa':item.end<=now?'Minęło':'Nadchodzące';
+    const q=item.chains[0].q;
+    return `<div class="session-window${active?' is-active':''}" data-quarter="${q}"><div class="session-window-heading"><strong>High probability${isDay?' · '+sessionNames[q-1]:''}</strong><span class="session-status">${status}</span></div><time>${ltfRange(item)}</time><div class="session-chain">${chainNames.map(name=>`<span>${name} Q${q}</span>`).join('')}</div>${calendar?`<button type="button" class="add-calendar" data-start="${item.start}" data-session="${session.q||0}" data-scope="${scope}">Dodaj do kalendarza</button>`:''}</div>`;
+  }).join('');
+  const empty=session.eligible?(pastOnly?'Brak zakończonych okien.':'Brak pokrywających się okien.'):'Dzień poza filtrem pełnych tygodni pon.–pt.';
+  return `<article class="session-card${!pastOnly&&session.start<=now&&now<session.end?' active-session':''}" data-session="${session.q||0}"><h3>${session.name}${isDay?'':`<span>Q${session.q}</span>`}</h3><p class="session-range">${range}</p><p class="session-targets"><b>${isDay?'DAILY':'90MIN'} ${session.targets.length?session.targets.map(q=>'Q'+q).join(' lub '):'—'}</b></p><div class="session-window-list">${windows||`<p class="session-empty">${empty}</p>`}</div></article>`;
+}
+function dayForDate(date){
+  const start=Date.parse(date+'T00:00:00Z')-6*3600000,end=start+dayMs;
+  const weekday=valuesAtPseudo(start+1).find(v=>v.name==='WEEKLY');
+  const targets=CycleRules.targetQuarters(weekday.q,{edgePair:true,sourceLabel:weekday.label});
+  const eligible=targets.some(q=>probabilityFor('DAILY',q,valuesAtPseudo(start+1)));
+  const windows=[],duration=dayMs/64;
+  for(let time=start;time<end;time+=duration){
+    const values=valuesAtPseudo(time+1);
+    const chains=matchingQuarterGroups(values,5,8,3);
+    if(chains.length&&['DAILY','90MIN','MICRO'].every(name=>probabilityFor(name,values.find(v=>v.name===name).q,values)))
+      windows.push({start:time,end:time+duration,chains,highProbability:true});
+  }
+  return {scope:'day',name:'Dzień',start,end,targets,eligible,windows};
+}
+function renderSessionPanel(now=currentPseudoTime(),force=false){
+  if(followSessionDay)sessionDateInput.value=tradingDateKey(now);
+  const date=sessionDateInput.value,key=`${date}:${probabilityScope}:${Math.floor(now/nanoMs)}`;
+  if(!force&&key===sessionPanelKey)return;
+  const sessions=probabilityScope==='day'?[dayForDate(date)]:sessionsForDay(date),count=sessions.reduce((sum,session)=>sum+session.windows.length,0);
+  document.getElementById('session-title').textContent=probabilityScope==='day'?'High Probability Low / High Dnia':'High Probability Okna w Sesji';
+  document.getElementById('session-cards').classList.toggle('day-view',probabilityScope==='day');
+  document.getElementById('session-cards').innerHTML=sessions.map(session=>sessionCardHtml(session,now)).join('');
+  document.getElementById('session-summary').textContent=`Dzień handlowy ${date.split('-').reverse().join('.')} · ${count} ${count===1?'okno':count>=2&&count<=4?'okna':'okien'}`;
+  document.getElementById('session-prev').disabled=date<=sessionDateInput.min;
+  document.getElementById('session-next').disabled=date>=sessionDateInput.max;
+  sessionPanelKey=key;
+}
+sessionDateInput.addEventListener('change',()=>{
+  if(!sessionDateInput.value||!sessionDateInput.validity.valid){sessionDateInput.value=sessionPanelKey.split(':')[0];return}
+  followSessionDay=false;renderSessionPanel(currentPseudoTime(),true);
+});
+for(const [id,step] of [['session-prev',-1],['session-next',1]])document.getElementById(id).addEventListener('click',()=>{
+  sessionDateInput.value=dateKey(Date.parse(sessionDateInput.value+'T00:00:00Z')+step*dayMs);
+  followSessionDay=false;renderSessionPanel(currentPseudoTime(),true);
+});
+document.getElementById('session-today').addEventListener('click',()=>{followSessionDay=true;renderSessionPanel(currentPseudoTime(),true)});
+document.querySelectorAll('[data-probability-scope]').forEach(button=>button.addEventListener('click',()=>{
+  probabilityScope=button.dataset.probabilityScope;
+  document.querySelectorAll('[data-probability-scope]').forEach(item=>item.setAttribute('aria-pressed',String(item===button)));
+  document.getElementById('session-calendar-status').hidden=true;
+  renderSessionPanel(currentPseudoTime(),true);
+}));
+async function addSessionCalendar(button){
+  const status=document.getElementById('session-calendar-status');
+  button.disabled=true;status.hidden=false;status.textContent='Przygotowywanie wydarzenia…';
+  try{
+    const scope=button.dataset.scope||'session';
+    const session=scope==='day'?dayForDate(sessionDateInput.value):sessionsForDay(sessionDateInput.value).find(session=>session.q===Number(button.dataset.session));
+    const item=session?.windows.find(item=>item.start===Number(button.dataset.start));
+    if(!item)throw new Error('Okno nie jest już dostępne. Wybierz dzień ponownie.');
+    const exported=SessionCalendar.event({scope,name:session.name,q:item.chains[0].q,start:item.start,end:item.end});
+    if(window.webkit?.messageHandlers?.calendarExport){
+      await window.webkit.messageHandlers.calendarExport.postMessage(exported);
+      status.textContent='Otwarto wydarzenie w Kalendarzu — wybierz kalendarz i dodaj wydarzenie.';
+    }else{
+      const url=URL.createObjectURL(new Blob([exported.ics],{type:'text/calendar;charset=utf-8'}));
+      const link=document.createElement('a');link.href=url;link.download=exported.filename;
+      document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),10000);
+      status.textContent='Pobrano wydarzenie. Otwórz plik, aby dodać je do Kalendarza.';
+    }
+    return true;
+  }catch(error){status.textContent=`Nie udało się otworzyć wydarzenia. ${error.message||error}`;return false}
+  finally{button.disabled=false}
+}
+document.getElementById('session-cards').addEventListener('click',event=>{
+  const button=event.target.closest('.add-calendar');if(button)addSessionCalendar(button);
+});
+const historyDateInput=document.getElementById('history-date');
+historyDateInput.min=sessionDateInput.min;
+let historyScope='session',followHistoryDay=true,historyPanelKey='';
+function pastWindowsForDay(date,scope,now){
+  const cards=scope==='day'?[dayForDate(date)]:sessionsForDay(date);
+  return cards.map(card=>({...card,windows:card.windows.filter(item=>item.end<=now)}));
+}
+function renderHistoryPanel(now=currentPseudoTime(),force=false){
+  historyDateInput.max=tradingDateKey(now);
+  if(followHistoryDay)historyDateInput.value=historyDateInput.max;
+  const date=historyDateInput.value,key=`${date}:${historyScope}:${Math.floor(now/nanoMs)}`;
+  if(!force&&key===historyPanelKey)return;
+  const cards=pastWindowsForDay(date,historyScope,now),count=cards.reduce((sum,card)=>sum+card.windows.length,0);
+  document.getElementById('history-title').textContent=historyScope==='day'?'Minione High Probability Low / High Dnia':'Minione High Probability Okna w Sesji';
+  document.getElementById('history-cards').classList.toggle('day-view',historyScope==='day');
+  document.getElementById('history-cards').innerHTML=cards.map(card=>sessionCardHtml(card,now,{calendar:false,pastOnly:true})).join('');
+  document.getElementById('history-summary').textContent=`Dzień handlowy ${date.split('-').reverse().join('.')} · ${count} ${count===1?'zakończone okno':count>=2&&count<=4?'zakończone okna':'zakończonych okien'}`;
+  document.getElementById('history-prev').disabled=date<=historyDateInput.min;
+  document.getElementById('history-next').disabled=date>=historyDateInput.max;
+  historyPanelKey=key;
+}
+historyDateInput.addEventListener('change',()=>{
+  if(!historyDateInput.value||!historyDateInput.validity.valid){historyDateInput.value=historyPanelKey.split(':')[0];return}
+  followHistoryDay=false;renderHistoryPanel(currentPseudoTime(),true);
+});
+for(const [id,step] of [['history-prev',-1],['history-next',1]])document.getElementById(id).addEventListener('click',()=>{
+  historyDateInput.value=dateKey(Date.parse(historyDateInput.value+'T00:00:00Z')+step*dayMs);
+  followHistoryDay=false;renderHistoryPanel(currentPseudoTime(),true);
+});
+document.getElementById('history-today').addEventListener('click',()=>{followHistoryDay=true;renderHistoryPanel(currentPseudoTime(),true)});
+document.querySelectorAll('[data-history-scope]').forEach(button=>button.addEventListener('click',()=>{
+  historyScope=button.dataset.historyScope;
+  document.querySelectorAll('[data-history-scope]').forEach(item=>item.setAttribute('aria-pressed',String(item===button)));
+  renderHistoryPanel(currentPseudoTime(),true);
+}));
+function updateEvents(){const now=currentPseudoTime();renderChainPanel('previous',now);renderChainPanel('next',now);renderSessionPanel(now);renderHistoryPanel(now)}
+document.querySelectorAll('.chain-filters').forEach(group=>group.addEventListener('click',event=>{const button=event.target.closest('button[data-scope]');if(!button||!group.contains(button))return;const panel=group.dataset.panel;selectedChainScope[panel]=button.dataset.scope;group.querySelectorAll('button').forEach(item=>item.setAttribute('aria-pressed',String(item===button)));document.getElementById(panel).scrollTop=0;renderChainPanel(panel,currentPseudoTime(),true)}));
+function tick(){const s=context();if(weekStartFor(s)!==windowStart){location.reload();return}const seconds=s.minutes*60+s.second,next=360*60-(seconds%(360*60));document.getElementById('clock').textContent=new Date().toLocaleTimeString('pl-PL',{timeZone:'America/New_York',hour12:false,timeZoneName:'short'});document.getElementById('datebar').textContent=`Tydzień ${weekLabel} ET · przeciągnij oś wstecz lub w przód`;document.getElementById('activeQ').textContent='Q'+s.daily;document.getElementById('activeText').textContent=`${phase[s.daily][0]} · ${phase[s.daily][1].toUpperCase()}`;document.getElementById('countdown').textContent=new Date(next*1000).toISOString().slice(11,19);nowline.style.left=(livePosition(s)*100)+'%';updateEvents()}
+const zoomRange=document.getElementById('zoomRange');
+function hoursVisible(){return 24/zoom}
+function nearestHours(h){return zoomHours.reduce((best,value)=>Math.abs(value-h)<Math.abs(best-h)?value:best)}
+function syncZoomRange(){zoomRange.value=String(nearestHours(hoursVisible()))}
+function setZoom(next,focus=.5){const minZoom=24/zoomHours[zoomHours.length-1],maxZoom=24/zoomHours[0];const oldWidth=grid.scrollWidth,anchor=(timeline.scrollLeft+timeline.clientWidth*focus)/oldWidth;zoom=Math.max(minZoom,Math.min(maxZoom,next));grid.style.width=(horizonDays*100*zoom)+'%';grid.style.backgroundSize=(100/(horizonDays*4))+'% 100%';syncZoomRange();requestAnimationFrame(()=>{timeline.scrollLeft=anchor*grid.scrollWidth-timeline.clientWidth*focus})}
+function setHours(hours,focus=.5){setZoom(24/hours,focus)}
+function stepHours(dir,focus=.5){const i=zoomHours.indexOf(nearestHours(hoursVisible()));setHours(zoomHours[Math.max(0,Math.min(zoomHours.length-1,i+dir))],focus)}
+function jumpNow(){timeline.scrollLeft=livePosition()*grid.scrollWidth-timeline.clientWidth*.5;nowline.animate([{boxShadow:'0 0 0 #fff'},{boxShadow:'0 0 30px 8px #fff'},{boxShadow:'0 0 12px #fff8'}],{duration:700})}
+document.getElementById('jumpNow').onclick=jumpNow;document.getElementById('zoomIn').onclick=()=>stepHours(-1);document.getElementById('zoomOut').onclick=()=>stepHours(1);document.getElementById('resetView').onclick=()=>{setHours(defaultHours);requestAnimationFrame(jumpNow)};
+zoomRange.onchange=()=>setHours(+zoomRange.value);
+timeline.addEventListener('wheel',e=>{if(Math.abs(e.deltaY)<=Math.abs(e.deltaX))return;e.preventDefault();const r=timeline.getBoundingClientRect();stepHours(e.deltaY<0?-1:1,(e.clientX-r.left)/r.width)},{passive:false});let dragging=false,startX=0,startScroll=0;timeline.addEventListener('pointerdown',e=>{if(e.target.closest('.view-tools'))return;dragging=true;startX=e.clientX;startScroll=timeline.scrollLeft;timeline.classList.add('dragging');timeline.setPointerCapture(e.pointerId)});timeline.addEventListener('pointermove',e=>{if(dragging)timeline.scrollLeft=startScroll-(e.clientX-startX)});timeline.addEventListener('pointerup',()=>{dragging=false;timeline.classList.remove('dragging')});timeline.addEventListener('pointercancel',()=>{dragging=false;timeline.classList.remove('dragging')});
+function registerWebMCP(){const ctx=document.modelContext;if(!ctx?.registerTool)return;const signal=new AbortController().signal;ctx.registerTool({name:'read_quarter_sequence',title:'Odczytaj Quarterly Theory',description:'Zwraca kwartały cykli dla wskazanej pozycji w bieżącym tygodniu czasu ET (0–1).',inputSchema:{type:'object',properties:{dayPosition:{type:'number',minimum:0,maximum:1}},required:['dayPosition'],additionalProperties:false},annotations:{readOnlyHint:true,untrustedContentHint:false},execute(input){if(typeof input?.dayPosition!=='number'||input.dayPosition<0||input.dayPosition>1)throw new Error('dayPosition musi mieścić się w zakresie 0–1');return {position:input.dayPosition,cycles:valuesAt(input.dayPosition)}}},{signal})}
+function highlightChains(){
+  grid.querySelectorAll('.chain-now').forEach(el=>el.remove());
+  const x=livePosition();
+  nowline.style.left=x*100+'%';
+  if(x<0||x>=1)return;
+  const rows=grid.querySelectorAll('.row');
+  QuarterChains.runs(valuesAt(x).map(v=>v.q)).forEach(run=>{
+    const first=rows[run.start],last=rows[run.end-1];
+    const overlay=document.createElement('div');overlay.className='chain-now';
+    overlay.setAttribute('aria-hidden','true');overlay.dataset.count='×'+(run.end-run.start);
+    overlay.style.left=x*100+'%';overlay.style.top=first.offsetTop+'px';
+    overlay.style.height=(last.offsetTop+last.offsetHeight-first.offsetTop)+'px';
+    grid.append(overlay);
+  });
+}
+function renderAppPage(scroll=true){
+  const events=location.hash==='#events';
+  document.body.classList.toggle('events-view',events);
+  document.getElementById('timeline-page').hidden=events;
+  document.getElementById('events-page').hidden=!events;
+  document.getElementById('jumpNow').hidden=events;
+  document.querySelector('.legend').hidden=events;
+  tip.classList.remove('show');
+  for(const [id,active] of [['nav-timeline',!events],['nav-events',events]]){
+    const button=document.getElementById(id);button.classList.toggle('active',active);
+    if(active)button.setAttribute('aria-current','page');else button.removeAttribute('aria-current');
+  }
+  document.title=events?"UNC'sWay — Wydarzenia":"UNC'sWay — Quarterly Timeline";
+  if(scroll)window.scrollTo(0,0);
+  if(!events)requestAnimationFrame(()=>{jumpNow();highlightChains()});
+}
+for(const [id,hash] of [['nav-timeline','#timeline'],['nav-events','#events']])document.getElementById(id).addEventListener('click',()=>{
+  if(location.hash!==hash)location.hash=hash;
+  renderAppPage();
+});
+window.addEventListener('hashchange',()=>renderAppPage());
+build();paintLtfWindows();setHours(defaultHours);tick();highlightChains();paintHolidays();renderAppPage(false);requestAnimationFrame(jumpNow);registerWebMCP();setInterval(()=>{tick();highlightChains()},1000);
+</script>
+</body>
+</html>

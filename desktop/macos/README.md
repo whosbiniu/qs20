@@ -87,3 +87,22 @@ it does not open Calendar or create calendar entries during self-tests.
 Writes a screenshot to `/tmp/qs-macos-preview.png`, then exits with a status code.
 
 This is a locally ad-hoc signed build for personal use, not a notarized release.
+
+## Version 2.0: UNC Terminal
+
+The app now opens the terminal (`public/index.html`): Wykresy (F1), Kalendarz ekonomiczny (F2),
+Wydarzenia (F3), Kwartały (F4) and Aktualne L/H (F5). The former Timeline/Wydarzenia app lives in
+`public/quarters/index.html`, and its six “Aktualne High/Low” panels moved to `public/quarters/highs.html`.
+Kalendarz and Kwartały are shown in frames, so all bridges accept any page bundled under `public/`.
+
+The terminal's data layer is `public/terminal-data.js` (Yahoo charts, HOTM/LOTM/HOTW/LOTW/HOTD/LOTD cycle labels,
+the 50-instrument ticker tape and FinancialJuice headlines translated to Polish). The web deployment runs it in
+`/api/chart|highs|tape|news`; the app runs the same file in the page and uses the native `proxy` bridge as its
+transport. The bridge only reaches `query1.finance.yahoo.com`, `www.financialjuice.com` and `translate.googleapis.com`.
+
+Smoke tests (all write to stdout and exit non-zero on failure):
+
+- `--self-test --offline`: Kwartały page (timeline, sessions, calendar export), as before.
+- `--self-test-highs --offline`: Aktualne L/H panels filled from the fixture bridge.
+- `--self-test-terminal`: terminal with live data (needs the network; FinancialJuice rate limits repeated
+  requests, so wait about a minute between runs). Writes `/tmp/qs-terminal-preview.png`.

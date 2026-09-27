@@ -1,42 +1,52 @@
 (() => {
-  const body=document.getElementById('day-highs-body'),status=document.getElementById('day-highs-status');
   let running=false;
-  function cell(row,text,small){const td=row.insertCell();td.textContent=text;if(small){const note=document.createElement('small');note.textContent=small;td.append(note);}return td;}
+  const sourceText='Yahoo Finance · dane opóźnione około 10 min';
+  function cell(row,text){const td=row.insertCell();td.textContent=text;return td;}
   function render(payload){
     if(!Array.isArray(payload.assets))throw new Error('Invalid data');
-    body.replaceChildren();
-    for(const asset of DayHighs.assets){
-      const item=payload.assets.find(row=>row.symbol===asset.symbol),row=body.insertRow();
-      const label=cell(row,asset.symbol);
-      label.title=`Yahoo: ${asset.feed}${item?.contract?' · '+item.contract:''}`;
-      if(!item||item.error){const td=cell(row,'Brak danych');td.colSpan=4;continue;}
-      for(const key of ['weekly','daily','m90','micro']){
-        const td=cell(row,item.quarters[key]);
-        td.className='high-quarter';
-        if(item.quarters[key].includes(' / '))td.title='Świeca minutowa przecina granicę kwartałów. Dokładny kwartał high jest nieznany.';
+    for(const panel of DayHighs.panels){
+      const body=document.getElementById(panel.id+'-body'),status=document.getElementById(panel.id+'-status');
+      body.replaceChildren();let uncertain=false;const periods=new Set();
+      for(const asset of DayHighs.assets){
+        const item=payload.assets.find(item=>item.symbol===asset.symbol),value=item?.periods?.[panel.scope]?.[panel.side],row=body.insertRow();
+        const label=cell(row,asset.symbol);label.title=`Yahoo: ${asset.feed}${item?.contract?' · '+item.contract:''}`;
+        if(!value||value.error){const td=cell(row,value?.error||'Brak danych');td.colSpan=panel.keys.length+(panel.session?1:0);continue;}
+        periods.add(value.period);
+        const matches=DayHighs.matchingKeys(value.quarters,panel.keys);
+        for(const key of panel.keys){
+          const td=cell(row,value.quarters[key]);td.className='high-quarter';
+          if(matches.includes(key)){td.classList.add('quarter-match');td.title='Co najmniej 3 poziomy wskazują ten sam Q.';}
+          if(value.quarters[key].includes(' / ')){uncertain=true;td.title='Świeca przecina granicę kwartałów. Dokładny kwartał ekstremum jest nieznany.';}
+          if(value.quarters[key]==='Q0')td.title='Tydzień przecina granicę miesięcy.';
+        }
+        if(panel.session){
+          const td=cell(row,DayHighs.sessionLabel(value.quarters.daily));
+          td.className='extreme-session';
+          td.title='Sesja odpowiada kwartałowi Daily; nie jest liczona ponownie jako osobny poziom zgodności.';
+        }
+        label.title+=` · ${value.period}`;
       }
+      const current=DayHighs.periodKey(DayHighs.tradingDay(Date.now()).key,panel.scope);
+      const periodText=[...periods].map(value=>value.split('-').reverse().join('.')).join(' / ');
+      const noun={day:'sesja',week:'tydzień od',month:'miesiąc'}[panel.scope];
+      status.textContent=sourceText+(periods.size?` · ${[...periods].every(p=>p===current)?'':'ostatni dostępny okres · '}${noun} ${periodText}`:' · brak danych');
+      if(payload.fetchedAt&&Date.now()-payload.fetchedAt>180000)status.textContent+=' · nieodświeżona kopia danych';
+      if(uncertain)status.textContent+=' · dwa Q = granica wewnątrz świecy';
     }
-    const days=[...new Set(payload.assets.filter(item=>!item.error).map(item=>item.day))];
-    const today=DayHighs.tradingDay(Date.now()).key;
-    const dayLabel=days.map(day=>day.split('-').reverse().join('.')).join(' / ');
-    status.textContent='Yahoo Finance · dane opóźnione około 10 min'+(days.length?` · ${days.every(day=>day===today)?'sesja':'ostatnia dostępna sesja'} ${dayLabel}`:' · notowania chwilowo niedostępne');
-    if(days.length>1)Array.from(body.rows).forEach((row,i)=>{const item=payload.assets.find(item=>item.symbol===DayHighs.assets[i].symbol);if(item?.day){const small=document.createElement('small');small.textContent=item.day;row.cells[0].append(small);}});
-    if(payload.fetchedAt&&Date.now()-payload.fetchedAt>180000)status.textContent+=' · nieodświeżona kopia danych';
-    if(payload.assets.some(item=>!item.error&&Object.values(item.quarters).some(q=>q.includes(' / '))))status.textContent+=' · dwa Q = granica wewnątrz świecy 1 min';
   }
   async function refresh(){
     if(running)return;running=true;
     try{
       const endpoint=document.querySelector('meta[name="market-highs-endpoint"]').content;
-      const response=await fetch(endpoint,{cache:'no-store',signal:AbortSignal.timeout(20000)});
+      const response=await fetch(endpoint,{cache:'no-store',signal:AbortSignal.timeout(25000)});
       if(!response.ok)throw new Error('Unavailable');
       const payload=await response.json();
-      // The native bridge returns provider candles; use the same calculations as the server.
       if(payload.charts)payload.assets=DayHighs.assets.map(asset=>{
-        try{return DayHighs.summarize(payload.charts[asset.symbol],asset.symbol);}catch{return {...asset,error:'Dane chwilowo niedostępne'};}
+        const data=payload.charts[asset.symbol]||{};
+        return DayHighs.summarizeAll(data.intraday,data.history,asset.symbol);
       });
       render(payload);
-    }catch{status.textContent='Nie udało się odświeżyć notowań. Widoczne dane mogą być nieaktualne; ponowimy za minutę.';}
+    }catch{DayHighs.panels.forEach(panel=>{document.getElementById(panel.id+'-status').textContent=sourceText+' · błąd odświeżania, widoczne dane mogą być nieaktualne';});}
     finally{running=false;}
   }
   refresh();setInterval(refresh,60000);

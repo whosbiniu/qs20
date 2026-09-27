@@ -1,0 +1,69 @@
+/* UNC Terminal theme: cream on black, monospace, hairline frames.
+   Only the quarter colours (--q1..--q4) keep their hue. Loaded after the page's own <style>. */
+:root{--bg:#050505;--panel:#050505;--line:#3a3a34;--muted:#8c8a7c;--text:#ebe6d3;--hot:#ebe6d3;--green:#ebe6d3;--blue:#ebe6d3;--ink:#ebe6d3;--dim:#8c8a7c;--faint:#1c1c19}
+*{font-family:ui-monospace,SFMono-Regular,Menlo,monospace!important;border-radius:0!important;text-shadow:none!important}
+html,body,.app,.topbar,.stage,.labels,.timeline,.footer,.economic,.session-panel,.datebar,.economic th{background:var(--bg)!important;color:var(--ink)}
+.mark{filter:none}.brand b{letter-spacing:.24em;color:var(--ink)}
+.quote{font-style:normal;color:var(--dim);font-size:11px;letter-spacing:.06em}
+.topbar,.labels,.footer,.pane,.datebar,.economic,.session-panel,.rule-summary{border-color:var(--line)!important}
+.clock,.settings,.legend{color:var(--dim)}
+
+/* buttons / controls */
+.nav button,.action,.view-tools button,.view-tools select,.chain-filters button,.session-controls button,.session-controls input,
+.economic-filters button,.add-calendar,.ssmt-option{background:transparent!important;border:1px solid var(--line)!important;color:var(--dim)!important;letter-spacing:.12em}
+.nav button:hover,.action:hover,.view-tools button:hover,.view-tools select:hover,.add-calendar:hover,.economic-filters button:hover,.ssmt-option:hover{color:var(--ink)!important;border-color:var(--ink)!important;background:transparent!important}
+.nav button.active,[aria-pressed="true"],.ssmt-option.is-active{background:var(--ink)!important;color:var(--bg)!important;border-color:var(--ink)!important}
+.ssmt-option input{accent-color:var(--ink)}
+:focus-visible{outline:1px dashed var(--ink)!important;outline-offset:3px!important}
+
+/* timeline */
+.label{color:var(--dim)}.label.dot::after{background:var(--ink)}
+.grid{background-image:linear-gradient(90deg,transparent calc(100% - 1px),var(--faint) calc(100% - 1px))!important}
+.row{border-bottom-color:var(--faint)}.cell{border-right-color:var(--line)}
+.cell.q0{background:repeating-linear-gradient(125deg,#050505,#050505 4px,#0d0d0b 4px,#0d0d0b 7px);color:var(--dim)}
+.nowline{background:var(--ink);box-shadow:none}.nowline::before{color:var(--ink)}
+.cell.holiday-session{box-shadow:inset 0 0 0 1px var(--ink)}
+.cell.holiday-session::after{background:repeating-linear-gradient(135deg,var(--ink) 0 1px,transparent 1px 5px);opacity:.35}
+.holiday-day{background:repeating-linear-gradient(135deg,#ebe6d31f 0 1px,transparent 1px 6px);box-shadow:inset 0 0 0 1px #ebe6d380}
+.chain-now{border:1px dashed var(--ink);background:transparent}.chain-now::before{background:var(--bg);color:var(--ink);border:1px solid var(--ink)}
+.ltf-probability-window{border:1px dashed var(--ink);background:#ebe6d30f}.ltf-badge,.ltf-tip{color:var(--ink);border-color:var(--ink)}
+.cell.probability-match{box-shadow:inset 0 -1px 0 currentColor}
+.smt-detail{border-top-color:var(--line)}
+
+/* panels */
+.tooltip{background:var(--bg);border:1px solid var(--ink);box-shadow:none}
+.tiprow{color:var(--dim)}.tiprow b,.tiprow b.holiday{color:var(--ink)}
+.tiprow b.q1{color:var(--q1)}.tiprow b.q2{color:#ff7388}.tiprow b.q3{color:#00d688}.tiprow b.q4{color:#5ab9f5}
+.pane h2,.economic h2,.session-panel h2,.collapsible-panel>summary h2{color:var(--ink);font-size:12px;letter-spacing:.24em;text-transform:uppercase}
+.pane h2{color:var(--dim)}
+.event{border-top-color:var(--faint)}.badge{border-color:var(--line);color:var(--dim)}.event small,.event time{color:var(--dim)}
+.current .ring{border-color:var(--line)}.current .ring::after{border-color:var(--ink);border-left-color:transparent}.current .ring,.current .ring::after{border-radius:50%!important}
+.chain-window{border-top-color:var(--faint)}.chain-window summary,.chain-window-chain b{color:var(--ink)}.chain-window summary::before{color:var(--ink)}
+.chain-window summary span,.chain-window-body p,.chain-window-chain{color:var(--dim)}
+.chain-list,.timeline{scrollbar-color:var(--line) var(--bg)}
+.rule-summary{color:var(--dim)}.rule-summary strong{color:var(--ink)}
+
+/* economic calendar */
+.economic a{color:var(--ink);text-decoration:underline;text-underline-offset:3px}
+.economic p,.economic-note,.economic-empty,.event-timing,.session-panel p{color:var(--dim)}
+.economic-scroll{border:1px solid var(--line)}
+.economic th{color:var(--dim);font-weight:400;text-transform:uppercase;letter-spacing:.12em;font-size:11px}
+.economic td,.economic th{border-bottom:1px solid var(--faint);padding:11px 14px}
+.economic tr.upcoming{background:#ebe6d30d;box-shadow:inset 2px 0 0 var(--ink)}
+.impact{background:transparent!important;border:1px solid var(--line);color:var(--dim)!important;font-size:11px;letter-spacing:.08em;text-transform:uppercase}
+.impact.medium{border-color:var(--ink);color:var(--ink)!important}
+.impact.high{background:var(--ink)!important;border-color:var(--ink);color:var(--bg)!important;font-weight:700}
+
+/* sessions, SSMT, day highs */
+.session-card,.ssmt-messages p,.day-view .session-window{background:transparent!important;border:1px solid var(--line)!important}
+.session-card.active-session{border-color:var(--ink)!important}
+.session-card h3 span,.session-card .session-range{color:var(--dim)}
+.session-controls input{color-scheme:dark;color:var(--ink)!important}
+.ssmt-messages p{border-left:2px solid var(--ink)!important;color:var(--ink)}.ssmt-messages strong{color:var(--ink)}
+.day-highs-table th{color:var(--dim);letter-spacing:.12em;text-transform:uppercase}
+.day-highs-table td{border-top-color:var(--faint);color:var(--ink)}.day-highs-table td:first-child{color:var(--ink)}
+.day-highs-table small,.day-highs-note,#day-highs-status,.extremes-status{color:var(--dim)}
+.day-highs-table .high-quarter{color:var(--dim)}
+.day-highs-table td.quarter-match{background:transparent;color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink)}
+.collapsible-panel>summary::before{color:var(--ink)}
+.mark{display:none}.brand{min-width:auto}

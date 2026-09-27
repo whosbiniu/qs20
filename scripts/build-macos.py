@@ -51,8 +51,8 @@ with tempfile.TemporaryDirectory(prefix="qs-macos-") as work:
     info = {
         "CFBundleExecutable": "UNCsWay", "CFBundleIdentifier": "local.uncsway.quarterly",
         "CFBundleName": "UNCsWay", "CFBundleDisplayName": "UNC’sWay",
-        "CFBundlePackageType": "APPL", "CFBundleShortVersionString": "1.8.0",
-        "CFBundleVersion": "12", "LSMinimumSystemVersion": "12.0",
+        "CFBundlePackageType": "APPL", "CFBundleShortVersionString": "2.0.0",
+        "CFBundleVersion": "14", "LSMinimumSystemVersion": "12.0",
         "NSHighResolutionCapable": True, "NSPrincipalClass": "NSApplication",
     }
     with (contents / "Info.plist").open("wb") as handle:

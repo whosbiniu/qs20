@@ -8,8 +8,8 @@ the static Pages encryption below. Configure `SITE_PASSWORD_HASH` (the result of
 `SITE_SESSION_SECRET` as sensitive Vercel environment variables. Neither the
 password nor either environment value is committed or sent to the browser.
 
-The proxy protects all routes, including direct public HTML/JS URLs. The events
-API also validates the session itself. A successful login creates a signed,
+The proxy protects all routes, including direct public HTML/JS URLs. The events,
+market-highs, chart, highs, tape and news APIs also validate the session themselves. A successful login creates a signed,
 12-hour Secure/HttpOnly/SameSite=Strict cookie. Missing configuration fails closed.
 Rotating either environment value invalidates sessions after redeployment.
 The native app loads its own bundled files and does not use this Next.js proxy.
@@ -17,6 +17,10 @@ The native app loads its own bundled files and does not use this Next.js proxy.
 Run `node scripts/test-vercel-auth.mjs` to check password and session handling.
 
 ## GitHub Pages
+
+The static Pages build publishes only the Kwartały page (timeline, Wydarzenia calendar and the Aktualne
+High/Low panels) as one encrypted document. The terminal (charts, ticker tape, headlines) needs the Vercel
+server or the Mac app, because it fetches Yahoo Finance and FinancialJuice live.
 
 Only the Pages build is protected. `public/` and the macOS application remain
 unchanged and require no password.

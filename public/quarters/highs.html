@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="market-highs-endpoint" content="/api/market-highs" />
+  <title>Aktualne L/H</title>
+  <link rel="stylesheet" href="base.css" />
+  <link rel="stylesheet" href="terminal-theme.css" />
+  <style>body{min-height:100vh}.lh-note{margin:0;padding:14px 24px;border-bottom:1px solid var(--line);color:var(--dim);font-size:11px;letter-spacing:.06em}</style>
+</head>
+<body>
+<main class="app">
+  <p class="lh-note">AKTUALNE L/H · kwartał, w którym powstało ostatnie ekstremum · NQ1! ES1! YM1!</p>
+  <details open class="session-panel collapsible-panel extremes-panel" id="day-highs-panel">
+    <summary><h2 id="day-highs-title">Aktualne High Dnia</h2></summary>
+    <div class="day-highs-scroll"><table class="day-highs-table"><thead><tr><th scope="col">Instrument</th><th scope="col">Weekly</th><th scope="col">Daily</th><th scope="col">90M</th><th scope="col">Micro</th></tr></thead><tbody id="day-highs-body"><tr><td>NQ1!</td><td colspan="4">Ładowanie…</td></tr><tr><td>ES1!</td><td colspan="4">Ładowanie…</td></tr><tr><td>YM1!</td><td colspan="4">Ładowanie…</td></tr></tbody></table></div>
+    <p id="day-highs-status" class="extremes-status" role="status">Yahoo Finance · dane opóźnione około 10 min</p>
+  </details>
+  <details open class="session-panel collapsible-panel extremes-panel" id="day-lows-panel">
+    <summary><h2 id="day-lows-title">Aktualne Low Dnia</h2></summary>
+    <div class="day-highs-scroll"><table class="day-highs-table"><thead><tr><th scope="col">Instrument</th><th scope="col">Weekly</th><th scope="col">Daily</th><th scope="col">90M</th><th scope="col">Micro</th></tr></thead><tbody id="day-lows-body"><tr><td>NQ1!</td><td colspan="4">Ładowanie…</td></tr><tr><td>ES1!</td><td colspan="4">Ładowanie…</td></tr><tr><td>YM1!</td><td colspan="4">Ładowanie…</td></tr></tbody></table></div>
+    <p id="day-lows-status" class="extremes-status" role="status">Yahoo Finance · dane opóźnione około 10 min</p>
+  </details>
+  <details open class="session-panel collapsible-panel extremes-panel" id="month-highs-panel">
+    <summary><h2 id="month-highs-title">Aktualne High Miesiąca</h2></summary>
+    <div class="day-highs-scroll"><table class="day-highs-table"><thead><tr><th scope="col">Instrument</th><th scope="col">Monthly</th><th scope="col">Weekly</th><th scope="col">Daily</th></tr></thead><tbody id="month-highs-body"><tr><td>NQ1!</td><td colspan="3">Ładowanie…</td></tr><tr><td>ES1!</td><td colspan="3">Ładowanie…</td></tr><tr><td>YM1!</td><td colspan="3">Ładowanie…</td></tr></tbody></table></div>
+    <p id="month-highs-status" class="extremes-status" role="status">Yahoo Finance · dane opóźnione około 10 min</p>
+  </details>
+  <details open class="session-panel collapsible-panel extremes-panel" id="month-lows-panel">
+    <summary><h2 id="month-lows-title">Aktualne Low Miesiąca</h2></summary>
+    <div class="day-highs-scroll"><table class="day-highs-table"><thead><tr><th scope="col">Instrument</th><th scope="col">Monthly</th><th scope="col">Weekly</th><th scope="col">Daily</th></tr></thead><tbody id="month-lows-body"><tr><td>NQ1!</td><td colspan="3">Ładowanie…</td></tr><tr><td>ES1!</td><td colspan="3">Ładowanie…</td></tr><tr><td>YM1!</td><td colspan="3">Ładowanie…</td></tr></tbody></table></div>
+    <p id="month-lows-status" class="extremes-status" role="status">Yahoo Finance · dane opóźnione około 10 min</p>
+  </details>
+  <details open class="session-panel collapsible-panel extremes-panel" id="week-lows-panel">
+    <summary><h2 id="week-lows-title">Aktualne Low Tygodnia</h2></summary>
+    <div class="day-highs-scroll"><table class="day-highs-table"><thead><tr><th scope="col">Instrument</th><th scope="col">Monthly</th><th scope="col">Weekly</th><th scope="col">Daily</th><th scope="col">Sesja</th></tr></thead><tbody id="week-lows-body"><tr><td>NQ1!</td><td colspan="4">Ładowanie…</td></tr><tr><td>ES1!</td><td colspan="4">Ładowanie…</td></tr><tr><td>YM1!</td><td colspan="4">Ładowanie…</td></tr></tbody></table></div>
+    <p id="week-lows-status" class="extremes-status" role="status">Yahoo Finance · dane opóźnione około 10 min</p>
+  </details>
+  <details open class="session-panel collapsible-panel extremes-panel" id="week-highs-panel">
+    <summary><h2 id="week-highs-title">Aktualne High Tygodnia</h2></summary>
+    <div class="day-highs-scroll"><table class="day-highs-table"><thead><tr><th scope="col">Instrument</th><th scope="col">Monthly</th><th scope="col">Weekly</th><th scope="col">Daily</th><th scope="col">Sesja</th></tr></thead><tbody id="week-highs-body"><tr><td>NQ1!</td><td colspan="4">Ładowanie…</td></tr><tr><td>ES1!</td><td colspan="4">Ładowanie…</td></tr><tr><td>YM1!</td><td colspan="4">Ładowanie…</td></tr></tbody></table></div>
+    <p id="week-highs-status" class="extremes-status" role="status">Yahoo Finance · dane opóźnione około 10 min</p>
+  </details>
+</main>
+<script src="../cycle-rules.js"></script>
+<script src="../day-highs.js"></script>
+<script src="../day-highs-panel.js"></script>
+</body>
+</html>

@@ -141,3 +141,17 @@ entries are listed as unavailable. The order book heat map, open interest histor
 the open tab (open interest is sampled every 15 s); funding history and key levels come from Hyperliquid on demand.
 `/api/hl/depth` and `/api/hl/funding` are served by `lib/hyperliquid.mjs` on the web and by `hyperliquid-data.js`
 through the native proxy in the app.
+
+## Inne (F10)
+
+`public/other.js` (loaded on first use with `public/terminal-extra-data.js`): market heat map (Yahoo quotes of ~110
+large US companies by sector), correlation matrix and % comparison, US Treasury yield curve with the 10Y-2Y / 10Y-3M
+spreads (home.treasury.gov CSV), seasonality by month / weekday / year, earnings history with the next-session price
+reaction (Yahoo quoteSummary + earnings calendar), a trade journal (localStorage + IndexedDB snapshots, context of the
+quarters and cycle labels at entry, R statistics, JSON export/import) and CFTC Commitments of Traders (TFF / legacy
+reports via publicreporting.cftc.gov). Web routes: `/api/extra/*`; the app serves the same data through the native
+proxy (hosts query2.finance.yahoo.com, home.treasury.gov, publicreporting.cftc.gov).
+
+The AI assistant (`/api/ai/chat`) uses the official Anthropic SDK with `claude-opus-5`, adaptive thinking, streaming
+and server-side refusal fallbacks (`fallbacks: "default"`). It needs `ANTHROPIC_API_KEY` in the Vercel environment and
+answers 503 without it; it is not available in the Mac app, which has no server-side key.

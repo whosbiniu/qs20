@@ -133,7 +133,8 @@ final class ProxyBridge: NSObject, WKScriptMessageHandlerWithReply {
     static let hosts: Set<String> = ["query1.finance.yahoo.com", "www.financialjuice.com", "translate.googleapis.com",
                                      "nfs.faireconomy.media", "economic-calendar.tradingview.com",
                                      "earthquake.usgs.gov", "eonet.gsfc.nasa.gov", "api.adsb.lol", "api.gdeltproject.org",
-                                     "fc.yahoo.com", "api.hyperliquid.xyz", "www.youtube.com"]
+                                     "fc.yahoo.com", "api.hyperliquid.xyz", "www.youtube.com",
+                                     "query2.finance.yahoo.com", "home.treasury.gov", "publicreporting.cftc.gov"]
 
     func userContentController(_ userContentController: WKUserContentController,
                                didReceive message: WKScriptMessage,
@@ -313,7 +314,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
             const terminalRoutes = ['/api/chart', '/api/highs', '/api/tape', '/api/news', '/api/monitor', '/api/earnings',
               '/api/hl/markets', '/api/hl/candles', '/api/hl/book', '/api/hl/depth', '/api/hl/funding', '/api/tv'];
             const url = new URL(path, 'https://terminal.invalid');
-            if (terminalRoutes.includes(url.pathname) || (url.pathname === '/api/events' && url.searchParams.has('range'))) {
+            if (terminalRoutes.includes(url.pathname) || url.pathname.startsWith('/api/extra/') || (url.pathname === '/api/events' && url.searchParams.has('range'))) {
               // Same data layer as the web server, with the native app as its transport.
               const transport = async (target, options) => {
                 const reply = await window.webkit.messageHandlers.proxy.postMessage(
@@ -335,6 +336,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
                   const id = (page.match(/<link rel="canonical" href="https:\\/\\/www\\.youtube\\.com\\/watch\\?v=([\\w-]{11})"/) || [])[1];
                   if (!id || !/"isLiveNow":true/.test(page)) return new Response(JSON.stringify({error: 'Bloomberg TV is not live right now'}), {status: 503, headers: {'Content-Type': 'application/json'}});
                   return json({id});
+                }
+                if (url.pathname.startsWith('/api/extra/')) {
+                  // "Inne" tools: terminal-extra-data.js is loaded with that page (see LAZY in index.html).
+                  const extra = window.__extraData ||= TerminalExtraData.create(transport);
+                  const name = url.pathname.slice(11);
+                  if (name === 'heatmap') return json(await extra.heatmap());
+                  if (name === 'correlation') return json(await extra.correlation(q.get('symbols') || '', Number(q.get('days')) || 60));
+                  if (name === 'yields') return json(await extra.yields());
+                  if (name === 'seasonal') return json(await extra.seasonal(q.get('symbol') || ''));
+                  if (name === 'earnings-history') return json(await extra.earningsHistory(q.get('symbol') || ''));
+                  if (name === 'cot') return json(await extra.cot(q.get('market') || ''));
+                  return new Response('{"error":"not found"}', {status: 404, headers: {'Content-Type': 'application/json'}});
                 }
                 if (url.pathname === '/api/hl/markets') return json({markets: await hyper.markets()});
                 if (url.pathname === '/api/hl/candles') return json({candles: await hyper.candles(q.get('coin'), q.get('interval') || '1h')});
@@ -528,6 +541,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
                                                 arguments: [:], in: nil, in: .page) { calendar in print("calendar:", calendar) }
                     webView.callAsyncJavaScript("const d = await (await fetch('/api/hl/depth?coin=BTC&sig=3')).json(); const f = await (await fetch('/api/hl/funding?coin=BTC')).json(); return 'depth bids=' + (d.bids || []).length + ' asks=' + (d.asks || []).length + ' funding=' + (f.rates || []).length",
                                                 arguments: [:], in: nil, in: .page) { studies in print("studies:", studies) }
+                    webView.callAsyncJavaScript("await need('other'); const j = async u => { const r = await fetch(u); return r.ok ? await r.json() : {error: r.status} }; const y = await j('/api/extra/yields'), c = await j('/api/extra/cot?market=NQ'), h = await j('/api/extra/heatmap'), s = await j('/api/extra/seasonal?symbol=NQ1!'), e = await j('/api/extra/earnings-history?symbol=NVDA'), k = await j('/api/extra/correlation?symbols=NQ1!,ES1!&days=60'); return 'yields=' + (y.curves || []).length + ' cot=' + (c.series || []).length + ' heatmap=' + (h.items || []).length + ' seasonal=' + (s.months || []).length + ' earnings=' + (e.reports || []).length + ' corr=' + JSON.stringify(k.matrix || k.error)",
+                                                arguments: [:], in: nil, in: .page) { extra in print("extra:", extra) }
                     webView.callAsyncJavaScript("const r = await fetch('/api/monitor'); const d = await r.json(); return r.status + ' quakes=' + (d.quakes || []).length + ' events=' + (d.events || []).length + ' aircraft=' + (d.aircraft || []).length + ' failed=' + (d.failed || [])",
                                                 arguments: [:], in: nil, in: .page) { monitor in print("monitor:", monitor) }
                     webView.callAsyncJavaScript("const r = await fetch('/api/news'); return r.status + ' ' + (await r.text()).slice(0, 160)",

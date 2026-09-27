@@ -208,6 +208,53 @@ footer .credit{margin-left:auto;letter-spacing:.08em}
   input,select,textarea{font-size:16px}
 }
 @media(max-width:800px) and (orientation:landscape){.chart{height:70vh}}
+
+/* ---- Inne: heat map, correlations, yields, seasonality, earnings, journal, COT, AI ---- */
+#other .ot{position:absolute;inset:0;display:flex;flex-direction:column;gap:8px}
+.ot-nav{display:flex;flex-wrap:wrap;border:1px solid var(--line)}
+.ot-nav button{background:none;border:0;border-right:1px solid var(--line);color:var(--dim);font:inherit;padding:7px 13px;cursor:pointer;text-transform:uppercase;letter-spacing:.1em}
+.ot-nav button:hover{color:var(--ink)}.ot-nav button.active{background:var(--ink);color:var(--bg)}
+.ot-body{flex:1;min-height:0;position:relative}
+.ot-pane{position:absolute;inset:0;overflow:auto;display:flex;flex-direction:column;gap:8px;scrollbar-width:thin;scrollbar-color:var(--line) var(--bg)}
+.ot-pane>*{flex-shrink:0}
+.ot-head{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;color:var(--dim);background:none;height:auto;padding:0}
+.ot-head>b{color:var(--ink);text-transform:uppercase;letter-spacing:.16em}
+.ot-status.err{color:var(--ink);text-decoration:underline dotted}
+.ot-form{display:flex;gap:6px;flex-wrap:wrap}.ot-form input{min-width:220px}
+.ot-pane input,.ot-pane select,.ot-pane textarea{background:transparent;border:1px solid var(--line);color:var(--ink);font:inherit;padding:4px 7px;color-scheme:dark}
+html[data-color-mode=light] .ot-pane input,html[data-color-mode=light] .ot-pane select,html[data-color-mode=light] .ot-pane textarea{color-scheme:light}
+.ot-pane button,.ot-mini{background:transparent;border:1px solid var(--line);color:var(--ink);font:inherit;padding:4px 10px;cursor:pointer}
+.ot-pane button:hover,.ot-mini:hover{border-color:var(--ink)}
+.ot-mini{padding:2px 8px;color:var(--dim)}.ot-mini[aria-pressed=true]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.ot-card{border:1px solid var(--line);padding:8px 10px;display:flex;flex-direction:column;min-width:0}
+.ot-card h4{margin:0 0 6px;display:flex;align-items:center;gap:10px;font-weight:700;letter-spacing:.06em}.ot-card h4 i{font-style:normal;font-weight:400;color:var(--dim)}
+.ot-split{display:flex;gap:8px;flex-wrap:wrap;min-height:0}.ot-split>.ot-card{flex:1 1 340px}.ot-split>.ot-card.grow{flex:2 1 460px}
+.ot-map{position:relative;flex:1 0 420px;border:1px solid var(--line);overflow:hidden}
+.ot-sector{position:absolute;box-sizing:border-box;border:1px solid var(--bg)}.ot-sector>span{position:absolute;left:4px;top:1px;font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:.08em;white-space:nowrap;overflow:hidden;max-width:calc(100% - 8px)}
+.ot-cell{position:absolute;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;cursor:pointer;border-radius:2px;line-height:1.15}
+.ot-cell:hover{outline:2px solid var(--ink);z-index:2}.ot-cell small{font-size:10px}
+.ot-legend-bar{display:flex;align-items:center;gap:6px}.ot-ramp{display:inline-block;width:120px;height:8px;border-radius:2px}.ot-legend-bar i{font-style:normal}
+.ot-legend{display:flex;flex-wrap:wrap;gap:4px 14px;color:var(--dim);font-size:11px;margin-bottom:4px}.ot-legend i,.sw{display:inline-block;width:14px;height:3px;border-radius:2px;margin-right:5px;vertical-align:middle}
+.ot-lw{flex:1;min-height:260px;position:relative}.ot-lw.small{min-height:120px;flex:none;height:120px}
+.ot-svg{width:100%;height:240px;display:block}.ot-svg text{fill:var(--dim);font:10px ui-monospace,Menlo,monospace}.ot-svg text.lbl{fill:var(--ink);font-size:11px}.ot-svg text.small{font-size:10px}
+.ot-svg .grid{stroke:var(--faint);stroke-width:1}.ot-svg .grid.dashed{stroke:var(--line);stroke-dasharray:4 4}.ot-svg .base{stroke:var(--line);stroke-width:1}.ot-svg .cross{stroke:var(--dim);stroke-dasharray:3 3}
+.ot-table{overflow:auto}.ot-table table{width:100%;border-collapse:collapse;font-size:12px}.ot-table th{color:var(--dim);font-weight:400;text-align:left;padding:5px 8px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--bg)}
+.ot-table td{padding:5px 8px;border-bottom:1px solid var(--faint);font-variant-numeric:tabular-nums}
+.ot-corr td{text-align:center;min-width:52px;border:2px solid var(--bg)}.ot-corr th{text-align:center}
+.ot-heat td{text-align:center;border:1px solid var(--bg);font-size:11px;padding:3px 4px}
+.ot-tiles{display:flex;flex-wrap:wrap;gap:8px}.ot-tile{border:1px solid var(--line);padding:6px 12px;display:flex;flex-direction:column;min-width:120px}.ot-tile small{color:var(--dim)}.ot-tile b{font-size:18px;font-weight:600}.ot-tile span{color:var(--dim);font-size:11px}
+.ot-tip{position:absolute;z-index:40;pointer-events:none;background:var(--bg);border:1px solid var(--ink);padding:6px 9px;font-size:11px;line-height:1.5;max-width:320px}
+.ot-empty{color:var(--dim);padding:8px 0}
+.ot-bar{display:inline-block;width:70px;height:6px;border:1px solid var(--line);vertical-align:middle;margin-right:6px}.ot-bar span{display:block;height:100%;background:var(--ink)}
+.ot-journal-form{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:6px 10px;align-items:end;border:1px solid var(--line);padding:8px 10px}
+.ot-journal-form label{display:flex;flex-direction:column;gap:3px;color:var(--dim);font-size:11px}.ot-journal-form label.wide{grid-column:span 2}.ot-journal-form label.check{flex-direction:row;align-items:center;gap:6px}
+.ot-trades tr.open td{border-bottom-color:transparent}.ot-exit{width:90px}
+.ot-detail-body{display:flex;gap:14px;flex-wrap:wrap}.ot-detail-body>div{flex:1 1 280px}.ot-shot img{max-width:100%;border:1px solid var(--line);display:block;margin-bottom:4px}
+.ot-chat{flex:1 0 200px;overflow:auto;border:1px solid var(--line);padding:10px;display:flex;flex-direction:column;gap:10px}
+.ot-msg{max-width:860px;line-height:1.55}.ot-msg b{display:block;color:var(--dim);font-weight:400;font-size:11px;text-transform:uppercase;letter-spacing:.1em}.ot-msg.user{align-self:flex-end;border:1px solid var(--line);padding:6px 10px}
+.ot-suggest{display:flex;flex-wrap:wrap;gap:6px}
+.ot-ask{display:flex;gap:6px}.ot-ask textarea{flex:1;resize:vertical;min-height:44px;font-size:14px}
+@media(max-width:800px){.ot-nav{flex-wrap:nowrap;overflow-x:auto}.ot-nav button{white-space:nowrap}.ot-form input{min-width:0;width:100%}.ot-map{min-height:520px}.ot-journal-form label.wide{grid-column:auto}}
 </style>
 </head>
 <body>
@@ -223,6 +270,7 @@ footer .credit{margin-left:auto;letter-spacing:.08em}
   <button data-tab="quarters"><b>F6</b>Kwartały</button>
   <button data-tab="highs"><b>F7</b>Aktualne L/H</button>
   <button data-tab="monitor"><b>F8</b>Monitor</button>
+  <button data-tab="other"><b>F10</b>Inne</button>
   </div>
   <div class="tools" id="tf"></div>
   <div class="tools" id="lay" style="margin-left:0"><span>wykresy</span>
@@ -249,6 +297,7 @@ footer .credit{margin-left:auto;letter-spacing:.08em}
   <section class="page" id="quarters" hidden></section>
   <section class="page" id="highs" hidden></section>
   <section class="page" id="monitor" hidden></section>
+  <section class="page" id="other" hidden></section>
 </main>
 <aside id="side" aria-label="Wydarzenia na żywo"><h4>wydarzenia <i>financialjuice · <button class="lang" data-lang aria-label="Język nagłówków">PL</button></i></h4><div class="feed" id="newsSide"></div></aside>
 </div>
@@ -273,7 +322,7 @@ footer .credit{margin-left:auto;letter-spacing:.08em}
 const CALENDAR_URL = 'quarters/index.html#events'
 const QUARTERS_URL = 'quarters/index.html'
 const HIGHS_URL = 'quarters/highs.html'
-const TABS = ['home', 'charts', 'hyper-terminal', 'post-creator', 'calendar', 'news', 'quarters', 'highs', 'monitor']
+const TABS = ['home', 'charts', 'hyper-terminal', 'post-creator', 'calendar', 'news', 'quarters', 'highs', 'monitor', 'other']
 const DEFAULTS = ['NQ1!', 'ES1!', 'YM1!', 'DXY1!']
 const PRESETS = ['NQ1!', 'ES1!', 'XYZ100', 'SP500', 'YM1!', 'RTY1!', 'DXY1!', 'BTC1!', 'ETH1!', 'GC1!', 'SI1!', 'CL1!', 'NG1!', 'ZN1!', '6E1!', 'BTC-USD', 'ETH-USD', 'SOL-USD', 'AAPL', 'NVDA', 'TSLA', 'SPY', 'QQQ']
 let saved = []
@@ -519,6 +568,7 @@ $('tf').onclick = e => {
 const LAZY = {
   monitor: ["world-data.js", "world-labels.js", "monitor-geo.js", "monitor.js"],
   'post-creator': ["post-creator-icons.js", "post-creator.js"],
+  other: ["terminal-extra-data.js", "other.js"],
 }
 const lazyLoads = {}
 function need(name) {
@@ -552,6 +602,8 @@ function tab(name) {
   if (name === 'home') Home.enter()
   if (name === 'hyper-terminal' || name === 'home' && Home.has('hyper-terminal')) HyperTerminal.show()
   if (name === 'post-creator') need('post-creator').then(() => { if (current() === 'post-creator') PostCreator.show() })
+  if (name === 'other') need('other').then(() => { if (current() === 'other') Other.show() })
+  else if (typeof Other !== 'undefined') Other.hide()
   // Charts and the map may be shown by their own page or as a widget on the dashboard.
   const chartsShown = name === 'charts' || name === 'home' && Home.has('charts')
   $('tf').hidden = !chartsShown
@@ -577,7 +629,7 @@ document.querySelector('nav').addEventListener('click', e => {
   if (!t) return
   tab(t.dataset.tab)
 })
-addEventListener('keydown', e => { const n = { F1: 'charts', F2: 'hyper-terminal', F3: 'post-creator', F4: 'calendar', F5: 'news', F6: 'quarters', F7: 'highs', F8: 'monitor', F9: 'home' }[e.key]; if (n) { e.preventDefault(); tab(n) } })
+addEventListener('keydown', e => { const n = { F1: 'charts', F2: 'hyper-terminal', F3: 'post-creator', F4: 'calendar', F5: 'news', F6: 'quarters', F7: 'highs', F8: 'monitor', F9: 'home', F10: 'other' }[e.key]; if (n) { e.preventDefault(); tab(n) } })
 
 const clockFormat = new Intl.DateTimeFormat('pl-PL', { dateStyle: 'short', timeStyle: 'medium', hour12: false })
 setInterval(() => { if (!document.hidden) $('clock').textContent = clockFormat.format(new Date()) }, 1000)

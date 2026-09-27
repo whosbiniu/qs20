@@ -133,7 +133,7 @@ final class ProxyBridge: NSObject, WKScriptMessageHandlerWithReply {
     static let hosts: Set<String> = ["query1.finance.yahoo.com", "www.financialjuice.com", "translate.googleapis.com",
                                      "nfs.faireconomy.media", "economic-calendar.tradingview.com",
                                      "earthquake.usgs.gov", "eonet.gsfc.nasa.gov", "api.adsb.lol", "api.gdeltproject.org",
-                                     "fc.yahoo.com"]
+                                     "fc.yahoo.com", "api.hyperliquid.xyz"]
 
     func userContentController(_ userContentController: WKUserContentController,
                                didReceive message: WKScriptMessage,
@@ -164,6 +164,39 @@ final class ProxyBridge: NSObject, WKScriptMessageHandlerWithReply {
                 replyHandler(["status": http.statusCode, "text": String(data: data ?? Data(), encoding: .utf8) ?? ""], nil)
             }
         }.resume()
+    }
+}
+
+final class PostCreatorFileBridge: NSObject, WKScriptMessageHandlerWithReply {
+    func userContentController(_ userContentController: WKUserContentController,
+                               didReceive message: WKScriptMessage,
+                               replyHandler: @escaping (Any?, String?) -> Void) {
+        guard isBundledPage(message.frameInfo),
+              let fields = message.body as? [String: String],
+              let action = fields["action"], ["save", "copy"].contains(action),
+              let encoded = fields["data"], encoded.utf8.count < 80_000_000,
+              let data = Data(base64Encoded: encoded), data.count < 60_000_000 else {
+            replyHandler(nil, "Nieprawidłowy plik Post Creatora."); return
+        }
+        if action == "copy" {
+            guard data.starts(with: [0x89, 0x50, 0x4e, 0x47]) else { replyHandler(nil, "Nieprawidłowy PNG."); return }
+            let board = NSPasteboard.general
+            board.clearContents()
+            replyHandler(["ok": board.setData(data, forType: .png)], nil)
+            return
+        }
+        guard let filename = fields["filename"],
+              filename.range(of: "^PostCreator-[A-Za-z0-9._-]+\\.png$|^[A-Za-z0-9!._-]+\\.postcreator$", options: .regularExpression) != nil else {
+            replyHandler(nil, "Nieprawidłowa nazwa pliku."); return
+        }
+        let panel = NSSavePanel()
+        panel.nameFieldStringValue = filename
+        panel.canCreateDirectories = true
+        panel.begin { response in
+            guard response == .OK, let url = panel.url else { replyHandler(["cancelled": true], nil); return }
+            do { try data.write(to: url, options: .atomic); replyHandler(["ok": true], nil) }
+            catch { replyHandler(nil, error.localizedDescription) }
+        }
     }
 }
 
@@ -209,6 +242,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
     let calendarExport = CalendarExportBridge()
     let marketHighs = MarketHighsBridge()
     let proxy = ProxyBridge()
+    let postCreatorFile = PostCreatorFileBridge()
     var selfTestStarted = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -219,6 +253,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
         config.userContentController.addScriptMessageHandler(calendarExport, contentWorld: .page, name: "calendarExport")
         config.userContentController.addScriptMessageHandler(marketHighs, contentWorld: .page, name: "marketHighs")
         config.userContentController.addScriptMessageHandler(proxy, contentWorld: .page, name: "proxy")
+        config.userContentController.addScriptMessageHandler(postCreatorFile, contentWorld: .page, name: "postCreatorFile")
         config.userContentController.addUserScript(WKUserScript(source: """
         (() => {
           const original = window.fetch.bind(window);
@@ -232,19 +267,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
               const payload = await window.webkit.messageHandlers.marketHighs.postMessage(null);
               return new Response(JSON.stringify(payload), {headers: {'Content-Type': 'application/json'}});
             }
-            const terminalRoutes = ['/api/chart', '/api/highs', '/api/tape', '/api/news', '/api/monitor', '/api/earnings'];
+            const terminalRoutes = ['/api/chart', '/api/highs', '/api/tape', '/api/news', '/api/monitor', '/api/earnings',
+              '/api/hl/markets', '/api/hl/candles', '/api/hl/book'];
             const url = new URL(path, 'https://terminal.invalid');
             if (terminalRoutes.includes(url.pathname) || (url.pathname === '/api/events' && url.searchParams.has('range'))) {
               // Same data layer as the web server, with the native app as its transport.
-              const data = window.__terminalData ||= TerminalData.create(async (target, options) => {
+              const transport = async (target, options) => {
                 const reply = await window.webkit.messageHandlers.proxy.postMessage(
                   options && options.method === 'POST' ? {url: target, method: 'POST', body: options.body} : target);
                 return {status: reply.status, text: reply.text};
-              });
+              };
+              const data = window.__terminalData ||= TerminalData.create(transport);
+              const hyper = window.__hyperData ||= HyperliquidData.create(transport);
               const json = body => new Response(JSON.stringify(body), {headers: {'Content-Type': 'application/json'}});
               try {
                 const q = url.searchParams;
-                if (url.pathname === '/api/chart') return json(await data.chart(q.get('symbol') || '', q.get('interval') || '1D'));
+                if (url.pathname === '/api/chart') {
+                  const symbol = q.get('symbol') || '', frame = q.get('interval') || '1D';
+                  return json(await (HyperliquidData.hyperCoin(symbol) ? hyper.chart(symbol, frame) : data.chart(symbol, frame)));
+                }
+                if (url.pathname === '/api/hl/markets') return json({markets: await hyper.markets()});
+                if (url.pathname === '/api/hl/candles') return json({candles: await hyper.candles(q.get('coin'), q.get('interval') || '1h')});
+                if (url.pathname === '/api/hl/book') return json(await hyper.orderBook(q.get('coin')));
                 if (url.pathname === '/api/highs') return json(await data.highs(q.get('symbol') || ''));
                 if (url.pathname === '/api/events') return json(await data.calendar(q.get('range') || ''));
                 if (url.pathname === '/api/tape') return json({quotes: await data.tape()});
@@ -290,7 +334,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
         webView.loadFileURL(root.appendingPathComponent(entry), allowingReadAccessTo: root)
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
-        if CommandLine.arguments.contains("--self-test") || CommandLine.arguments.contains("--self-test-highs") || CommandLine.arguments.contains("--self-test-terminal") {
+        if CommandLine.arguments.contains("--self-test") || CommandLine.arguments.contains("--self-test-highs") ||
+           CommandLine.arguments.contains("--self-test-terminal") || CommandLine.arguments.contains("--self-test-integrations") {
             DispatchQueue.main.asyncAfter(deadline: .now() + 40) { fputs("Self-test timeout\n", stderr); exit(1) }
         }
     }
@@ -336,6 +381,50 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
     }
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        if CommandLine.arguments.contains("--self-test-integrations"), !selfTestStarted {
+            selfTestStarted = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                webView.callAsyncJavaScript("""
+                document.querySelector('nav button[data-tab="post-creator"]').click();
+                const icons = document.querySelectorAll('#post-creator .pc-quick img').length;
+                const gc = document.querySelector('#post-creator [data-for="charts"][data-ticker="GC1!"]');
+                gc.click();
+                const chosen = document.querySelector('#post-creator [data-for="charts"][data-ticker="GC1!"]').classList.contains('active');
+                document.querySelector('#post-creator [data-mode="aura"]').click();
+                const aura = document.querySelector('#post-creator [data-for="aura"][data-ticker="ETHUSD"]');
+                aura.click();
+                const auraChosen = document.querySelector('#post-creator [data-for="aura"][data-ticker="ETHUSD"]').classList.contains('active');
+                document.querySelector('nav button[data-tab="hyper-terminal"]').click();
+                const marketResponse = await fetch('/api/hl/markets');
+                const marketData = await marketResponse.json();
+                const chartResponse = await fetch('/api/chart?symbol=XYZ100&interval=1D');
+                const chartData = await chartResponse.json();
+                const result = {icons, chosen, auraChosen, markets: marketData.markets?.length || 0,
+                  xyz100: marketData.markets?.some(m => m.coin === 'xyz:XYZ100'),
+                  sp500: marketData.markets?.some(m => m.coin === 'xyz:SP500'),
+                  candles: chartData.candles?.length || 0, source: chartData.source};
+                result.ok = icons === 32 && chosen && auraChosen && result.xyz100 && result.sp500 &&
+                  result.markets > 30 && result.candles > 0 && result.source === 'Hyperliquid';
+                return JSON.stringify(result);
+                """, arguments: [:], in: nil, in: .page) { result in
+                    switch result {
+                    case .success(let value):
+                        let output = value as? String ?? "{}"
+                        print(output)
+                        webView.takeSnapshot(with: nil) { image, _ in
+                            if let image, let tiff = image.tiffRepresentation,
+                               let bitmap = NSBitmapImageRep(data: tiff),
+                               let png = bitmap.representation(using: .png, properties: [:]) {
+                                try? png.write(to: URL(fileURLWithPath: "/tmp/qs-integrations-preview.png"))
+                            }
+                            exit(output.contains("\"ok\":true") ? 0 : 1)
+                        }
+                    case .failure(let error): print("FAIL", error); exit(1)
+                    }
+                }
+            }
+            return
+        }
         if CommandLine.arguments.contains("--self-test-terminal"), !selfTestStarted {
             // Terminal shell with live data through the native proxy: charts, cycles, tape and headlines.
             selfTestStarted = true

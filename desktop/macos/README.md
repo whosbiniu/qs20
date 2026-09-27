@@ -113,3 +113,17 @@ original implementation on public data, not a copy of monitor-the-situation.com.
 `earthquake.usgs.gov`, `eonet.gsfc.nasa.gov`, `api.adsb.lol`, `api.gdeltproject.org`, `nfs.faireconomy.media` and
 `economic-calendar.tradingview.com` (the last one only answers requests carrying TradingView's `Origin`).
 GDELT allows one request per five seconds, so its headlines are cached for ten minutes and may be missing.
+
+## Version 2.1: Hyperliquid and Post Creator
+
+The Terminal tab discovers Hyperliquid perpetual markets, including XYZ100 and SP500, and shows candles,
+quotes and an order book. These two tickers also work in the existing Wykresy view. The native bridge
+allows requests to `api.hyperliquid.xyz`; the website serves the same data through `/api/hl/*`.
+
+Post Creator has Wykresy and Aura modes, ticker-specific icons, image placement, project files and PNG export.
+The macOS app saves projects and PNGs through a native save panel and copies PNGs to the system clipboard.
+The separate Post Creator macOS application is unchanged.
+
+Integration smoke test: `dist/UNCsWay.app/Contents/MacOS/UNCsWay --self-test-integrations`.
+It checks ticker icons, both Post Creator modes and Hyperliquid data through the app bridge; it needs network
+access and writes `/tmp/qs-integrations-preview.png`.

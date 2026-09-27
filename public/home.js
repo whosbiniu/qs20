@@ -1,7 +1,8 @@
-// Strona główna: a dashboard of panels. Every page of the terminal can be added as a widget, resized,
-// reordered, opened full-size or removed. Charts, Terminal and Monitor are single instances, so their section is
-// moved into the widget while the dashboard is open and moved back when another page is shown; the
-// framed pages and the headline list are simply created again inside the widget.
+// Strona główna: a dashboard of panels. Every page of the terminal can be added as a widget, resized
+// (by dragging its edges/corner, or with the size-preset button), reordered, opened full-size or removed.
+// Charts, Terminal and Monitor are single instances, so their section is moved into the widget while the
+// dashboard is open and moved back when another page is shown; the framed pages and the headline list are
+// simply created again inside the widget.
 const Home = (() => {
   const WIDGETS = {
     charts: { title: 'Wykresy', move: true },
@@ -20,10 +21,17 @@ const Home = (() => {
     'other-cot': { title: 'COT', otherTool: 'cot' },
     'other-ai': { title: 'Asystent AI', otherTool: 'ai' },
   };
-  // size 0: one column, 1: full width, 2: full width and tall
-  const SIZES = [{ span: 1, height: 420, icon: '▫' }, { span: 2, height: 420, icon: '▭' }, { span: 2, height: 720, icon: '▣' }];
-  const SIZE_NAMES = ['wąski (1 kolumna)', 'szeroki (cała szerokość)', 'szeroki i wysoki'];
-  // Instant tooltips for the widget buttons (native title= is slow and easy to miss) + drag styling.
+  // Size presets: span is out of a 12-column grid, height in px. A widget can also carry an explicit
+  // w/h override (set by dragging its edges) that takes precedence over the preset until reset.
+  const SIZES = [{ span: 6, height: 420, icon: '▫' }, { span: 12, height: 420, icon: '▭' }, { span: 12, height: 720, icon: '▣' }];
+  const SIZE_NAMES = ['wąski (1/2 szerokości)', 'szeroki (cała szerokość)', 'szeroki i wysoki'];
+  const MIN_SPAN = 3, MAX_SPAN = 12, MIN_H = 180, MAX_H = 1400;
+  const spanOf = item => item.w || SIZES[item.size].span;
+  const heightOf = item => item.h || SIZES[item.size].height;
+  const isCustom = item => item.w != null || item.h != null;
+  const clampSpan = n => Math.max(MIN_SPAN, Math.min(MAX_SPAN, Math.round(n)));
+  const clampH = n => Math.max(MIN_H, Math.min(MAX_H, Math.round(n)));
+  // Instant tooltips for the widget buttons (native title= is slow and easy to miss) + drag/resize styling.
   document.head.insertAdjacentHTML('beforeend', `<style>
     .widget>header button{position:relative}
     .widget>header button[data-tip]:hover::after,.widget>header button[data-tip]:focus-visible::after{content:attr(data-tip);position:absolute;top:calc(100% + 6px);right:0;z-index:60;width:max-content;max-width:240px;padding:6px 9px;background:var(--bg);border:1px solid var(--ink);color:var(--ink);font-weight:400;text-align:left;white-space:normal;line-height:1.4;pointer-events:none}
@@ -31,13 +39,16 @@ const Home = (() => {
     .widget>header button{cursor:pointer}
     .widget.dragging{position:relative;z-index:40;opacity:.9;outline:1px solid var(--ink);box-shadow:0 8px 30px #000;pointer-events:none}
     .widget.dragging>header{cursor:grabbing}
+    .widget .rs{touch-action:none}
+    .widget.resizing-w{outline:1px dashed var(--ink)}
     #homeGrid.reordering{cursor:grabbing;user-select:none}#homeGrid.reordering iframe{pointer-events:none}
     #homeGrid .drop-hint{grid-column:1 / -1;font-size:11px;color:var(--dim)}
   </style>`);
   let items = [{ id: 'charts', size: 2 }, { id: 'news', size: 0 }];
   try {
     const saved = JSON.parse(localStorage.getItem('home') || 'null');
-    if (Array.isArray(saved)) items = saved.filter(w => WIDGETS[w?.id] && SIZES[w.size]).filter((w, i, all) => all.findIndex(x => x.id === w.id) === i);
+    if (Array.isArray(saved)) items = saved.filter(w => WIDGETS[w?.id] && SIZES[w.size]).filter((w, i, all) => all.findIndex(x => x.id === w.id) === i)
+      .map(w => ({ id: w.id, size: w.size, ...(Number.isFinite(w.w) ? { w: clampSpan(w.w) } : {}), ...(Number.isFinite(w.h) ? { h: clampH(w.h) } : {}) }));
   } catch {}
   const save = () => { try { localStorage.setItem('home', JSON.stringify(items)); } catch {} };
   const has = id => items.some(w => w.id === id);
@@ -53,6 +64,8 @@ const Home = (() => {
     }
   }
 
+  const RESIZE_GRIP = '<svg viewBox="0 0 9 9"><path d="M8 0L0 8M8 4L4 8M8 8L8 8" fill="none" stroke-linecap="round"/></svg>';
+
   // The grid is rebuilt only when the layout changed; otherwise the widgets (and their loaded frames) are kept
   // and only the moved sections are put back, which makes returning to Start instant.
   let renderedLayout = '';
@@ -62,18 +75,22 @@ const Home = (() => {
     renderedLayout = JSON.stringify(items);
     grid.replaceChildren();
     items.forEach((item, index) => {
-      const def = WIDGETS[item.id], size = SIZES[item.size];
+      const def = WIDGETS[item.id];
       const widget = document.createElement('article');
       widget.className = 'widget';
       widget.dataset.id = item.id;
-      widget.style.setProperty('--h', size.height + 'px');
-      if (size.span === 2) widget.classList.add('wide');
+      widget.style.setProperty('--span', spanOf(item));
+      widget.style.setProperty('--h', heightOf(item) + 'px');
+      const sizeTip = `Zmień rozmiar panelu. Teraz: ${isCustom(item) ? 'niestandardowy' : SIZE_NAMES[item.size]}. Kliknij, aby przełączyć na: ${SIZE_NAMES[(item.size + 1) % SIZES.length]}${isCustom(item) ? ' (usuwa ręczny rozmiar)' : ''}`;
       widget.innerHTML = `<header><b title="Przytrzymaj i przeciągnij, aby zmienić położenie panelu">${esc(def.title)}</b><span class="grow"></span>
         <button data-act="open" data-tip="Otwórz na pełnej stronie: ${esc(def.title)}" aria-label="Otwórz na pełnej stronie: ${esc(def.title)}">↗</button>
-        <button data-act="size" data-tip="Zmień rozmiar panelu. Teraz: ${SIZE_NAMES[item.size]}. Kliknij, aby przełączyć na: ${SIZE_NAMES[(item.size + 1) % SIZES.length]}" aria-label="Zmień rozmiar panelu">${size.icon}</button>
+        <button data-act="size" data-tip="${esc(sizeTip)}" aria-label="Zmień rozmiar panelu">${SIZES[item.size].icon}</button>
         <button data-act="up" data-tip="Przesuń panel wyżej (albo przeciągnij go za nagłówek)" aria-label="Przesuń panel wyżej"${index === 0 ? ' disabled' : ''}>↑</button>
         <button data-act="down" data-tip="Przesuń panel niżej (albo przeciągnij go za nagłówek)" aria-label="Przesuń panel niżej"${index === items.length - 1 ? ' disabled' : ''}>↓</button>
-        <button data-act="remove" data-tip="Zamknij panel — usuwa go ze strony głównej (możesz dodać go ponownie u góry)" aria-label="Zamknij panel: usuń ze strony głównej">✕</button></header><div class="wbody"></div>`;
+        <button data-act="remove" data-tip="Zamknij panel — usuwa go ze strony głównej (możesz dodać go ponownie u góry)" aria-label="Zamknij panel: usuń ze strony głównej">✕</button></header><div class="wbody"></div>
+        <div class="rs rs-e" data-rs="w" title="Przeciągnij, aby zmienić szerokość"></div>
+        <div class="rs rs-s" data-rs="h" title="Przeciągnij, aby zmienić wysokość"></div>
+        <div class="rs rs-se" data-rs="wh" title="Przeciągnij, aby zmienić rozmiar">${RESIZE_GRIP}</div>`;
       const body = widget.querySelector('.wbody');
       if (def.url) body.innerHTML = `<iframe src="${esc(def.url())}" title="${esc(def.title)}" loading="lazy" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>`;
       else if (def.news) body.innerHTML = '<div class="feed" data-news></div>';
@@ -121,7 +138,7 @@ const Home = (() => {
       const id = widget.dataset.id, index = items.findIndex(w => w.id === id);
       if (act === 'open') return defOpen(id);
       if (act === 'remove') remove(id);
-      if (act === 'size') items[index].size = (items[index].size + 1) % SIZES.length;
+      if (act === 'size') { items[index].size = (items[index].size + 1) % SIZES.length; delete items[index].w; delete items[index].h; }
       if (act === 'up' && index > 0) [items[index - 1], items[index]] = [items[index], items[index - 1]];
       if (act === 'down' && index < items.length - 1) [items[index + 1], items[index]] = [items[index], items[index + 1]];
       save(); tab('home');
@@ -139,7 +156,7 @@ const Home = (() => {
   // Drag a panel by its header to reorder. The dragged widget follows the pointer; the others make room live.
   let drag = null;
   document.addEventListener('pointerdown', event => {
-    if (event.button !== 0 || event.target.closest('button')) return;
+    if (event.button !== 0 || event.target.closest('button, [data-rs]')) return;
     const header = event.target.closest('#homeGrid .widget > header');
     if (!header) return;
     const widget = header.parentElement, rect = widget.getBoundingClientRect();
@@ -190,6 +207,53 @@ const Home = (() => {
   }
   document.addEventListener('pointerup', endDrag);
   document.addEventListener('pointercancel', endDrag);
+
+  // Manual resize: drag the right edge (width), bottom edge (height) or the corner grip (both), snapped
+  // to the 12-column grid horizontally and free in pixels vertically. Applied live via CSS vars, so charts
+  // and the map re-fit through their own ResizeObservers without the widget (and its iframe) reloading.
+  let resize = null;
+  document.addEventListener('pointerdown', event => {
+    if (event.button !== 0) return;
+    const handle = event.target.closest('[data-rs]');
+    if (!handle) return;
+    const widget = handle.closest('.widget'), grid = document.getElementById('homeGrid');
+    const item = items.find(w => w.id === widget.dataset.id);
+    if (!item) return;
+    const wRect = widget.getBoundingClientRect(), gRect = grid.getBoundingClientRect();
+    const gap = parseFloat(getComputedStyle(grid).columnGap) || 10;
+    const colWidth = (gRect.width - gap * 11) / 12;
+    resize = { widget, item, mode: handle.dataset.rs, id: event.pointerId, startX: event.clientX, startY: event.clientY, startW: wRect.width, startH: wRect.height, colWidth, gap };
+    handle.setPointerCapture(event.pointerId);
+    widget.classList.add('resizing-w'); grid.classList.add('resizing');
+    event.preventDefault(); event.stopPropagation();
+  });
+  document.addEventListener('pointermove', event => {
+    if (!resize || event.pointerId !== resize.id) return;
+    const { widget, item, mode, startX, startY, startW, startH, colWidth, gap } = resize;
+    if (mode !== 'h') {
+      const span = clampSpan((startW + (event.clientX - startX) + gap) / (colWidth + gap));
+      item.w = span; widget.style.setProperty('--span', span);
+    }
+    if (mode !== 'w') {
+      const h = clampH(startH + (event.clientY - startY));
+      item.h = h; widget.style.setProperty('--h', h + 'px');
+    }
+  });
+  function endResize(event) {
+    if (!resize || event.pointerId !== resize.id) return;
+    const { widget } = resize;
+    resize = null;
+    widget.classList.remove('resizing-w');
+    document.getElementById('homeGrid').classList.remove('resizing');
+    save();
+    // the layout now matches what's on screen, so returning to Start later won't trigger a needless rebuild
+    renderedLayout = JSON.stringify(items);
+    // refresh this widget's size-button tooltip/icon to reflect the (now custom) size
+    const btn = widget.querySelector('[data-act=size]'), item = items.find(w => w.id === widget.dataset.id);
+    if (btn && item) btn.dataset.tip = `Zmień rozmiar panelu. Teraz: niestandardowy. Kliknij, aby przełączyć na: ${SIZE_NAMES[(item.size + 1) % SIZES.length]} (usuwa ręczny rozmiar)`;
+  }
+  document.addEventListener('pointerup', endResize);
+  document.addEventListener('pointercancel', endResize);
 
   return { has, enter, leave, render, onHome, otherTools };
 })();

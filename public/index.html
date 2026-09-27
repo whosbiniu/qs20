@@ -63,14 +63,21 @@ nav button,.tools button{white-space:nowrap}
 #homeAdd{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
 #homeAdd button{background:transparent;border:1px solid var(--line);color:var(--dim);font:inherit;padding:2px 8px;cursor:pointer}
 #homeAdd button:hover{color:var(--ink);border-color:var(--ink)}
-.home-grid{position:absolute;top:36px;left:0;right:0;bottom:0;overflow-y:auto;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;align-content:start;scrollbar-width:thin;scrollbar-color:var(--line) var(--bg)}
-.widget{border:1px solid var(--line);height:var(--h);display:flex;flex-direction:column;min-width:0}
-.widget.wide{grid-column:1 / -1}
+.home-grid{position:absolute;top:36px;left:0;right:0;bottom:0;overflow-y:auto;display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:10px;align-content:start;scrollbar-width:thin;scrollbar-color:var(--line) var(--bg)}
+.home-grid.resizing{user-select:none}.home-grid.resizing iframe{pointer-events:none}
+.widget{border:1px solid var(--line);height:var(--h);grid-column:span var(--span,6);display:flex;flex-direction:column;min-width:0;position:relative}
 .widget>header{display:flex;align-items:center;gap:6px;padding:6px 10px;border-bottom:1px solid var(--line);background:none;color:var(--ink);font-weight:400;height:auto}
 .widget>header b{letter-spacing:.14em;text-transform:uppercase}
 .widget>header button{background:transparent;border:1px solid var(--line);color:var(--dim);font:inherit;width:24px;height:22px;padding:0;cursor:pointer}
 .widget>header button:hover:not(:disabled){color:var(--ink);border-color:var(--ink)}
 .widget>header button:disabled{opacity:.3;cursor:default}
+.widget .rs{position:absolute;z-index:5}
+.widget .rs-e{top:0;right:-4px;bottom:14px;width:8px;cursor:ew-resize}
+.widget .rs-s{left:0;right:14px;bottom:-4px;height:8px;cursor:ns-resize}
+.widget .rs-se{right:-2px;bottom:-2px;width:16px;height:16px;cursor:nwse-resize;display:flex;align-items:flex-end;justify-content:flex-end;padding:2px 3px;opacity:.45}
+.widget .rs-se svg{width:9px;height:9px;stroke:var(--ink);stroke-width:1.3}
+.widget .rs-e:hover,.widget .rs-s:hover{background:rgb(var(--ink-rgb)/.14)}
+.widget .rs-se:hover{opacity:1}
 .wbody{flex:1;min-height:0;position:relative;overflow:hidden}
 .wbody>.feed{position:absolute;inset:0;padding:0 10px}
 .wbody iframe{border:0}
@@ -197,7 +204,8 @@ footer .credit{margin-left:auto;letter-spacing:.08em}
   #home{overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch}
   .home-bar{position:static;flex-wrap:wrap;height:auto;padding-bottom:8px}
   .home-grid{position:static;overflow:visible;grid-template-columns:minmax(0,1fr)}
-  .widget,.widget.wide{grid-column:auto;height:min(var(--h),80vh);margin-bottom:0}
+  .widget{grid-column:1/-1!important;height:min(var(--h),80vh);margin-bottom:0}
+  .widget .rs-e,.widget .rs-se{display:none}
   /* monitor: map on top, lists below */
   .mon{flex-direction:column;overflow-y:auto;gap:8px}
   .mon-main{flex:none;height:62vh}

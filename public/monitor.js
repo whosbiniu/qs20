@@ -105,6 +105,38 @@ const Monitor = (() => {
     else ctx.arc(x, y, r, 0, 7)
   }
 
+  // Continent and country names (English and Polish come with the data), drawn dimmed under the markers.
+  const CONTINENTS = [[-102, 46, 'North America', 'Ameryka Północna'], [-60, -14, 'South America', 'Ameryka Południowa'], [16, 51, 'Europe', 'Europa'],
+    [21, 4, 'Africa', 'Afryka'], [92, 50, 'Asia', 'Azja'], [134, -25, 'Oceania', 'Oceania']]
+  function drawNames(ink, inkRgb) {
+    const fit = view.scale / Math.max(size.w, size.h * 0.9)
+    const taken = []
+    const put = (text, x, y, font, color) => {
+      ctx.font = font
+      const w = ctx.measureText(text).width, box = [x - w / 2 - 3, y - 8, x + w / 2 + 3, y + 8]
+      if (x < -w || y < -10 || x > size.w + w || y > size.h + 10) return
+      if (taken.some(t => box[0] < t[2] && box[2] > t[0] && box[1] < t[3] && box[3] > t[1])) return
+      taken.push(box)
+      ctx.fillStyle = color; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+      ctx.fillText(text, x, y)
+    }
+    // continents fade out as the map is zoomed in and the countries take over
+    const fade = Math.max(0, Math.min(1, (2.4 - fit) / 0.8))
+    if (fade > 0) for (const k of [-1, 0, 1]) for (const [lon, lat, en, plName] of CONTINENTS) {
+      const [x, y] = project(lon, lat, k)
+      put((pl() ? plName : en).toUpperCase(), x, y, '600 12px ui-monospace,Menlo,monospace', `rgba(${inkRgb},${(0.6 * fade).toFixed(2)})`)
+    }
+    // countries appear once they are wide enough on screen to carry their name
+    for (const [lon, lat, area, english, polish] of window.WORLD_LABELS || []) {
+      const width = Math.sqrt(area) * view.scale / 360
+      if (width < 30) break   // the list is sorted by area, so the rest is smaller still
+      for (const k of [-1, 0, 1]) {
+        const [x, y] = project(lon, lat, k)
+        put(pl() ? polish : english, x, y, '10px ui-monospace,Menlo,monospace', ink)
+      }
+    }
+    ctx.textAlign = 'start'; ctx.textBaseline = 'alphabetic'
+  }
   function draw() {
     frame = 0
     if (!ctx || !visible) return
@@ -137,6 +169,7 @@ const Monitor = (() => {
       }
       ctx.fill('evenodd'); ctx.stroke()
     }
+    drawNames(DIM, inkRgb)
     const zoom = view.scale / size.w
     const on = k => layersOn[k] && items[k]?.length
     const place = (item, drawFn) => {

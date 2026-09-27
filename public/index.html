@@ -41,6 +41,28 @@ main{flex:1;min-width:0;position:relative}
 .item.new .t{font-weight:700}
 .lang{background:transparent;border:1px solid var(--line);color:var(--ink);font:inherit;font-size:11px;padding:1px 7px;cursor:pointer}
 .newsbar{display:flex;gap:8px}.newsbar input{flex:1}
+.mon{position:absolute;inset:0;display:flex;gap:10px}
+.mon-main{flex:1;min-width:0;display:flex;flex-direction:column;border:1px solid var(--line)}
+.mon-bar,.mon-foot{display:flex;align-items:center;gap:10px;padding:6px 10px;color:var(--dim)}
+.mon-bar{border-bottom:1px solid var(--line)}.mon-foot{border-top:1px solid var(--line);flex-wrap:wrap}
+.grow{flex:1}
+#monLayers{display:flex;gap:6px}
+.mon-bar button{background:transparent;border:1px solid var(--line);color:var(--dim);font:inherit;padding:3px 10px;cursor:pointer;text-transform:uppercase;letter-spacing:.08em}
+.mon-bar button:hover{color:var(--ink);border-color:var(--ink)}
+.mon-bar button.active{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.mon-bar button i{font-style:normal;opacity:.7;margin-left:4px}
+.mon-map{flex:1;min-height:0;position:relative;overflow:hidden}
+.mon-map canvas{display:block;cursor:grab;touch-action:none}
+#monTip{position:absolute;pointer-events:none;background:var(--bg);border:1px solid var(--ink);padding:6px 9px;max-width:250px}
+#monTip b{display:block;font-weight:700}
+.mon-side{width:290px;flex:none;border:1px solid var(--line);padding:10px 12px;display:flex;flex-direction:column;min-height:0;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--line) var(--bg)}
+.mon-side h4{margin:10px 0 6px;text-transform:uppercase;letter-spacing:.16em;font-weight:700}
+.mon-side h4:first-child{margin-top:0}
+.mon-side h4 i{font-style:normal;font-weight:400;color:var(--dim);letter-spacing:0;text-transform:none}
+.mon-side .feed{flex:none;max-height:32vh;overflow-y:auto}
+.sel{border:1px solid var(--line);padding:8px 10px;line-height:1.5}
+.sel b{display:block}.sel .dim{color:var(--dim)}.sel a{color:var(--ink);text-underline-offset:3px;display:inline-block;margin-top:4px}
+@media(max-width:1100px){.mon-side{display:none}}
 .feed .none{color:var(--dim);padding:8px 0}
 .news-page{position:absolute;inset:0;border:1px solid var(--line);padding:12px 14px;display:flex;flex-direction:column;gap:10px}
 .news-page input{background:transparent;border:1px solid var(--line);color:var(--ink);font:inherit;padding:8px 10px;color-scheme:dark}
@@ -92,6 +114,7 @@ footer .live{color:var(--ink)}
   <button data-tab="news"><b>F3</b>Wydarzenia</button>
   <button data-tab="quarters"><b>F4</b>Kwartały</button>
   <button data-tab="highs"><b>F5</b>Aktualne L/H</button>
+  <button data-tab="monitor"><b>F6</b>Monitor</button>
   <div class="tools" id="tf"></div>
   <div class="tools" id="lay" style="margin-left:0"><span>wykresy</span>
     <button data-n="1" aria-label="1 wykres" title="1 wykres"><svg viewBox="0 0 18 14"><rect x=".5" y=".5" width="17" height="13"/></svg></button>
@@ -109,6 +132,7 @@ footer .live{color:var(--ink)}
   <section class="page" id="news" hidden><div class="news-page"><div class="newsbar"><input id="newsFilter" type="search" placeholder="filtr wydarzeń…" aria-label="Filtr wydarzeń"><button class="lang" data-lang aria-label="Język nagłówków">PL</button></div><div class="feed" id="newsFull"></div></div></section>
   <section class="page" id="quarters" hidden></section>
   <section class="page" id="highs" hidden></section>
+  <section class="page" id="monitor" hidden></section>
 </main>
 <aside id="side" aria-label="Wydarzenia na żywo"><h4>wydarzenia <i>financialjuice · <button class="lang" data-lang aria-label="Język nagłówków">PL</button></i></h4><div class="feed" id="newsSide"></div></aside>
 </div>
@@ -117,12 +141,14 @@ footer .live{color:var(--ink)}
 <script src="cycle-rules.js"></script>
 <script src="day-highs.js"></script>
 <script src="terminal-data.js"></script>
+<script src="world-data.js"></script>
+<script src="monitor.js"></script>
 <script>
 // Kalendarz przekierowuje do widoku wydarzeń z qs2.0 (Timeline/Wydarzenia).
 const CALENDAR_URL = 'quarters/index.html#events'
 const QUARTERS_URL = 'quarters/index.html'
 const HIGHS_URL = 'quarters/highs.html'
-const TABS = ['charts', 'calendar', 'news', 'quarters', 'highs']
+const TABS = ['charts', 'calendar', 'news', 'quarters', 'highs', 'monitor']
 const DEFAULTS = ['NQ1!', 'ES1!', 'YM1!', 'DXY1!']
 const PRESETS = ['NQ1!', 'ES1!', 'YM1!', 'RTY1!', 'DXY1!', 'BTC1!', 'ETH1!', 'GC1!', 'SI1!', 'CL1!', 'NG1!', 'ZN1!', '6E1!', 'BTC-USD', 'ETH-USD', 'SOL-USD', 'AAPL', 'NVDA', 'TSLA', 'SPY', 'QQQ']
 let saved = []
@@ -315,6 +341,7 @@ function tab(name) {
   for (const id of TABS) $(id).hidden = id !== name
   $('tf').hidden = name !== 'charts'
   $('lay').hidden = name !== 'charts'
+  name === 'monitor' ? Monitor.show() : Monitor.hide()
   const url = { calendar: CALENDAR_URL, quarters: QUARTERS_URL, highs: HIGHS_URL }[name]
   if (url && !$(name).firstChild) $(name).innerHTML = `<iframe src="${url}" title="${name}"></iframe>`
   if (name === 'charts') panels.slice(0, count).forEach(p => p.chart.timeScale().fitContent())
@@ -322,7 +349,7 @@ function tab(name) {
   history.replaceState(null, '', '#' + name)
 }
 document.querySelector('nav').addEventListener('click', e => { const t = e.target.closest('[data-tab]'); if (t) tab(t.dataset.tab) })
-addEventListener('keydown', e => { const n = { F1: 'charts', F2: 'calendar', F3: 'news', F4: 'quarters', F5: 'highs' }[e.key]; if (n) { e.preventDefault(); tab(n) } })
+addEventListener('keydown', e => { const n = { F1: 'charts', F2: 'calendar', F3: 'news', F4: 'quarters', F5: 'highs', F6: 'monitor' }[e.key]; if (n) { e.preventDefault(); tab(n) } })
 
 setInterval(() => $('clock').textContent = new Date().toLocaleString('pl-PL', { hour12: false }), 1000)
 let sideOpen = localStorage.getItem('side') !== 'closed'
@@ -342,6 +369,7 @@ document.querySelectorAll('[data-lang]').forEach(b => b.onclick = () => {
   lang = lang === 'pl' ? 'en' : 'pl'
   localStorage.setItem('lang', lang)
   renderNews()
+  Monitor.rerenderLists()
 })
 const clock = t => new Date(t).toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' })
 const esc = t => t.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]))

@@ -106,6 +106,44 @@
     }));
   }
 
+  // ---- Monitor (world map) parsers ------------------------------------------------------------------
+  const finite = n => typeof n === 'number' && Number.isFinite(n);
+  function parseQuakes(json) {
+    return (json?.features || []).map(f => ({
+      id: String(f.id), lon: f.geometry?.coordinates?.[0], lat: f.geometry?.coordinates?.[1], depth: f.geometry?.coordinates?.[2],
+      mag: f.properties?.mag, place: String(f.properties?.place || ''), time: f.properties?.time, url: String(f.properties?.url || ''),
+    })).filter(q => finite(q.lat) && finite(q.lon) && finite(q.mag) && finite(q.time) && /^https:\/\/earthquake\.usgs\.gov\//.test(q.url))
+      .sort((a, b) => b.time - a.time);
+  }
+  function eventPoint(geometry) {
+    const g = geometry?.[geometry.length - 1];   // latest position of the event
+    if (!g) return null;
+    if (g.type === 'Point') return { lon: g.coordinates[0], lat: g.coordinates[1], time: Date.parse(g.date) };
+    const ring = g.type === 'Polygon' ? g.coordinates?.[0] : null;
+    if (!ring?.length) return null;
+    return { lon: ring.reduce((a, c) => a + c[0], 0) / ring.length, lat: ring.reduce((a, c) => a + c[1], 0) / ring.length, time: Date.parse(g.date) };
+  }
+  function parseEvents(json) {
+    return (json?.events || []).map(e => {
+      const point = eventPoint(e.geometry);
+      const link = [e.sources?.[0]?.url, e.link].find(u => typeof u === 'string' && /^https:\/\//.test(u)) || '';
+      return point && { id: String(e.id), title: String(e.title || ''), category: String(e.categories?.[0]?.title || ''), ...point, url: link };
+    }).filter(e => e && finite(e.lat) && finite(e.lon) && Number.isFinite(e.time)).sort((a, b) => b.time - a.time);
+  }
+  function parseAircraft(json) {
+    return (json?.ac || []).filter(a => finite(a.lat) && finite(a.lon)).slice(0, 800).map(a => ({
+      id: String(a.hex), callsign: String(a.flight || '').trim(), type: String(a.t || ''), reg: String(a.r || ''),
+      lat: a.lat, lon: a.lon, alt: finite(a.alt_baro) ? a.alt_baro : a.alt_baro === 'ground' ? 0 : null,
+      speed: finite(a.gs) ? a.gs : null, track: finite(a.track) ? a.track : null,
+    }));
+  }
+  function parseArticles(json) {
+    return (json?.articles || []).map(a => ({
+      title: String(a.title || ''), url: String(a.url || ''), domain: String(a.domain || ''), country: String(a.sourcecountry || ''),
+      time: Date.parse(String(a.seendate || '').replace(/^(\d{4})(\d\d)(\d\d)T(\d\d)(\d\d)(\d\d)Z$/, '$1-$2-$3T$4:$5:$6Z')),
+    })).filter(a => a.title && /^https?:\/\//.test(a.url) && Number.isFinite(a.time));
+  }
+
   function create(fetchText) {
     async function getText(url) {
       const r = await fetchText(url);
@@ -277,7 +315,47 @@
       return data;
     }
 
-    return { chart, highs, tape, news, calendar };
+    // World monitor: each source is fetched, cached and failing independently.
+    const layerCache = {};
+    async function layer(name, ttl, load) {
+      const hit = layerCache[name];
+      if (hit && Date.now() - hit.at < ttl) return hit.data;
+      try {
+        const data = await load();
+        layerCache[name] = { at: Date.now(), data };
+        return data;
+      } catch (error) {
+        if (hit) return hit.data;   // keep serving the last good copy
+        throw error;
+      }
+    }
+    // Slow optional sources must not hold the map back: give them a moment, keep loading in the background.
+    const withinMs = (ms, load) => Promise.race([load(), new Promise((_, reject) => setTimeout(() => reject(new Error('slow')), ms))]);
+    const articleTitles = new Map();
+    async function monitor() {
+      const [quakes, events, aircraft, articles] = await Promise.allSettled([
+        layer('quakes', 120000, async () => parseQuakes(await getJson('https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/2.5_day.geojson'))),
+        layer('events', 600000, async () => parseEvents(await getJson('https://eonet.gsfc.nasa.gov/api/v3/events?status=open&limit=200')).slice(0, 200)),
+        layer('aircraft', 30000, async () => parseAircraft(await getJson('https://api.adsb.lol/v2/mil'))),
+        // GDELT allows one request per five seconds, so headlines are cached for ten minutes.
+        withinMs(4000, () => layer('articles', 600000, async () => {
+          const query = encodeURIComponent('(war OR attack OR missile OR military OR strike) sourcelang:english');
+          const list = parseArticles(await getJson(`https://api.gdeltproject.org/api/v2/doc/doc?query=${query}&mode=artlist&maxrecords=40&format=json&sort=datedesc&timespan=12h`)).slice(0, 25);
+          await Promise.all(list.filter(a => !articleTitles.has(a.url)).map(async a => { try { articleTitles.set(a.url, await translate(a.title)); } catch {} }));
+          return list;
+        })),
+      ]);
+      const value = (r, fallback = []) => r.status === 'fulfilled' ? r.value : fallback;
+      const failed = [['quakes', quakes], ['events', events], ['aircraft', aircraft], ['articles', articles]].filter(([, r]) => r.status === 'rejected').map(([name]) => name);
+      if (failed.length === 4) throw new Error('no monitor data');
+      return {
+        quakes: value(quakes), events: value(events), aircraft: value(aircraft),
+        articles: value(articles).map(a => ({ ...a, pl: articleTitles.get(a.url) || '' })),
+        failed, fetchedAt: Date.now(),
+      };
+    }
+
+    return { chart, highs, tape, news, calendar, monitor };
   }
 
   // Node transport (Next route handlers, dev server).
@@ -291,6 +369,6 @@
     };
   }
 
-  const api = { FRAMES, TAPE, feedFor, aggregate, parseRss, rangeBounds, tvValue, fromTradingView, create, nodeTransport };
+  const api = { FRAMES, TAPE, feedFor, aggregate, parseRss, parseQuakes, parseEvents, parseAircraft, parseArticles, rangeBounds, tvValue, fromTradingView, create, nodeTransport };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.TerminalData = api;
 })(typeof globalThis === 'undefined' ? this : globalThis);

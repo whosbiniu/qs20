@@ -91,7 +91,7 @@ This is a locally ad-hoc signed build for personal use, not a notarized release.
 ## Version 2.0: UNC Terminal
 
 The app now opens the terminal (`public/index.html`): Wykresy (F1), Kalendarz ekonomiczny (F2),
-Wydarzenia (F3), Kwartały (F4) and Aktualne L/H (F5). The former Timeline/Wydarzenia app lives in
+Wydarzenia (F3), Kwartały (F4), Aktualne L/H (F5) and Monitor (F6). The former Timeline/Wydarzenia app lives in
 `public/quarters/index.html`, and its six “Aktualne High/Low” panels moved to `public/quarters/highs.html`.
 Kalendarz and Kwartały are shown in frames, so all bridges accept any page bundled under `public/`.
 
@@ -106,3 +106,10 @@ Smoke tests (all write to stdout and exit non-zero on failure):
 - `--self-test-highs --offline`: Aktualne L/H panels filled from the fixture bridge.
 - `--self-test-terminal`: terminal with live data (needs the network; FinancialJuice rate limits repeated
   requests, so wait about a minute between runs). Writes `/tmp/qs-terminal-preview.png`.
+
+Monitor (F6) draws a world map on a canvas (`public/monitor.js`, outlines in `public/world-data.js`) with layers from
+`/api/monitor`: USGS earthquakes, NASA EONET events, adsb.lol military aircraft and GDELT headlines. It is an
+original implementation on public data, not a copy of monitor-the-situation.com. The proxy bridge additionally reaches
+`earthquake.usgs.gov`, `eonet.gsfc.nasa.gov`, `api.adsb.lol`, `api.gdeltproject.org`, `nfs.faireconomy.media` and
+`economic-calendar.tradingview.com` (the last one only answers requests carrying TradingView's `Origin`).
+GDELT allows one request per five seconds, so its headlines are cached for ten minutes and may be missing.

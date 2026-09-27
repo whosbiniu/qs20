@@ -131,7 +131,8 @@ final class MarketHighsBridge: NSObject, WKScriptMessageHandlerWithReply {
 /// Generic GET for the terminal's data layer (terminal-data.js). Only the data providers it uses are reachable.
 final class ProxyBridge: NSObject, WKScriptMessageHandlerWithReply {
     static let hosts: Set<String> = ["query1.finance.yahoo.com", "www.financialjuice.com", "translate.googleapis.com",
-                                     "nfs.faireconomy.media", "economic-calendar.tradingview.com"]
+                                     "nfs.faireconomy.media", "economic-calendar.tradingview.com",
+                                     "earthquake.usgs.gov", "eonet.gsfc.nasa.gov", "api.adsb.lol", "api.gdeltproject.org"]
 
     func userContentController(_ userContentController: WKUserContentController,
                                didReceive message: WKScriptMessage,
@@ -219,7 +220,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
               const payload = await window.webkit.messageHandlers.marketHighs.postMessage(null);
               return new Response(JSON.stringify(payload), {headers: {'Content-Type': 'application/json'}});
             }
-            const terminalRoutes = ['/api/chart', '/api/highs', '/api/tape', '/api/news'];
+            const terminalRoutes = ['/api/chart', '/api/highs', '/api/tape', '/api/news', '/api/monitor'];
             const url = new URL(path, 'https://terminal.invalid');
             if (terminalRoutes.includes(url.pathname) || (url.pathname === '/api/events' && url.searchParams.has('range'))) {
               // Same data layer as the web server, with the native app as its transport.
@@ -234,6 +235,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
                 if (url.pathname === '/api/highs') return json(await data.highs(q.get('symbol') || ''));
                 if (url.pathname === '/api/events') return json(await data.calendar(q.get('range') || ''));
                 if (url.pathname === '/api/tape') return json({quotes: await data.tape()});
+                if (url.pathname === '/api/monitor') return json(await data.monitor());
                 return json(await data.news());
               } catch (error) {
                 return new Response(JSON.stringify({error: String(error.message || error)}),
@@ -340,6 +342,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
                     // Calendar ranges go through the same native proxy (TradingView needs its Origin header).
                     webView.callAsyncJavaScript("const r = await fetch('/api/events?range=next-week'); const d = await r.json(); return r.status + ' events=' + (d.events || []).length + ' source=' + d.source",
                                                 arguments: [:], in: nil, in: .page) { calendar in print("calendar:", calendar) }
+                    webView.callAsyncJavaScript("const r = await fetch('/api/monitor'); const d = await r.json(); return r.status + ' quakes=' + (d.quakes || []).length + ' events=' + (d.events || []).length + ' aircraft=' + (d.aircraft || []).length + ' failed=' + (d.failed || [])",
+                                                arguments: [:], in: nil, in: .page) { monitor in print("monitor:", monitor) }
                     webView.callAsyncJavaScript("const r = await fetch('/api/news'); return r.status + ' ' + (await r.text()).slice(0, 160)",
                                                 arguments: [:], in: nil, in: .page) { news in print("news:", news) }
                     webView.takeSnapshot(with: nil) { image, _ in
@@ -347,7 +351,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
                            let bitmap = NSBitmapImageRep(data: tiff), let png = bitmap.representation(using: .png, properties: [:]) {
                             try? png.write(to: URL(fileURLWithPath: "/tmp/qs-terminal-preview.png"))
                         }
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 1) { exit(output.contains("\"ok\":true") ? 0 : 1) }
+                        // Give the extra diagnostics (calendar, monitor, news) time to answer before exiting.
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 9) { exit(output.contains("\"ok\":true") ? 0 : 1) }
                     }
                 }
             }

@@ -49,6 +49,25 @@ assert.equal(Terminal.tvValue(null,'%'),'');
 assert.deepEqual(Terminal.fromTradingView([{title:'NFP',date:'2026-10-02T12:30:00.000Z',importance:1,forecast:100,previous:162,scale:'K'},{title:'x',date:'bad',importance:0}]),
   [{title:'NFP',date:'2026-10-02T12:30:00.000Z',impact:'High',forecast:'100K',previous:'162K'}]);
 
+// Monitor parsers: bad coordinates and foreign links are dropped, polygons get a centroid, ground aircraft have altitude 0.
+const quakes=Terminal.parseQuakes({features:[
+  {id:'a',geometry:{coordinates:[10,20,5]},properties:{mag:4.2,place:'X',time:2000,url:'https://earthquake.usgs.gov/e/a'}},
+  {id:'b',geometry:{coordinates:[10,20,5]},properties:{mag:3,place:'Y',time:3000,url:'https://evil.example/b'}},
+  {id:'c',geometry:{coordinates:[null,20,5]},properties:{mag:3,place:'Z',time:4000,url:'https://earthquake.usgs.gov/e/c'}},
+  {id:'d',geometry:{coordinates:[1,2,3]},properties:{mag:5,place:'W',time:5000,url:'https://earthquake.usgs.gov/e/d'}}]});
+assert.deepEqual(quakes.map(q=>q.id),['d','a']); // newest first
+const events=Terminal.parseEvents({events:[
+  {id:'e1',title:'Storm',categories:[{title:'Severe Storms'}],link:'http://insecure.example/x',sources:[{url:'https://example.org/s'}],geometry:[{type:'Point',date:'2026-09-26T00:00:00Z',coordinates:[1,2]},{type:'Point',date:'2026-09-27T00:00:00Z',coordinates:[3,4]}]},
+  {id:'e2',title:'Fire',categories:[{title:'Wildfires'}],link:'https://eonet.example/f',geometry:[{type:'Polygon',date:'2026-09-27T00:00:00Z',coordinates:[[[0,0],[2,0],[2,2],[0,2]]]}]},
+  {id:'e3',title:'None',geometry:[]}]});
+assert.deepEqual(events.map(e=>[e.id,e.lon,e.lat]),[['e1',3,4],['e2',1,1]]);
+assert.equal(events[0].url,'https://example.org/s');
+const planes=Terminal.parseAircraft({ac:[{hex:'abc',flight:'RCH123 ',t:'C17',lat:10,lon:20,alt_baro:'ground',gs:5,track:90},{hex:'no',lat:null,lon:1}]});
+assert.deepEqual(planes,[{id:'abc',callsign:'RCH123',type:'C17',reg:'',lat:10,lon:20,alt:0,speed:5,track:90}]);
+const articles=Terminal.parseArticles({articles:[{title:'Hit',url:'https://x.example/1',domain:'x.example',sourcecountry:'US',seendate:'20260927T101500Z'},{title:'Bad',url:'javascript:alert(1)',seendate:'20260927T101500Z'}]});
+assert.equal(articles.length,1);
+assert.equal(new Date(articles[0].time).toISOString(),'2026-09-27T10:15:00.000Z');
+
 // End to end with a fake transport: chart, cycles, tape and translated headlines.
 (async()=>{
   const calls=[];
@@ -91,8 +110,18 @@ assert.deepEqual(Terminal.fromTradingView([{title:'NFP',date:'2026-10-02T12:30:0
   const ff=Terminal.create(async url=>url.includes('nextweek')?{status:200,text:JSON.stringify([{title:'CPI',country:'USD',date:'2026-09-30T08:30:00-04:00',impact:'High',forecast:'0.3%',previous:'0.2%'},{title:'Other',country:'EUR',date:'2026-09-30T08:30:00-04:00',impact:'High'}])}:{status:500,text:''});
   const ffWeek=await ff.calendar('next-week');
   assert.deepEqual([ffWeek.source,ffWeek.events.length,ffWeek.events[0].title],['Forex Factory',1,'CPI']);
+  // Monitor: one failing source does not break the others; all failing is an error.
+  const mon=Terminal.create(async url=>{
+    if(url.includes('usgs'))return {status:200,text:JSON.stringify({features:[{id:'q',geometry:{coordinates:[1,2,3]},properties:{mag:4,place:'P',time:1,url:'https://earthquake.usgs.gov/q'}}]})};
+    if(url.includes('adsb.lol'))return {status:200,text:JSON.stringify({ac:[{hex:'a',lat:1,lon:2}]})};
+    return {status:500,text:''};
+  });
+  const world=await mon.monitor();
+  assert.deepEqual([world.quakes.length,world.aircraft.length,world.events.length,world.articles.length],[1,1,0,0]);
+  assert.deepEqual(world.failed.sort(),['articles','events']);
+  await assert.rejects(Terminal.create(async()=>({status:500,text:''})).monitor(),/no monitor data/);
   // A failing feed keeps serving the previous headlines instead of throwing.
   const failing=Terminal.create(async url=>url.includes('financialjuice')?{status:429,text:''}:transport(url));
   await assert.rejects(failing.news(),/429/);
-  console.log('PASS terminal data: symbols, 6H candles, RSS parsing, quarterly cycle, index volume, chart/highs/tape/news with translation, calendar ranges');
+  console.log('PASS terminal data: symbols, 6H candles, RSS parsing, quarterly cycle, index volume, chart/highs/tape/news with translation, calendar ranges, monitor layers');
 })().catch(error=>{console.error(error);process.exit(1);});

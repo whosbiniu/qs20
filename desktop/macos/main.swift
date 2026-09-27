@@ -177,7 +177,7 @@ final class ProxyBridge: NSObject, WKScriptMessageHandlerWithReply {
 /// player lives in a small child web view whose base URL is https; the page only tells us where to put it.
 final class TVBridge: NSObject, WKScriptMessageHandler {
     weak var host: WKWebView?
-    private var overlay: WKWebView?
+    private(set) var overlay: WKWebView?
     private var videoId = ""
 
     func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
@@ -490,7 +490,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
                     print("tv:", result as Any, error as Any)
                     webView.callAsyncJavaScript("const r = await fetch('/api/tv'); return r.status + ' ' + (await r.text()).slice(0, 120)", arguments: [:], in: nil, in: .page) { r in print("api/tv:", r) }
                     webView.callAsyncJavaScript("const r = await window.webkit.messageHandlers.proxy.postMessage('https://www.youtube.com/@markets/live'); const t = r.text; return r.status + ' len=' + t.length + ' live=' + t.includes('isLiveNow') + ' canon=' + (t.match(/rel=.canonical. href=.([^\"]*)/) || [])[1] + ' consent=' + t.includes('consent')", arguments: [:], in: nil, in: .page) { r in print("raw:", r) }
-                    webView.takeSnapshot(with: nil) { image, _ in
+                    (self.tv.overlay ?? webView).takeSnapshot(with: nil) { image, _ in
                         if let image, let tiff = image.tiffRepresentation,
                            let bitmap = NSBitmapImageRep(data: tiff), let png = bitmap.representation(using: .png, properties: [:]) {
                             try? png.write(to: URL(fileURLWithPath: "/tmp/qs-tv-preview.png"))

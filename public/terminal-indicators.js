@@ -12,8 +12,8 @@
     function render() {
       const q = search.value.trim().toLocaleLowerCase('pl')
       const entries = catalog.filter(d => `${d.title} ${d.group} ${d.description}`.toLocaleLowerCase('pl').includes(q))
-      list.innerHTML = entries.map(d => `<div class="ht-indicator-entry"><div><b>${esc(d.title)}</b><small>${esc(d.group)}</small><p>${esc(d.description)}</p></div><button type="button" data-indicator="${d.id}" aria-label="${get(d.id) ? 'Usuń' : 'Dodaj'} ${esc(d.title)}" aria-pressed="${get(d.id)}">${get(d.id) ? 'Usuń' : '+ Dodaj'}</button></div>`).join('') || '<p>Brak pasujących indykatorów.</p>'
-      const selected = catalog.filter(d => get(d.id))
+      list.innerHTML = entries.map(d => `<div class="ht-indicator-entry"><div><b>${esc(d.title)}</b><small>${esc(d.group)}</small><p>${esc(d.description)}</p></div>${d.unavailable ? '<button type="button" disabled>Niedostępny</button>' : `<button type="button" data-indicator="${d.id}" aria-label="${get(d.id) ? 'Usuń' : 'Dodaj'} ${esc(d.title)}" aria-pressed="${get(d.id)}">${get(d.id) ? 'Usuń' : '+ Dodaj'}</button>`}</div>`).join('') || '<p>Brak pasujących indykatorów.</p>'
+      const selected = catalog.filter(d => !d.unavailable && get(d.id))
       active.innerHTML = selected.map(d => `<span><button type="button" data-settings="${d.id}" aria-label="Ustawienia: ${esc(d.title)}">${esc(d.title)}</button><button type="button" data-remove="${d.id}" aria-label="Usuń ${esc(d.title)}">×</button></span>`).join('')
       active.hidden = !selected.length
       button.textContent = `ƒx Indykatory${selected.length ? ' · ' + selected.length : ''}`

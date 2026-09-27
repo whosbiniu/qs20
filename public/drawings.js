@@ -19,6 +19,14 @@ const Drawings = (() => {
   const TOOLS = [['cursor', 'Kursor: przesuwanie wykresu; kliknij rysunek, aby go zaznaczyć (Backspace / Delete usuwa)'], ['trend', 'Linia trendu'], ['hline', 'Linia pozioma'], ['vline', 'Linia pionowa'],
     ['rect', 'Prostokąt'], ['fib', 'Zniesienia Fibonacciego'], ['measure', 'Pomiar'], ['brush', 'Pędzel: przeciągnij, aby rysować'], ['text', 'Tekst: kliknij, wpisz i zatwierdź Enterem'], ['erase', 'Gumka: kliknij rysunek, aby go usunąć'], ['clear', 'Usuń wszystkie rysunki']];
   const NEEDS = { trend: 2, rect: 2, fib: 2, measure: 2, hline: 1, vline: 1, text: 1 };
+  // Tool types registered by other scripts (anchored VWAP, range volume profile, position):
+  // { title, icon, needs, volume, paint(ctx, d, api, ink, ghost, active), distance(d, p, api) }.
+  // `volume` tools are offered only on panels that have candle volume (panel.volume).
+  const CUSTOM = {};
+  function register(id, def) {
+    CUSTOM[id] = def; NEEDS[id] = def.needs; ICONS[id] = def.icon;
+    TOOLS.splice(TOOLS.findIndex(t => t[0] === 'erase'), 0, [id, def.title]);
+  }
   const TEXT_FONT = '13px ui-monospace,Menlo,monospace';
 
   // Only one drawing can be selected across all chart panels: the panel that owns the selection.
@@ -31,7 +39,7 @@ const Drawings = (() => {
     canvas.className = 'draw-layer';
     const bar = document.createElement('div');
     bar.className = 'draw-bar';
-    bar.innerHTML = TOOLS.map(([id, title]) => `<button type="button" data-tool="${id}" title="${title}" aria-label="${title}"><svg viewBox="0 0 16 16">${ICONS[id]}</svg></button>`).join('');
+    bar.innerHTML = TOOLS.filter(([id]) => !CUSTOM[id]?.volume || panel.volume).map(([id, title]) => `<button type="button" data-tool="${id}" title="${title}" aria-label="${title}"><svg viewBox="0 0 16 16">${ICONS[id]}</svg></button>`).join('');
     box.append(canvas, bar);
     const ctx = canvas.getContext('2d');
     let tool = 'cursor', items = [], pending = null, cursor = null, hover = null, selected = null, frame = 0, clearArmed = 0, size = { w: 0, h: 0, dpr: 1 };
@@ -82,7 +90,10 @@ const Drawings = (() => {
       ctx.strokeStyle = ink; ctx.lineWidth = 1; ctx.strokeRect(left + .5, y - 7.5, w - 1, 15);
       ctx.fillStyle = ink; ctx.textBaseline = 'middle'; ctx.fillText(text, left + 4, y + 1);
     }
+    // What registered tool types need to paint and hit-test themselves.
+    const toolApi = { toScreen, toData, logicalOf, timeOf, label, fmtPrice, panel, get size() { return size; }, get candles() { return panel.candles || []; }, segDist: (p, a, b) => segDist(p, a, b) };
     function paintShape(d, ink, ghost) {
+      if (CUSTOM[d.type]) { ctx.setLineDash([]); CUSTOM[d.type].paint(ctx, d, toolApi, ink, ghost, d === hover || d === selected); ctx.setLineDash([]); return; }
       const pts = d.points.map(toScreen);
       if (pts.some(p => !p)) return;
       const [a, b] = pts, W = size.w, H = size.h;
@@ -159,6 +170,7 @@ const Drawings = (() => {
       return Math.hypot(p.x - (a.x + t * dx), p.y - (a.y + t * dy));
     };
     function distance(d, p) {
+      if (CUSTOM[d.type]) return CUSTOM[d.type].distance(d, p, toolApi);
       const pts = d.points.map(toScreen);
       if (pts.some(q => !q)) return Infinity;
       const [a, b] = pts;
@@ -330,8 +342,8 @@ const Drawings = (() => {
     window.addEventListener('themechange', redraw);
     setTool('cursor');
     reload();
-    Object.assign(self, { redraw: settle, reload, deselect() { selected = null; redraw(); } });
+    Object.assign(self, { redraw: settle, reload, setTool, deselect() { selected = null; redraw(); } });
     return self;
   }
-  return { attach };
+  return { attach, register };
 })();

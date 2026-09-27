@@ -119,10 +119,10 @@
   function attach(host) {
     host.innerHTML = `<div class="of-controls"><label>Krok ceny order flow <input data-of-step type="number" min="0" step="any" value="0"></label><span>0 = auto · jednostki instrumentu</span><button data-of-reset type="button">Nowy zakres</button></div><p class="of-status" role="status"></p><p class="of-summary"></p>`
     const el = selector => host.querySelector(selector)
-    let settings = { footprint: false, delta: false, profile: false, step: 0 }
+    let settings = { footprint: false, delta: false, profile: false, counter: false, step: 0 }
     try { settings = { ...settings, ...JSON.parse(localStorage.getItem('hl-orderflow') || '{}') } } catch {}
     let coin = '', interval = '1h', store, stream, state = 'connecting', gap = false, timer, panel, delta, cvd, update = () => {}, result = null, lines = []
-    const enabled = () => settings.footprint || settings.delta || settings.profile
+    const enabled = () => settings.footprint || settings.delta || settings.profile || settings.counter
     const save = () => { try { localStorage.setItem('hl-orderflow', JSON.stringify(settings)) } catch {} }
     const number = n => Number(n).toLocaleString('en-US', { maximumSignificantDigits: 5 })
     const utc = t => new Date(t).toISOString().replace('T', ' ').slice(0, 19)
@@ -167,11 +167,12 @@
         c.restore()
       })
     } }
+    const listeners = []
     function render() {
       if (timer) clearTimeout(timer)
       timer = null; clearLines(); result = null
       delta?.setData([]); cvd?.setData([])
-      if (!enabled() || !store) { update(); return }
+      if (!enabled() || !store) { update(); listeners.forEach(f => f()); return }
       const trades = store.trades
       const status = { connecting: 'Łączenie…', live: 'Połączono', gap: 'Przerwa — ponawianie…', error: 'Błąd strumienia' }[state]
       el('.of-status').textContent = `${coin} · ${status} · ${trades.length} transakcji${trades.length ? ' · ' + utc(trades[0].time) + ' — ' + utc(trades.at(-1).time) + ' UTC' : ''}. Dane zebrane w tej karcie, nie pełna sesja.${gap ? ' Możliwe braki po przerwie.' : ''}${store.trimmed ? ' Zakres ograniczony do 50 000 transakcji.' : ''}`
@@ -195,6 +196,7 @@
         if (settings.profile && panel) for (const [title, price] of [['VP POC', result.poc], ['VP VAH', result.vah], ['VP VAL', result.val]]) lines.push(panel.series.createPriceLine({ title, price, color: '#b797d6', lineWidth: 1, lineStyle: 2, axisLabelVisible: true }))
       }
       update()
+      listeners.forEach(f => f())
     }
     function schedule() { if (!timer) timer = setTimeout(render, 500) }
     function start() {
@@ -219,6 +221,10 @@
         start(); render()
       },
       refresh: render,
+      // Executed trades collected in this tab, and a hook for studies built on them (trade counter / pulse).
+      get trades() { return store ? store.trades : [] },
+      get interval() { return interval },
+      onRender(fn) { listeners.push(fn) },
       bindPanel(next) {
         panel = next
         const view = { zOrder: () => 'top', renderer: () => renderer }

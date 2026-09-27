@@ -7,6 +7,7 @@ window.HyperTerminal = (() => {
       <div class="ht-periods" id="ht-periods"></div>
       <div class="ht-chart-tools"><button type="button" id="ht-indicators-open" aria-expanded="false" aria-controls="ht-indicator-panel">ƒx Indykatory</button><button id="ht-fit" type="button">Dopasuj wykres</button></div>
       <aside class="ht-indicator-panel" id="ht-indicator-panel" hidden aria-label="Biblioteka indykatorów"><div class="ht-library-head"><strong>Indykatory</strong><button type="button" id="ht-indicators-close" aria-label="Zamknij panel indykatorów">×</button></div><input type="search" id="ht-indicator-search" placeholder="Szukaj indykatora…" aria-label="Szukaj indykatora"><div id="ht-indicator-list"></div><h4>Ustawienia aktywnych indykatorów</h4>
+      <div class="st-settings" id="ht-studies-settings" hidden></div>
       <div class="ht-tpo-controls" id="ht-profile" hidden><label>TPO <select id="ht-tpo-mode"><option value="daily">Dzienne</option><option value="session">Sesyjne</option><option value="weekly">Tygodniowe</option><option value="monthly">Miesięczne</option></select></label><span id="ht-tpo-hours" hidden><label>Od <input id="ht-tpo-from" type="time" step="1800" value="08:00"></label><label>Do <input id="ht-tpo-to" type="time" step="1800" value="16:30"></label> UTC</span><label>Krok ceny <input id="ht-step" type="number" min="0" step="any" value="0"></label><span id="ht-profile-info" role="status"></span></div><section id="ht-orderflow" aria-label="Ustawienia order flow"></section></aside><div class="ht-chart" id="ht-chart"><div class="ht-active-indicators" id="ht-active-indicators" aria-label="Aktywne indykatory"></div></div><div class="ht-message" id="ht-message" hidden></div>
     </div><aside class="ht-book"><header><strong>ARKUSZ ZLECEŃ</strong><span id="ht-book-time"></span></header><div class="ht-book-title"><span>CENA</span><span>WIELKOŚĆ</span><span>SUMA</span></div><div id="ht-asks"></div><div class="ht-spread" id="ht-spread">—</div><div id="ht-bids"></div></aside>
   </div>`
@@ -19,6 +20,9 @@ window.HyperTerminal = (() => {
   let settings = { volume: false, tpo: false, step: 0, mode: 'daily', from: '08:00', to: '16:30' }
   try { settings = { ...settings, ...JSON.parse(localStorage.getItem('hl-indicators') || '{}') } } catch {}
   const orderflow = TerminalOrderflow.attach($('ht-orderflow'))
+  // Extra studies (VWAP, profiles, levels, order book, OI, funding...) are added to the indicator catalog.
+  TerminalIndicators.catalog.push(...TerminalStudies.catalog)
+  const studies = TerminalStudies.attach({ settingsHost: $('ht-studies-settings'), fetchJson: url => json(url), orderflow })
   const saveSettings = () => { try { localStorage.setItem('hl-indicators', JSON.stringify(settings)) } catch {} }
   $('ht-step').value = settings.step
   $('ht-profile').hidden = !settings.tpo
@@ -46,11 +50,13 @@ window.HyperTerminal = (() => {
     series = chart.addSeries(LightweightCharts.CandlestickSeries, { priceFormat: { type: 'price', precision: 4, minMove: 0.0001 } })
     volumeSeries = chart.addSeries(LightweightCharts.HistogramSeries, { priceFormat: { type: 'volume' }, priceScaleId: 'volume', lastValueVisible: false, priceLineVisible: false, visible: !!settings.volume })
     volumeSeries.priceScale().applyOptions({ scaleMargins: { top: .9, bottom: 0 } })
-    drawingPanel = { el: $('ht-chart'), chart, series, symbol: 'hl:' + selected, candles: [] }
+    drawingPanel = { el: $('ht-chart'), chart, series, symbol: 'hl:' + selected, candles: [], volume: true }
     drawingPanel.drawings = Drawings.attach(drawingPanel)
     profileOverlay = TerminalProfile.attach(drawingPanel)
     theme()
     orderflow.bindPanel(drawingPanel)
+    studies.bindPanel(drawingPanel)
+    studies.setMarket(selected, interval)
   }
   function renderList() {
     const q = $('ht-search').value.trim().toUpperCase()
@@ -76,8 +82,9 @@ window.HyperTerminal = (() => {
     try {
       const data = await json('/api/hl/markets')
       all = data.markets
+      studies.observeMarkets(all)
       if (!all.some(m => m.coin === selected)) selected = all.find(m => m.coin === 'xyz:XYZ100')?.coin || all[0]?.coin
-      orderflow.setMarket(selected, interval)
+      orderflow.setMarket(selected, interval); studies.setMarket(selected, interval)
       renderList(); renderQuote()
       $('ht-message').hidden = true
     } catch (error) { $('ht-message').textContent = error.message; $('ht-message').hidden = false }
@@ -97,6 +104,7 @@ window.HyperTerminal = (() => {
       drawingPanel.drawings.redraw()
       profileOverlay.redraw()
       orderflow.refresh()
+      studies.refresh()
       chartKey = key
       if (changed) chart.timeScale().fitContent()
       $('ht-message').hidden = true
@@ -119,7 +127,7 @@ window.HyperTerminal = (() => {
       $('ht-book-time').textContent = new Date(book.time).toLocaleTimeString('pl-PL')
     } catch { $('ht-spread').textContent = 'Brak danych arkusza' }
   }
-  function select(coin) { if (coin === selected) return; selected = coin; orderflow.setMarket(selected, interval); profileCandles = []; clearProfileLines(); series?.setData([]); volumeSeries?.setData([]); if (drawingPanel) { drawingPanel.symbol = 'hl:' + coin; drawingPanel.candles = []; drawingPanel.drawings.reload() }; localStorage.setItem('hl-coin', coin); renderList(); renderQuote(); loadChart(); loadBook(); loadProfile() }
+  function select(coin) { if (coin === selected) return; selected = coin; orderflow.setMarket(selected, interval); studies.setMarket(selected, interval); profileCandles = []; clearProfileLines(); series?.setData([]); volumeSeries?.setData([]); if (drawingPanel) { drawingPanel.symbol = 'hl:' + coin; drawingPanel.candles = []; drawingPanel.drawings.reload() }; localStorage.setItem('hl-coin', coin); renderList(); renderQuote(); loadChart(); loadBook(); loadProfile() }
   function clearProfileLines() { profileOverlay?.set([]) }
   function renderProfile() {
     clearProfileLines()
@@ -141,11 +149,12 @@ window.HyperTerminal = (() => {
       renderProfile()
     } catch (error) { if (stamp === profileRequest) { profileCandles = []; clearProfileLines(); $('ht-profile-info').textContent = 'TPO: ' + error.message } }
   }
-  function indicatorEnabled(id) { return id === 'volume' || id === 'tpo' ? !!settings[id] : orderflow.isEnabled(id) }
+  function indicatorEnabled(id) { return id === 'volume' || id === 'tpo' ? !!settings[id] : ['footprint', 'delta', 'profile'].includes(id) ? orderflow.isEnabled(id) : studies.isEnabled(id) }
   function setIndicator(id, value) {
     if (id === 'volume') { settings.volume = value; saveSettings(); volumeSeries?.applyOptions({ visible: value }) }
     else if (id === 'tpo') { settings.tpo = value; saveSettings(); $('ht-profile').hidden = !value; if (value) loadProfile(); else { ++profileRequest; clearProfileLines() } }
-    else orderflow.setEnabled(id, value)
+    else if (['footprint', 'delta', 'profile'].includes(id)) orderflow.setEnabled(id, value)
+    else studies.setEnabled(id, value)
     $('ht-orderflow').hidden = !['footprint', 'delta', 'profile'].some(key => orderflow.isEnabled(key))
   }
   $('ht-orderflow').hidden = !['footprint', 'delta', 'profile'].some(key => orderflow.isEnabled(key))
@@ -158,7 +167,7 @@ window.HyperTerminal = (() => {
   $('ht-fit').addEventListener('click', () => chart?.timeScale().fitContent())
   $('ht-search').addEventListener('input', renderList)
   $('ht-list').addEventListener('click', e => { const coin = e.target.closest('[data-coin]')?.dataset.coin; if (coin) select(coin) })
-  $('ht-periods').addEventListener('click', e => { const p = e.target.closest('[data-period]')?.dataset.period; if (p && p !== interval) { interval = p; localStorage.setItem('hl-interval', p); orderflow.setMarket(selected, interval); renderQuote(); loadChart() } })
+  $('ht-periods').addEventListener('click', e => { const p = e.target.closest('[data-period]')?.dataset.period; if (p && p !== interval) { interval = p; localStorage.setItem('hl-interval', p); orderflow.setMarket(selected, interval); studies.setMarket(selected, interval); renderQuote(); loadChart() } })
   window.addEventListener('themechange', theme)
   window.addEventListener('resize', () => chart?.timeScale().fitContent())
   setInterval(() => { if (!root.hidden && !document.hidden && initialized) { loadMarkets(); loadBook() } }, 15000)

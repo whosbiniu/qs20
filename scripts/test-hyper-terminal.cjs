@@ -33,7 +33,8 @@ const context = vm.createContext({
   getComputedStyle: () => ({ getPropertyValue: () => '#111111' }),
   LightweightCharts: { createChart: () => chart },
   TerminalOrderflow: { attach: () => ({ setMarket() {}, bindPanel() {}, refresh() {}, isEnabled() { return false }, setEnabled() {} }) },
-  TerminalIndicators: { attach(options) { library = options } },
+  TerminalIndicators: { catalog: [], attach(options) { library = options } },
+  TerminalStudies: { catalog: [], attach() { return { setMarket() {}, bindPanel() {}, refresh() {}, observeMarkets() {}, isEnabled() { return false }, setEnabled() {} } } },
   Drawings: { attach(panel) { drawingPanel = panel; return { redraw() {}, reload() { reloads++ } } } },
   fetch: async url => {
     if (delayCandles && url.includes('/candles')) return new Promise(resolve => pending.push(() => resolve({ ok: true, json: async () => ({ candles }) })))

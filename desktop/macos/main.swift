@@ -268,7 +268,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
               return new Response(JSON.stringify(payload), {headers: {'Content-Type': 'application/json'}});
             }
             const terminalRoutes = ['/api/chart', '/api/highs', '/api/tape', '/api/news', '/api/monitor', '/api/earnings',
-              '/api/hl/markets', '/api/hl/candles', '/api/hl/book'];
+              '/api/hl/markets', '/api/hl/candles', '/api/hl/book', '/api/hl/depth', '/api/hl/funding'];
             const url = new URL(path, 'https://terminal.invalid');
             if (terminalRoutes.includes(url.pathname) || (url.pathname === '/api/events' && url.searchParams.has('range'))) {
               // Same data layer as the web server, with the native app as its transport.
@@ -289,6 +289,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
                 if (url.pathname === '/api/hl/markets') return json({markets: await hyper.markets()});
                 if (url.pathname === '/api/hl/candles') return json({candles: await hyper.candles(q.get('coin'), q.get('interval') || '1h')});
                 if (url.pathname === '/api/hl/book') return json(await hyper.orderBook(q.get('coin')));
+                if (url.pathname === '/api/hl/depth') return json(await hyper.deepBook(q.get('coin'), q.get('sig') || 0));
+                if (url.pathname === '/api/hl/funding') return json({rates: await hyper.fundingHistory(q.get('coin'))});
                 if (url.pathname === '/api/highs') return json(await data.highs(q.get('symbol') || ''));
                 if (url.pathname === '/api/events') return json(await data.calendar(q.get('range') || ''));
                 if (url.pathname === '/api/tape') return json({quotes: await data.tape()});

@@ -58,6 +58,22 @@
         return { time: book.time, bids: book.levels?.[0]?.slice(0, 12) || [], asks: book.levels?.[1]?.slice(0, 12) || [] }
       })
     }
+    async function deepBook(coin, sig = 0) {
+      if (!(await markets()).some(m => m.coin === coin)) throw Object.assign(new Error('Nieznany rynek'), { status: 400 })
+      const figures = [0, 2, 3, 4, 5].includes(Number(sig)) ? Number(sig) : 0
+      return cached(`deep:${coin}:${figures}`, 3000, async () => {
+        const book = await query({ type: 'l2Book', coin, ...(figures ? { nSigFigs: figures } : {}) })
+        return { time: book.time, bids: book.levels?.[0] || [], asks: book.levels?.[1] || [] }
+      })
+    }
+    async function fundingHistory(coin) {
+      if (!(await markets()).some(m => m.coin === coin)) throw Object.assign(new Error('Nieznany rynek'), { status: 400 })
+      return cached(`funding:${coin}`, 300000, async () => {
+        const rows = await query({ type: 'fundingHistory', coin, startTime: Date.now() - 14 * 86400000 })
+        return rows.map(r => ({ time: Math.floor(Number(r.time) / 1000), rate: Number(r.fundingRate), premium: Number(r.premium) }))
+          .filter(r => [r.time, r.rate].every(Number.isFinite))
+      })
+    }
     async function chart(symbol, frame) {
       const coin = hyperCoin(symbol), market = (await markets()).find(m => m.coin === coin)
       if (!market) throw Object.assign(new Error('Nieznany rynek Hyperliquid'), { status: 400 })
@@ -79,7 +95,7 @@
         previousClose: market.price && market.change != null ? market.price / (1 + market.change / 100) : values.at(-1).close,
         candles: values, source: 'Hyperliquid', fetchedAt: Date.now() }
     }
-    return { markets, candles, orderBook, chart }
+    return { markets, candles, orderBook, deepBook, fundingHistory, chart }
   }
   root.HyperliquidData = { create, hyperCoin }
 })(typeof globalThis === 'undefined' ? this : globalThis)

@@ -40,8 +40,10 @@ export default function config(phase) {
   return {
     typescript: { ignoreBuildErrors: true },
     images: { unoptimized: true },
+    // beforeFiles: Vercel would otherwise answer "/" with public/index.html (the folder's default file)
+    // before an ordinary rewrite gets a chance.
     async rewrites() {
-      return [{ source: '/', destination: shell }]
+      return { beforeFiles: [{ source: '/', destination: shell }] }
     },
   }
 }

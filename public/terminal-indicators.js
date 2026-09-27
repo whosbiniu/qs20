@@ -3,9 +3,10 @@
   const catalog = [
     { id: 'volume', title: 'Wolumen', group: 'Wolumen', description: 'Wolumen świecowy u dołu wykresu.' },
     { id: 'tpo', title: 'TPO', group: 'Profile', description: 'Profile dzienne, sesyjne, tygodniowe i miesięczne. POC i obszar wartości.' },
-    { id: 'footprint', title: 'Footprint', group: 'Order flow', description: 'Bid × Ask przy świecach. Przybliż wykres, aby odczytać liczby.' },
+    { id: 'footprint', title: 'Footprint', group: 'Order flow', description: 'Bid × Ask, delta albo wolumen na poziomach ceny, imbalance po skosie, strefy stacked imbalance i POC świecy. Przybliż wykres, aby odczytać liczby.' },
     { id: 'delta', title: 'Delta / CVD', group: 'Order flow', description: 'Delta i skumulowana delta w dolnej części wykresu. Transakcje zebrane w tej karcie.' },
-    { id: 'profile', title: 'Volume Profile', group: 'Profile', description: 'Profil po prawej stronie wykresu. POC, VAH i VAL z zebranego zakresu.' },
+    { id: 'profile', title: 'Volume Profile', group: 'Profile', description: 'Profil z wykonanych transakcji: cały zebrany zakres, osobno każda sesja (UTC, Nowy Jork, Warszawa) albo widoczny zakres. POC, VAH i VAL.' },
+    { id: 'tradebubbles', title: 'Trade Bubbles', group: 'Order flow', description: 'Duże zlecenia z wykonanych transakcji (te same milisekunda i strona = jedno zlecenie). Wielkość koła rośnie z wolumenem.' },
   ]
   // `pop` (optional): { el, title, empty, remove, close } and `showSettings(id)` → whether that indicator has settings.
   // Clicking an active chip (or ⚙ in the library) opens its settings right next to the chip.

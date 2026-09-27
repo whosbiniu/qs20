@@ -8,7 +8,7 @@ window.HyperTerminal = (() => {
       <div class="ht-periods" id="ht-periods"></div>
       <div class="ht-chart-tools"><button type="button" id="ht-indicators-open" aria-expanded="false" aria-controls="ht-indicator-panel">ƒx Indykatory</button><button id="ht-fit" type="button">Dopasuj wykres</button></div>
       <aside class="ht-indicator-panel" id="ht-indicator-panel" hidden aria-label="Biblioteka indykatorów"><div class="ht-library-head"><strong>Indykatory</strong><button type="button" id="ht-indicators-close" aria-label="Zamknij panel indykatorów">×</button></div><input type="search" id="ht-indicator-search" placeholder="Szukaj indykatora…" aria-label="Szukaj indykatora"><div id="ht-indicator-list"></div></aside><div class="ht-ind-pop" id="ht-ind-pop" hidden role="dialog" aria-labelledby="ht-ind-pop-title"><div class="ht-ind-pop-head"><strong id="ht-ind-pop-title"></strong><button type="button" id="ht-ind-pop-remove" title="Usuń indykator z wykresu">Usuń</button><button type="button" id="ht-ind-pop-close" data-pop-close aria-label="Zamknij ustawienia">×</button></div><div class="st-settings" id="ht-studies-settings" hidden></div><div class="ht-tpo-controls" id="ht-profile" hidden><label>TPO <select id="ht-tpo-mode"><option value="daily">Dzienne</option><option value="session">Sesyjne</option><option value="weekly">Tygodniowe</option><option value="monthly">Miesięczne</option></select></label><span id="ht-tpo-hours" hidden><label>Od <input id="ht-tpo-from" type="time" step="1800" value="08:00"></label><label>Do <input id="ht-tpo-to" type="time" step="1800" value="16:30"></label> UTC</span><label>Krok ceny <input id="ht-step" type="number" min="0" step="any" value="0"></label><span id="ht-profile-info" role="status"></span></div><section id="ht-orderflow" aria-label="Ustawienia order flow" hidden></section><p class="ht-ind-pop-empty" id="ht-ind-pop-empty">Ten indykator nie ma ustawień.</p></div><div class="ht-chart" id="ht-chart"><div class="ht-active-indicators" id="ht-active-indicators" aria-label="Aktywne indykatory"></div></div><div class="ht-message" id="ht-message" hidden></div>
-    </div><aside class="ht-book"><header><strong>ARKUSZ ZLECEŃ</strong><span id="ht-book-time"></span></header><div class="ht-book-title"><span>CENA</span><span>WIELKOŚĆ</span><span>SUMA</span></div><div id="ht-asks"></div><div class="ht-spread" id="ht-spread">—</div><div id="ht-bids"></div></aside>
+    </div><aside class="ht-book"><header><div class="ht-book-tabs" id="ht-book-tabs" role="tablist" aria-label="Arkusz i taśma"><button type="button" role="tab" data-book-tab="dom" aria-selected="true" aria-controls="ht-dom">ARKUSZ</button><button type="button" role="tab" data-book-tab="tape" aria-selected="false" aria-controls="ht-tape">TAŚMA</button></div><span id="ht-book-time"></span></header><div id="ht-dom" role="tabpanel"><div class="ht-book-title ht-dom-cols"><span>CENA</span><span>WIELKOŚĆ</span><span>SUMA</span><span title="Wolumen transakcji na tej cenie od otwarcia rynku w terminalu">HANDEL</span></div><div id="ht-asks"></div><div class="ht-spread" id="ht-spread">—</div><div id="ht-bids"></div><label class="ht-book-filter">Wyróżnij zlecenia od <input id="ht-dom-big" type="number" min="0" step="any" placeholder="auto"></label></div><div id="ht-tape" role="tabpanel" hidden><div class="ht-book-filter"><label>Min. <input id="ht-tape-min" type="number" min="0" step="any" placeholder="0"></label><label><input id="ht-tape-merge" type="checkbox"> łącz zlecenia</label></div><div class="ht-book-title"><span>CZAS</span><span>CENA</span><span>WIELKOŚĆ</span></div><div id="ht-tape-rows"><p class="ht-empty">Czekam na transakcje…</p></div></div></aside>
   </div>`
   const $ = id => document.getElementById(id)
   let workspace
@@ -151,10 +151,58 @@ window.HyperTerminal = (() => {
     if (count > 1 && scale.setVisibleLogicalRange) scale.setVisibleLogicalRange({ from: -0.5, to: count - 1 + Math.max(8, Math.round(count * 0.06)) })
     else scale.fitContent()
   }
+  // DOM and tape. Traded volume per price and the tape come from the live trade stream of the open market.
+  let dom = { big: 0, tapeMin: 0, merge: true, tab: 'dom' }
+  try { dom = { ...dom, ...JSON.parse(localStorage.getItem('hl-dom') || '{}') } } catch {}
+  const saveDom = () => Store.set('hl-dom', JSON.stringify(dom))
+  let tape = [], traded = new Map(), bigLimit = Infinity, tapeFrame = 0
+  // Four significant digits keep the narrow DOM and tape columns readable (0.0932, 16.52, 1.2K).
+  const short = n => !Number.isFinite(n) ? '—' : n >= 10000 ? compact(n) : n.toLocaleString('en-US', { maximumSignificantDigits: 4 })
   function bookSide(rows, side) {
     let total = 0
     const max = Math.max(1e-9, ...rows.map(row => Number(row.sz) || 0))
-    return rows.map(row => { total += Number(row.sz); const depth = Math.max(0, Math.min(100, (Number(row.sz) || 0) / max * 100)); return `<div class="ht-book-row ${side}" style="--depth:${depth.toFixed(1)}%"><span>${fmt(Number(row.px))}</span><span>${fmt(Number(row.sz))}</span><span>${fmt(total)}</span></div>` }).join('')
+    return rows.map(row => {
+      const size = Number(row.sz) || 0, price = Number(row.px), done = traded.get(price)
+      total += size
+      const depth = Math.max(0, Math.min(100, size / max * 100))
+      return `<div class="ht-book-row ht-dom-cols ${side}${size >= bigLimit ? ' big' : ''}" style="--depth:${depth.toFixed(1)}%"><span>${fmt(price)}</span><span>${short(size)}</span><span>${short(total)}</span><span class="traded">${done ? short(done) : ''}</span></div>`
+    }).join('')
+  }
+  // Large resting orders: the chosen size, or automatically 3× the median level of the book on screen.
+  function setBigLimit(levels) {
+    if (dom.big > 0) { bigLimit = dom.big; return }
+    const sizes = levels.map(l => Number(l.sz) || 0).sort((a, b) => a - b)
+    bigLimit = sizes.length ? 3 * sizes[Math.floor(sizes.length / 2)] : Infinity
+  }
+  function onTrades(coin, list) {
+    if (coin !== selected || !Array.isArray(list)) return
+    for (const t of list) {
+      const price = Number(t.px), size = Number(t.sz), time = Number(t.time)
+      if (!Number.isFinite(price) || !Number.isFinite(size) || !Number.isFinite(time)) continue
+      tape.push({ time, price, size, buy: t.side === 'B' })
+      traded.set(price, (traded.get(price) || 0) + size)
+    }
+    if (tape.length > 3000) tape = tape.slice(-2000)
+    if (!$('ht-tape').hidden && !tapeFrame) tapeFrame = requestAnimationFrame(paintTape)
+  }
+  function paintTape() {
+    tapeFrame = 0
+    // Fills of one aggressive order share the millisecond and the side.
+    const rows = []
+    for (let i = tape.length - 1; i >= 0 && rows.length < 150; i--) {
+      const t = tape[i], last = rows.at(-1)
+      if (dom.merge && last && last.time === t.time && last.buy === t.buy) { last.notional += t.price * t.size; last.size += t.size; last.count++; continue }
+      rows.push({ ...t, notional: t.price * t.size, count: 1 })
+    }
+    const shown = rows.filter(r => r.size >= dom.tapeMin)
+    $('ht-tape-rows').innerHTML = shown.length ? shown.map(r => `<div class="ht-book-row ${r.buy ? 'bid' : 'ask'}${r.size >= bigLimit ? ' big' : ''}"><span>${new Date(r.time).toLocaleTimeString('pl-PL')}</span><span>${fmt(r.notional / r.size)}</span><span>${r.count > 1 ? `<small>×${r.count} </small>` : ''}${short(r.size)}</span></div>`).join('')
+      : `<p class="ht-empty">${tape.length ? 'Brak transakcji powyżej filtra.' : 'Czekam na transakcje…'}</p>`
+  }
+  function showBookTab(tab) {
+    dom.tab = tab === 'tape' ? 'tape' : 'dom'
+    $('ht-dom').hidden = dom.tab !== 'dom'; $('ht-tape').hidden = dom.tab !== 'tape'
+    root.querySelectorAll?.('[data-book-tab]').forEach(b => b.setAttribute('aria-selected', String(b.dataset.bookTab === dom.tab)))
+    if (dom.tab === 'tape') paintTape()
   }
   async function loadBook() {
     if (!selected) return
@@ -162,6 +210,7 @@ window.HyperTerminal = (() => {
     try {
       const book = await json('/api/hl/book?coin=' + encodeURIComponent(coin))
       if (selected !== coin) return
+      setBigLimit([...book.asks, ...book.bids])
       $('ht-asks').innerHTML = bookSide([...book.asks].reverse(), 'ask')
       $('ht-bids').innerHTML = bookSide(book.bids, 'bid')
       const ask = Number(book.asks[0]?.px), bid = Number(book.bids[0]?.px)
@@ -169,7 +218,7 @@ window.HyperTerminal = (() => {
       $('ht-book-time').textContent = new Date(book.time).toLocaleTimeString('pl-PL')
     } catch { $('ht-spread').textContent = 'Brak danych arkusza' }
   }
-  function select(coin) { if (coin === selected) return; selected = coin; orderflow.setMarket(selected, interval); studies.setMarket(selected, interval); profileCandles = []; clearProfileLines(); series?.setData([]); volumeSeries?.setData([]); if (drawingPanel) { drawingPanel.symbol = 'hl:' + coin; drawingPanel.candles = []; drawingPanel.drawings.reload() }; Store.set('hl-coin', coin); renderList(); renderQuote(); loadChart(); loadBook(); loadProfile() }
+  function select(coin) { if (coin === selected) return; selected = coin; tape = []; traded = new Map(); orderflow.setMarket(selected, interval); studies.setMarket(selected, interval); profileCandles = []; clearProfileLines(); series?.setData([]); volumeSeries?.setData([]); if (drawingPanel) { drawingPanel.symbol = 'hl:' + coin; drawingPanel.candles = []; drawingPanel.drawings.reload() }; Store.set('hl-coin', coin); renderList(); renderQuote(); loadChart(); loadBook(); loadProfile() }
   function clearProfileLines() { profileOverlay?.set([]) }
   function renderProfile() {
     clearProfileLines()
@@ -191,17 +240,18 @@ window.HyperTerminal = (() => {
       renderProfile()
     } catch (error) { if (stamp === profileRequest) { profileCandles = []; clearProfileLines(); $('ht-profile-info').textContent = 'TPO: ' + error.message } }
   }
-  function indicatorEnabled(id) { return id === 'volume' || id === 'tpo' ? !!settings[id] : ['footprint', 'delta', 'profile'].includes(id) ? orderflow.isEnabled(id) : studies.isEnabled(id) }
+  function indicatorEnabled(id) { return id === 'volume' || id === 'tpo' ? !!settings[id] : ['footprint', 'delta', 'profile', 'tradebubbles'].includes(id) ? orderflow.isEnabled(id) : studies.isEnabled(id) }
   function setIndicator(id, value) {
     if (id === 'volume') { settings.volume = value; saveSettings(); volumeSeries?.applyOptions({ visible: value }) }
     else if (id === 'tpo') { settings.tpo = value; saveSettings(); if (value) loadProfile(); else { ++profileRequest; clearProfileLines() } }
-    else if (['footprint', 'delta', 'profile'].includes(id)) orderflow.setEnabled(id, value)
+    else if (['footprint', 'delta', 'profile', 'tradebubbles'].includes(id)) orderflow.setEnabled(id, value)
     else studies.setEnabled(id, value)
   }
   // One indicator's settings at a time, in the popover next to its chip on the chart.
-  const ORDERFLOW = ['footprint', 'delta', 'profile']
+  const ORDERFLOW = ['footprint', 'delta', 'profile', 'tradebubbles']
   function showSettings(id) {
     const study = studies.showSettings(id)
+    orderflow.showSettings?.(id)
     $('ht-profile').hidden = id !== 'tpo'
     $('ht-orderflow').hidden = !ORDERFLOW.includes(id)
     return study || id === 'tpo' || ORDERFLOW.includes(id)
@@ -214,6 +264,12 @@ window.HyperTerminal = (() => {
     settings[key] = e.target.value; $('ht-tpo-hours').hidden = settings.mode !== 'session'; saveSettings(); renderProfile()
   })
   $('ht-fit').addEventListener('click', () => chart && fitChart())
+  $('ht-book-tabs').addEventListener('click', e => { const tab = e.target.closest?.('[data-book-tab]')?.dataset.bookTab; if (tab) { showBookTab(tab); saveDom() } })
+  $('ht-dom-big').value = dom.big || ''; $('ht-tape-min').value = dom.tapeMin || ''; $('ht-tape-merge').checked = dom.merge
+  $('ht-dom-big').addEventListener('change', e => { dom.big = Math.max(0, Number(e.target.value) || 0); e.target.value = dom.big || ''; saveDom() })
+  $('ht-tape-min').addEventListener('change', e => { dom.tapeMin = Math.max(0, Number(e.target.value) || 0); e.target.value = dom.tapeMin || ''; saveDom(); paintTape() })
+  $('ht-tape-merge').addEventListener('change', e => { dom.merge = !!e.target.checked; saveDom(); paintTape() })
+  showBookTab(dom.tab)
   $('ht-search').addEventListener('input', renderList)
   $('ht-search').addEventListener('keydown', e => {
     if (e.key !== 'Enter') return
@@ -291,6 +347,7 @@ window.HyperTerminal = (() => {
     offs.push(stream.subscribe({ type: 'candle', coin, interval }, data => liveCandle(key, data), status))
     offs.push(stream.subscribe({ type: 'l2Book', coin }, book => { if (selected === coin) { pendingBook = book; if (!bookFrame) bookFrame = requestAnimationFrame(paintBook) } }))
     offs.push(stream.subscribe({ type: 'activeAssetCtx', coin }, data => liveContext(coin, data.ctx)))
+    offs.push(stream.subscribe({ type: 'trades', coin }, list => onTrades(coin, list)))
   }
   function stopLive() {
     live?.offs.forEach(off => off()); live = null; liveState = ''
@@ -313,6 +370,7 @@ window.HyperTerminal = (() => {
     const book = pendingBook; pendingBook = null
     if (!book || book.coin !== selected) return
     const bids = (book.levels?.[0] || []).slice(0, 12), asks = (book.levels?.[1] || []).slice(0, 12)
+    setBigLimit([...bids, ...asks])
     $('ht-asks').innerHTML = bookSide([...asks].reverse(), 'ask')
     $('ht-bids').innerHTML = bookSide(bids, 'bid')
     const ask = Number(asks[0]?.px), bid = Number(bids[0]?.px)

@@ -42,6 +42,7 @@ jobs:
           node scripts/test-hl-stream.cjs
           node scripts/test-hyper-terminal.cjs
           node scripts/test-terminal-orderflow.cjs
+          node scripts/test-orderflow-analysis.cjs
           node scripts/test-terminal-indicators.cjs
           node scripts/test-terminal-profile.cjs
       - name: Prepare static site and calendar data

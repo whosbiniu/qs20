@@ -13,7 +13,7 @@ window.TerminalStudies = (() => {
     { id: 'vpvr', title: 'VPVR: widoczny zakres', group: 'Profile', description: 'Profil wolumenu z tego, co widać na wykresie: POC, VAH i VAL. Zakres zaznaczony ręcznie: narzędzie w pasku rysowania.' },
     { id: 'vpsv', title: 'VPSV: profil sesji', group: 'Profile', description: 'Osobny profil wolumenu dla każdego dnia lub tygodnia, z linią POC.' },
     { id: 'levels', title: 'Poziomy okresów', group: 'Poziomy', description: 'Open, high i low bieżącego oraz poprzedniego dnia, tygodnia i miesiąca, poniedziałek i weekend.' },
-    { id: 'bubbles', title: 'Volume Bubbles', group: 'Wolumen', description: 'Bąbelki na świecach o największym wolumenie; wielkość rośnie z wolumenem.' },
+    { id: 'bubbles', title: 'Volume Bubbles (świece)', group: 'Wolumen', description: 'Bąbelki na świecach o największym wolumenie świecy (szacunek z OHLCV). Bąbelki z pojedynczych transakcji: Trade Bubbles.' },
     { id: 'depth', title: 'OB Depth', group: 'Arkusz zleceń', description: 'Skumulowana głębokość arkusza zleceń przy prawej osi ceny.' },
     { id: 'obprofile', title: 'OB Profile', group: 'Arkusz zleceń', description: 'Wielkość zleceń oczekujących na każdym poziomie ceny.' },
     { id: 'heatmap', title: 'Heatmap arkusza', group: 'Arkusz zleceń', description: 'Historia arkusza zleceń w czasie. Zbierana w tej karcie od momentu włączenia, nie z całej sesji.' },

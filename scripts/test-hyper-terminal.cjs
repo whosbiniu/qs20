@@ -33,7 +33,7 @@ const context = vm.createContext({
   Store: { set: (k, v) => { storage.set(k, String(v)); return true } },
   requestAnimationFrame: fn => fn(), setInterval: (fn, ms) => timers.push({ fn, ms }),
   getComputedStyle: () => ({ getPropertyValue: () => '#111111' }),
-  LightweightCharts: { createChart: () => chart },
+  LightweightCharts: { createChart: () => chart, CrosshairMode: { Normal: 0 } },
   TerminalOrderflow: { attach: () => ({ setMarket() {}, bindPanel() {}, refresh() {}, isEnabled() { return false }, setEnabled() {} }) },
   TerminalIndicators: { catalog: [], attach(options) { library = options } },
   TerminalStudies: { catalog: [], attach() { return { setMarket() {}, bindPanel() {}, refresh() {}, observeMarkets() {}, isEnabled() { return false }, setEnabled() {} } } },

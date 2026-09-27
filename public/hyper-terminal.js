@@ -42,7 +42,7 @@ window.HyperTerminal = (() => {
     chart.applyOptions({ layout: { background: { color: color('--bg') }, textColor: color('--dim'), fontFamily: 'ui-monospace,Menlo,monospace', fontSize: 10 },
       grid: { vertLines: { visible: false }, horzLines: { visible: false } },
       rightPriceScale: { borderColor: color('--line') }, timeScale: { borderColor: color('--line') },
-      crosshair: { vertLine: { color: color('--dim') }, horzLine: { color: color('--dim') } } })
+      crosshair: { mode: LightweightCharts.CrosshairMode.Normal, vertLine: { color: color('--dim') }, horzLine: { color: color('--dim') } } })
     const up = color('--tw-up') || color('--ink'), down = color('--tw-down') || color('--bg')
     series.applyOptions({ upColor: up, downColor: down, borderUpColor: up, borderDownColor: down, wickUpColor: up, wickDownColor: down })
   }

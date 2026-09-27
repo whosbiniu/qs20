@@ -90,7 +90,7 @@
       p.chart.applyOptions({ layout: { background: { color: c.bg }, textColor: c.dim, fontFamily: 'ui-monospace, Menlo, monospace', fontSize: 10 },
         grid: { vertLines: { visible: false }, horzLines: { visible: false } },
         rightPriceScale: { borderColor: c.line }, timeScale: { borderColor: c.line },
-        crosshair: { vertLine: { color: c.dim }, horzLine: { color: c.dim } } });
+        crosshair: { mode: LightweightCharts.CrosshairMode.Normal, vertLine: { color: c.dim }, horzLine: { color: c.dim } } });
       p.series.applyOptions({ upColor: c.up, downColor: c.down, borderUpColor: c.up, borderDownColor: c.down, wickUpColor: c.up, wickDownColor: c.down });
     }
     function create(p) {

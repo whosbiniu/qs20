@@ -15,11 +15,17 @@ assert.equal(fresh.layouts.UNC.count, 4)
 assert.equal(fresh.layouts.UNC.book, true)
 assert.equal(fresh.layouts.UNC.panels.length, 3)
 
-const saved = normalize({ version: 1, active: 'UNC', layouts: { UNC: { count: 2, markets: false, book: true, split: 40, row: 60,
-  panels: [{ interval: '1h', mode: 'vwap' }, { interval: '1d', mode: 'tpo' }, { interval: '15m', mode: 'volume' }] } } })
+const saved = normalize({ version: 1, active: 'UNC', layouts: { UNC: { count: 2, markets: false, book: true, split: 40, row: 60, sync: false,
+  panels: [{ interval: '1h', mode: 'vwap', coin: 'BTC', linked: false }, { interval: '1d', mode: 'tpo', coin: 'xyz:SP500', linked: true }, { interval: '15m', mode: 'volume' }] } } })
 assert.equal(saved.active, 'UNC')
-assert.deepEqual(JSON.parse(JSON.stringify(saved.layouts.UNC)), { count: 2, markets: false, book: true, split: 40, row: 60,
-  panels: [{ interval: '1h', mode: 'vwap' }, { interval: '1d', mode: 'tpo' }, { interval: '15m', mode: 'volume' }] })
+assert.deepEqual(JSON.parse(JSON.stringify(saved.layouts.UNC)), { count: 2, markets: false, book: true, split: 40, row: 60, sync: false,
+  panels: [{ interval: '1h', mode: 'vwap', coin: 'BTC', linked: false }, { interval: '1d', mode: 'tpo', coin: 'xyz:SP500', linked: true }, { interval: '15m', mode: 'volume', coin: '', linked: true }] })
+// A layout saved before independent panes existed: every pane follows the main chart, cursor sync on.
+assert.equal(fresh.layouts.UNC.sync, true)
+assert.equal(fresh.layouts.UNC.panels[0].coin, ''); assert.equal(fresh.layouts.UNC.panels[0].linked, true)
+// Market names from a file are checked: no markup, no overlong values.
+const hostile = normalize({ version: 1, layouts: { UNC: { panels: [{ coin: '<img src=x onerror=alert(1)>', linked: 'yes' }, { coin: 'A'.repeat(80) }] } } })
+assert.deepEqual(JSON.parse(JSON.stringify(hostile.layouts.UNC.panels.map(p => [p.coin, p.linked]))), [['', true], ['', true], ['', true]])
 
 const broken = normalize({ version: 1, active: 'X', layouts: { UNC: { count: 3, markets: 'yes', split: 99, row: -5,
   panels: [{ interval: '7m', mode: '<img>' }, null] } } })

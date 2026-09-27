@@ -45,13 +45,15 @@ window.TerminalStudies = (() => {
 .st-settings .st-reset{font:inherit;font-size:10px;background:transparent;color:var(--dim);border:1px solid var(--line);padding:3px 8px;cursor:pointer}.st-settings .st-reset:hover{color:var(--ink)}`;
   document.head.append(style);
 
-  function attach({ settingsHost, fetchJson, orderflow }) {
+  // One instance per chart. `storageKey` keeps each chart's studies apart, `chips` is that chart's row of active
+  // indicator chips (the legend sits below it) and `initial` the studies switched on before anything was saved.
+  function attach({ settingsHost, fetchJson, orderflow, storageKey = 'hl-studies', chips, initial }) {
     let saved = {};
-    try { saved = JSON.parse(localStorage.getItem('hl-studies') || '{}'); } catch {}
+    try { saved = JSON.parse(localStorage.getItem(storageKey) || 'null') || (initial ? { on: initial } : {}); } catch {}
     const on = { ...(saved.on || {}) };
     const cfg = Object.fromEntries(Object.entries(defaults).map(([k, v]) => [k, typeof v === 'object' ? { ...v, ...(saved.cfg?.[k] || {}) } : v]));
-    const persist = () => { try { localStorage.setItem('hl-studies', JSON.stringify({ on, cfg })); } catch {} };
-    let panel, coin = '', interval = '1h', requestUpdate = () => {}, legend, status = '', pollTimer = null;
+    const persist = () => { try { (window.Store?.set || ((k, v) => localStorage.setItem(k, v)))(storageKey, JSON.stringify({ on, cfg })); } catch {} };
+    let panel, coin = '', interval = '1h', requestUpdate = () => {}, legend, status = '', pollTimer = null, suspended = false;
     let levelData = null, levels = [], levelLines = [], levelStamp = 0, book = null, heat = [], funding = [], oiSamples = [], fundingStamp = 0;
     const aux = {};   // pane studies: id -> series
     const multi = {};   // studies built from several series (averages, bands, RSI, MACD, ATR): id -> { series, lines }
@@ -247,6 +249,7 @@ window.TerminalStudies = (() => {
     }
     async function pollBook() {
       clearTimeout(pollTimer); pollTimer = null;
+      if (suspended) return;
       if (!coin || document.hidden || !['depth', 'obprofile', 'heatmap'].some(enabled)) { if (['depth', 'obprofile', 'heatmap'].some(enabled)) pollTimer = setTimeout(pollBook, 5000); return; }
       const current = coin;
       try {
@@ -489,11 +492,11 @@ window.TerminalStudies = (() => {
         panel = next;
         legend = document.createElement('div'); legend.className = 'st-legend'; panel.el.append(legend);
         // Sit below the row of active-indicator chips, whatever its height (measured only when that row changes).
-        const chips = document.getElementById('ht-active-indicators');
-        if (chips) new ResizeObserver(() => {
+        const row = chips === undefined ? document.getElementById('ht-active-indicators') : chips;
+        if (row) new ResizeObserver(() => {
           // Inside the observer callback layout is already up to date, so these reads are free.
-          legend.style.top = (!chips.hidden && chips.offsetHeight ? Math.max(6, chips.getBoundingClientRect().bottom - panel.el.getBoundingClientRect().top + 4) : 6) + 'px';
-        }).observe(chips);
+          legend.style.top = (!row.hidden && row.offsetHeight ? Math.max(6, row.getBoundingClientRect().bottom - panel.el.getBoundingClientRect().top + 4) : 6) + 'px';
+        }).observe(row);
         const painters = { paneViews: () => [{ zOrder: () => 'bottom', renderer: () => bottomPaint }, { zOrder: () => 'top', renderer: () => topPaint }],
           attached(p) { requestUpdate = p.requestUpdate; } };
         panel.series.attachPrimitive(painters);
@@ -514,6 +517,9 @@ window.TerminalStudies = (() => {
         if (panel) { recompute(); if (!changed && enabled('levels')) loadLevels(); }
       },
       refresh() { recompute(); },
+      // A hidden chart stops polling the order book; resume picks up where it left off.
+      suspend() { suspended = true; clearTimeout(pollTimer); pollTimer = null; },
+      resume() { if (!suspended) return; suspended = false; pollBook(); },
       observeMarkets(markets) {
         const m = markets.find(x => x.coin === coin);
         if (!m || !Number.isFinite(m.openInterest)) return;

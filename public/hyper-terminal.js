@@ -391,13 +391,18 @@ window.HyperTerminal = (() => {
       if (!quoteTimer) quoteTimer = setTimeout(() => { quoteTimer = 0; renderQuote(); renderList() }, 1000)
     }
   }
-  new MutationObserver(() => { if (root.hidden) { clearTimeout(liveTimer); liveTimer = setTimeout(() => { if (root.hidden) stopLive() }, 1000) } else followLive() })
+  // Off screen: the stream and order-book polling stop; order flow keeps collecting trades without redrawing.
+  new MutationObserver(() => {
+    if (root.hidden) { clearTimeout(liveTimer); liveTimer = setTimeout(() => { if (root.hidden) { stopLive(); studies.suspend?.(); orderflow.suspend?.() } }, 1000) }
+    else { studies.resume?.(); orderflow.resume?.(); followLive() }
+  })
     .observe(root, { attributes: true, attributeFilter: ['hidden'] })
   const streaming = () => liveState === 'live'
   setInterval(() => { if (!root.hidden && !document.hidden && initialized) { loadMarkets(); if (!streaming()) loadBook() } }, 15000)
   setInterval(() => { if (!root.hidden && !document.hidden && initialized) { if (!streaming()) loadChart(); loadProfile() } }, 30000)
   // Revisiting the page within 15 s reuses the data (the timers keep it fresh while it is on screen).
   let shownAt = Date.now()
-  workspace = window.TerminalWorkspace?.attach(root, { theme, market: () => ({ coin: selected, interval, markets: all }), fetchJson: json })
+  workspace = window.TerminalWorkspace?.attach(root, { theme, market: () => ({ coin: selected, interval, markets: all }), fetchJson: json,
+    chartRef: () => chart ? { chart, series, candles: drawingPanel?.candles || [] } : null })
   return { show() { workspace?.show(); if (!initialized) { initialized = true; loadMarkets().then(() => { loadChart(); loadBook(); loadProfile() }) } else if (Date.now() - shownAt > 15000) { shownAt = Date.now(); loadMarkets(); loadBook(); loadProfile() } } }
 })()

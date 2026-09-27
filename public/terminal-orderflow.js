@@ -443,9 +443,10 @@
       update()
       listeners.forEach(f => f())
     }
-    function schedule() { if (!timer) timer = setTimeout(render, 500) }
+    // While suspended (chart not on screen) trades are still collected, but nothing is recalculated or drawn.
+    function schedule() { if (!timer && !suspended) timer = setTimeout(render, 500) }
     function start() {
-      if (stream || !coin || !enabled() || suspended) return
+      if (stream || !coin || !enabled()) return
       stream = connect(coin, batch => { if (store.add(batch)) schedule() }, value => { state = value; if (value === 'gap') gap = true; schedule() })
     }
     function stop() { if (stream) { stream.stop(); stream = null; gap = !!store?.trades.length } }
@@ -479,9 +480,8 @@
         start(); render()
       },
       refresh: render,
-      // A hidden chart stops listening; trades missed meanwhile are reported as a possible gap.
-      suspend() { suspended = true; stop() },
-      resume() { if (!suspended) return; suspended = false; start(); render() },
+      suspend() { suspended = true; clearTimeout(timer); timer = null },
+      resume() { if (!suspended) return; suspended = false; render() },
       destroy() { stop(); clearTimeout(timer); clearLines(); window.removeEventListener('pagehide', onHide); window.removeEventListener('pageshow', onShow); listeners.length = 0 },
       // Executed trades collected in this tab, and a hook for studies built on them (trade counter / pulse).
       get trades() { return store ? store.trades : [] },

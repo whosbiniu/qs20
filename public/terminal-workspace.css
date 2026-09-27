@@ -99,13 +99,30 @@
 .tw-companion {display:flex;flex-direction:column}
 .tw .tw-pane-head {display:flex;align-items:center;gap:7px;height:34px;min-height:34px;border-bottom:1px solid var(--line);padding:0 8px;overflow:hidden;white-space:nowrap}
 .tw-pane-head .tw-symbol {font-size:11px;letter-spacing:0!important;overflow:hidden;text-overflow:ellipsis}
-.tw-linked {color:var(--tw-accent);display:flex}
-.tw-linked svg {width:12px;height:12px}
+.tw-pane-head .tw-link {color:var(--dim)}
+.tw-pane-head .tw-link[aria-pressed=true] {color:var(--tw-accent)}
+.tw-pane-head .tw-link svg {width:13px;height:13px}
+.tw-pane-head .tw-symbol-btn {display:flex;align-items:center;gap:4px;padding:0 5px;color:var(--ink);min-width:0;max-width:150px}
+.tw-pane-head .tw-symbol-btn span {font-size:9px;color:var(--dim)}
+.tw-pane-head .tw-last {font:10px ui-monospace,Menlo,monospace;color:var(--dim)}
+.tw-pane-head .tw-ind-btn {padding:0 6px;font-style:italic}
+.tw-jump {position:absolute;top:34px;left:6px;z-index:40;width:min(280px,calc(100% - 12px));max-height:calc(100% - 44px);display:flex;flex-direction:column;background:var(--tw-chrome);border:1px solid var(--line);border-radius:4px;box-shadow:0 12px 40px #0008}
+.tw-jump[hidden] {display:none}
+.tw .tw-jump input {flex:none;font:inherit;background:var(--bg);color:var(--ink);border:0;border-bottom:1px solid var(--line);border-radius:4px 4px 0 0;padding:8px 10px;outline:0}
+.tw-jump-list {overflow-y:auto;scrollbar-width:thin}
+.tw .tw-companion .tw-library {top:40px}
+.tw-companion .tw-chips {left:40px;top:6px;right:60px}
+/* Drawing tools in a pane: one scrolling column, so they never run under the indicator chips. */
+.tw .tw-companion .draw-bar {flex-direction:column;width:auto;flex-wrap:nowrap;overflow-y:auto;overflow-x:hidden;max-height:calc(100% - 12px);scrollbar-width:none;gap:2px}
+.tw-companion .draw-bar button {width:26px;height:24px;flex:none}
+.tw-companion .of-host[hidden],.tw-companion .tw-tpo[hidden] {display:none}
+.tw-companion .tw-tpo {display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:6px 0;color:var(--dim)}
+.tw-tool {display:grid;place-items:center;width:28px;height:28px;padding:0}
+.tw-tool[aria-pressed=true] {color:var(--tw-accent)!important}
 .tw-pane-head select {font-size:10px;max-width:115px;padding:3px 1px;outline-offset:0}
 .tw-pane-head select:disabled {color:var(--dim);opacity:.55;cursor:default}
 .tw-pane-head button {display:grid;place-items:center;height:23px;min-width:23px;padding:0}
 .tw-chart {position:relative;flex:1;min-height:0;min-width:0}
-.tw-chart-label {position:absolute;top:10px;left:12px;z-index:3;pointer-events:none;font:9px/1.4 ui-monospace,Menlo,monospace;color:var(--dim)}
 .tw-chart-message {position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);z-index:4;pointer-events:none;color:var(--dim);font-size:11px;white-space:nowrap;background:var(--bg)}
 .tw-divider {position:absolute;z-index:15;touch-action:none}
 .tw-divider-split {left:var(--tw-split);top:0;bottom:0;width:8px;margin-left:-2px;cursor:col-resize}
@@ -142,7 +159,7 @@ body.terminal-open .shell {gap:0}
   .tw .ht[data-markets=true][data-book=true] {grid-template-columns:155px minmax(0,1fr) 185px}
   .tw .ht-stats {gap:10px}
   .tw-grid[data-count="4"] .tw-pane-head {gap:3px}
-  .tw-grid[data-count="4"] .tw-linked {display:none}
+  .tw-grid[data-count="4"] .tw-last {display:none}
   .tw-grid[data-count="4"] .tw-pane-head select {max-width:95px}
 }
 @container (max-width:900px) {
@@ -166,7 +183,7 @@ body.terminal-open .shell {gap:0}
   .tw .ht-markets {left:0}.tw .ht-book {right:0}
   .tw-divider {display:none!important}
   .tw .ht-chart .draw-bar {flex-direction:column;width:38px;flex-wrap:nowrap}
-  .tw-shortcut,.tw-brand,.tw-reset {display:none!important}
+  .tw-shortcut,.tw-brand,.tw-reset,.tw-tool {display:none!important}
   .tw-bar {gap:4px;height:40px}
   .tw-count {padding-right:4px}
   .tw-count button {width:25px}

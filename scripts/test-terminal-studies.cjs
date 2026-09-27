@@ -72,6 +72,9 @@ assert.deepEqual(lv.find(l => l.price === 120).title.split(' / ').sort(), ['Dail
 assert.equal(lv.find(l => l.price === 105).title.split(' / ').includes('Daily Open') && lv.find(l => l.price === 105).title.includes('Prev Day Close'), true);
 assert.deepEqual(lv.map(l => l.price), [...lv.map(l => l.price)].sort((x, y) => x - y));
 assert.deepEqual(S.keyLevels({}, at('2026-09-23T12:00:00Z')), []);
+const noWeekend = S.keyLevels({ daily, weekly: weeklyBars, monthly: monthlyBars }, at('2026-09-23T12:00:00Z'), { weekend: false, monday: false });
+assert.ok(!noWeekend.some(l => /Weekend|Monday/.test(l.title)));   // switched-off groups leave no trace, even inside merged labels
+assert.ok(noWeekend.some(l => l.title.includes('Daily High')));
 assert.equal(S.keyLevels({ daily }, at('2026-09-20T12:00:00Z')).some(l => l.title.includes('Monday')), false);   // no Monday yet
 
 // Bubbles: the heaviest fraction of candles; ratio is relative to the heaviest.

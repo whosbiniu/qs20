@@ -133,7 +133,7 @@ final class ProxyBridge: NSObject, WKScriptMessageHandlerWithReply {
     static let hosts: Set<String> = ["query1.finance.yahoo.com", "www.financialjuice.com", "translate.googleapis.com",
                                      "nfs.faireconomy.media", "economic-calendar.tradingview.com",
                                      "earthquake.usgs.gov", "eonet.gsfc.nasa.gov", "api.adsb.lol", "api.gdeltproject.org",
-                                     "fc.yahoo.com", "api.hyperliquid.xyz"]
+                                     "fc.yahoo.com", "api.hyperliquid.xyz", "www.youtube.com"]
 
     func userContentController(_ userContentController: WKUserContentController,
                                didReceive message: WKScriptMessage,
@@ -158,12 +158,53 @@ final class ProxyBridge: NSObject, WKScriptMessageHandlerWithReply {
         request.setValue("Mozilla/5.0", forHTTPHeaderField: "User-Agent")
         // TradingView's calendar only answers requests that carry its own origin.
         if host == "economic-calendar.tradingview.com" { request.setValue("https://www.tradingview.com", forHTTPHeaderField: "Origin") }
+        // Without a consent cookie YouTube answers with its consent wall instead of the channel's live page.
+        if host == "www.youtube.com" {
+            request.setValue("SOCS=CAI; CONSENT=YES+", forHTTPHeaderField: "Cookie")
+            request.setValue("en", forHTTPHeaderField: "Accept-Language")
+            request.httpShouldHandleCookies = false
+        }
         URLSession.shared.dataTask(with: request) { data, response, error in
             DispatchQueue.main.async {
                 guard error == nil, let http = response as? HTTPURLResponse else { replyHandler(nil, "Network error"); return }
                 replyHandler(["status": http.statusCode, "text": String(data: data ?? Data(), encoding: .utf8) ?? ""], nil)
             }
         }.resume()
+    }
+}
+
+/// Bloomberg TV pane of the monitor. YouTube refuses to play inside a file:// page (error 153: no referrer), so the
+/// player lives in a small child web view whose base URL is https; the page only tells us where to put it.
+final class TVBridge: NSObject, WKScriptMessageHandler {
+    weak var host: WKWebView?
+    private var overlay: WKWebView?
+    private var videoId = ""
+
+    func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+        guard isBundledPage(message.frameInfo), let host, let body = message.body as? [String: Any] else { return }
+        if body["hide"] != nil { overlay?.isHidden = true; return }
+        guard let id = body["id"] as? String, id.range(of: "^[A-Za-z0-9_-]{11}$", options: .regularExpression) != nil,
+              let x = body["x"] as? Double, let y = body["y"] as? Double,
+              let w = body["w"] as? Double, let h = body["h"] as? Double, w > 0, h > 0 else { return }
+        let zoom = Double(host.pageZoom)
+        let frame = NSRect(x: x * zoom, y: y * zoom, width: w * zoom, height: h * zoom)
+        if overlay == nil {
+            let view = WKWebView(frame: frame, configuration: WKWebViewConfiguration())
+            view.setValue(false, forKey: "drawsBackground")
+            host.addSubview(view)
+            overlay = view
+        }
+        guard let overlay else { return }
+        overlay.frame = frame
+        overlay.isHidden = false
+        if id != videoId {
+            videoId = id
+            let embed = "https://www.youtube.com/embed/\(id)?autoplay=1&mute=1&rel=0"
+            overlay.loadHTMLString("""
+            <!doctype html><body style="margin:0;background:#000"><iframe src="\(embed)" style="border:0;position:fixed;inset:0;width:100%;height:100%"
+            allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>
+            """, baseURL: URL(string: "https://uncsway.app/"))
+        }
     }
 }
 
@@ -242,6 +283,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
     let calendarExport = CalendarExportBridge()
     let marketHighs = MarketHighsBridge()
     let proxy = ProxyBridge()
+    let tv = TVBridge()
     let postCreatorFile = PostCreatorFileBridge()
     var selfTestStarted = false
 
@@ -253,6 +295,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
         config.userContentController.addScriptMessageHandler(calendarExport, contentWorld: .page, name: "calendarExport")
         config.userContentController.addScriptMessageHandler(marketHighs, contentWorld: .page, name: "marketHighs")
         config.userContentController.addScriptMessageHandler(proxy, contentWorld: .page, name: "proxy")
+        config.userContentController.add(tv, name: "tv")
         config.userContentController.addScriptMessageHandler(postCreatorFile, contentWorld: .page, name: "postCreatorFile")
         config.userContentController.addUserScript(WKUserScript(source: """
         (() => {
@@ -268,7 +311,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
               return new Response(JSON.stringify(payload), {headers: {'Content-Type': 'application/json'}});
             }
             const terminalRoutes = ['/api/chart', '/api/highs', '/api/tape', '/api/news', '/api/monitor', '/api/earnings',
-              '/api/hl/markets', '/api/hl/candles', '/api/hl/book', '/api/hl/depth', '/api/hl/funding'];
+              '/api/hl/markets', '/api/hl/candles', '/api/hl/book', '/api/hl/depth', '/api/hl/funding', '/api/tv'];
             const url = new URL(path, 'https://terminal.invalid');
             if (terminalRoutes.includes(url.pathname) || (url.pathname === '/api/events' && url.searchParams.has('range'))) {
               // Same data layer as the web server, with the native app as its transport.
@@ -285,6 +328,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
                 if (url.pathname === '/api/chart') {
                   const symbol = q.get('symbol') || '', frame = q.get('interval') || '1D';
                   return json(await (HyperliquidData.hyperCoin(symbol) ? hyper.chart(symbol, frame) : data.chart(symbol, frame)));
+                }
+                if (url.pathname === '/api/tv') {
+                  // Bloomberg TV: the channel's /live page names the broadcast that is on air now.
+                  const page = (await transport('https://www.youtube.com/@markets/live')).text;
+                  const id = (page.match(/<link rel="canonical" href="https:\\/\\/www\\.youtube\\.com\\/watch\\?v=([\\w-]{11})"/) || [])[1];
+                  if (!id || !/"isLiveNow":true/.test(page)) return new Response(JSON.stringify({error: 'Bloomberg TV is not live right now'}), {status: 503, headers: {'Content-Type': 'application/json'}});
+                  return json({id});
                 }
                 if (url.pathname === '/api/hl/markets') return json({markets: await hyper.markets()});
                 if (url.pathname === '/api/hl/candles') return json({candles: await hyper.candles(q.get('coin'), q.get('interval') || '1h')});
@@ -319,6 +369,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
             """, injectionTime: .atDocumentStart, forMainFrameOnly: false))
         }
         webView = WKWebView(frame: .zero, configuration: config)
+        tv.host = webView
         webView.navigationDelegate = self
         webView.uiDelegate = self
         window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1400, height: 900),
@@ -337,7 +388,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
         if CommandLine.arguments.contains("--self-test") || CommandLine.arguments.contains("--self-test-highs") ||
-           CommandLine.arguments.contains("--self-test-terminal") || CommandLine.arguments.contains("--self-test-integrations") {
+           CommandLine.arguments.contains("--self-test-terminal") || CommandLine.arguments.contains("--self-test-integrations") ||
+           CommandLine.arguments.contains("--self-test-tv") {
             DispatchQueue.main.asyncAfter(deadline: .now() + 40) { fputs("Self-test timeout\n", stderr); exit(1) }
         }
     }
@@ -427,6 +479,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
             }
             return
         }
+        if CommandLine.arguments.contains("--self-test-tv"), !selfTestStarted {
+            // Bloomberg TV pane of the monitor: the live id comes through the proxy, the embed must survive the navigation policy.
+            selfTestStarted = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                webView.evaluateJavaScript("document.querySelector('nav button[data-tab=\"monitor\"]').click(); setTimeout(() => document.querySelector('#monTabs [data-p=\"tv\"]').click(), 500); 0") { _, _ in }
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 15) {
+                webView.evaluateJavaScript("(() => { const f = document.querySelector('.tv-box iframe'); return JSON.stringify({iframe: f ? f.src : null, note: document.querySelector('#monPane').innerText.slice(0, 80)}) })()") { result, error in
+                    print("tv:", result as Any, error as Any)
+                    webView.callAsyncJavaScript("const r = await fetch('/api/tv'); return r.status + ' ' + (await r.text()).slice(0, 120)", arguments: [:], in: nil, in: .page) { r in print("api/tv:", r) }
+                    webView.callAsyncJavaScript("const r = await window.webkit.messageHandlers.proxy.postMessage('https://www.youtube.com/@markets/live'); const t = r.text; return r.status + ' len=' + t.length + ' live=' + t.includes('isLiveNow') + ' canon=' + (t.match(/rel=.canonical. href=.([^\"]*)/) || [])[1] + ' consent=' + t.includes('consent')", arguments: [:], in: nil, in: .page) { r in print("raw:", r) }
+                    webView.takeSnapshot(with: nil) { image, _ in
+                        if let image, let tiff = image.tiffRepresentation,
+                           let bitmap = NSBitmapImageRep(data: tiff), let png = bitmap.representation(using: .png, properties: [:]) {
+                            try? png.write(to: URL(fileURLWithPath: "/tmp/qs-tv-preview.png"))
+                        }
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 6) { exit(0) }
+                    }
+                }
+            }
+            return
+        }
         if CommandLine.arguments.contains("--self-test-terminal"), !selfTestStarted {
             // Terminal shell with live data through the native proxy: charts, cycles, tape and headlines.
             selfTestStarted = true
@@ -448,6 +522,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
                     // Calendar ranges go through the same native proxy (TradingView needs its Origin header).
                     webView.callAsyncJavaScript("const r = await fetch('/api/events?range=next-week'); const d = await r.json(); return r.status + ' events=' + (d.events || []).length + ' source=' + d.source",
                                                 arguments: [:], in: nil, in: .page) { calendar in print("calendar:", calendar) }
+                    webView.callAsyncJavaScript("const d = await (await fetch('/api/hl/depth?coin=BTC&sig=3')).json(); const f = await (await fetch('/api/hl/funding?coin=BTC')).json(); return 'depth bids=' + (d.bids || []).length + ' asks=' + (d.asks || []).length + ' funding=' + (f.rates || []).length",
+                                                arguments: [:], in: nil, in: .page) { studies in print("studies:", studies) }
                     webView.callAsyncJavaScript("const r = await fetch('/api/monitor'); const d = await r.json(); return r.status + ' quakes=' + (d.quakes || []).length + ' events=' + (d.events || []).length + ' aircraft=' + (d.aircraft || []).length + ' failed=' + (d.failed || [])",
                                                 arguments: [:], in: nil, in: .page) { monitor in print("monitor:", monitor) }
                     webView.callAsyncJavaScript("const r = await fetch('/api/news'); return r.status + ' ' + (await r.text()).slice(0, 160)",

@@ -33,6 +33,8 @@ jobs:
           node scripts/test-vercel-auth.mjs
           node scripts/test-day-highs.cjs
           node scripts/test-terminal-data.cjs
+          node scripts/test-terminal-studies.cjs
+          node scripts/test-terminal-studies-chart.cjs
       - name: Prepare static site and calendar data
         env:
           SITE_PASSWORD: ${{ secrets.SITE_PASSWORD }}

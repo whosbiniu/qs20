@@ -43,7 +43,7 @@ window.TerminalStudies = (() => {
     const cfg = Object.fromEntries(Object.entries(defaults).map(([k, v]) => [k, typeof v === 'object' ? { ...v, ...(saved.cfg?.[k] || {}) } : v]));
     const persist = () => { try { localStorage.setItem('hl-studies', JSON.stringify({ on, cfg })); } catch {} };
     let panel, coin = '', interval = '1h', requestUpdate = () => {}, legend, status = '', pollTimer = null;
-    let levels = [], levelLines = [], levelStamp = 0, book = null, heat = [], funding = [], oiSamples = [], fundingStamp = 0;
+    let levelData = null, levels = [], levelLines = [], levelStamp = 0, book = null, heat = [], funding = [], oiSamples = [], fundingStamp = 0;
     const aux = {};   // pane studies: id -> series
     let vwapData = null, vpsvData = null, bubbleData = null, vpvrMemo = { key: '', value: null };
     const candles = () => panel?.candles || [];
@@ -221,16 +221,16 @@ window.TerminalStudies = (() => {
       try {
         const [daily, weekly, monthly] = await Promise.all(['1d', '1w', '1M'].map(async i => (await fetchJson(`/api/hl/candles?coin=${encodeURIComponent(coin)}&interval=${i}`)).candles));
         if (stamp !== levelStamp) return;
-        levels = M.keyLevels({ daily, weekly, monthly }); status = '';
-      } catch (error) { if (stamp === levelStamp) { levels = []; status = 'Poziomy: ' + error.message; } }
+        levelData = { daily, weekly, monthly }; status = '';
+      } catch (error) { if (stamp === levelStamp) { levelData = null; status = 'Poziomy: ' + error.message; } }
       syncLevels(); renderLegend();
     }
     function syncLevels() {
       for (const line of levelLines) panel.series.removePriceLine(line);
       levelLines = [];
       if (!enabled('levels') || !panel) return;
+      levels = levelData ? M.keyLevels(levelData, undefined, cfg.levels) : [];
       for (const l of levels) {
-        if (!cfg.levels[l.group]) continue;
         const color = l.group === 'week' || l.group === 'month' || l.group === 'monday' ? Theme.css('--ink') : Theme.css('--dim');
         levelLines.push(panel.series.createPriceLine({ price: l.price, title: l.title, color, lineWidth: 1, lineStyle: LEVEL_STYLE[l.group], axisLabelVisible: false }));
       }
@@ -320,6 +320,11 @@ window.TerminalStudies = (() => {
       }
       if (status) lines.push(status);
       legend.innerHTML = lines.map(l => `<div>${l}</div>`).join('');
+      // Sit below the row of active-indicator chips, whatever its height.
+      requestAnimationFrame(() => {
+        const chips = document.getElementById('ht-active-indicators');
+        legend.style.top = (chips && !chips.hidden ? Math.max(6, chips.getBoundingClientRect().bottom - panel.el.getBoundingClientRect().top + 4) : 6) + 'px';
+      });
     }
 
     // ---- settings ------------------------------------------------------------------------------
@@ -358,7 +363,11 @@ window.TerminalStudies = (() => {
         if (!IDS.has(id)) return;
         on[id] = !!value; persist();
         if (id === 'counter') orderflow?.setEnabled('counter', !!value);
-        if (id === 'heatmap' && !value) heat = [];
+        if (id === 'heatmap') {
+          if (!value) heat = [];
+          // The history grows to the right of the last candle, so leave room for it.
+          panel?.chart.timeScale().applyOptions({ rightOffset: value ? 15 : 0 });
+        }
         if (id === 'levels') { if (value) loadLevels(); else syncLevels(); }
         if (id === 'funding' && value) loadFunding();
         if (id === 'oi') loadOi();
@@ -381,7 +390,7 @@ window.TerminalStudies = (() => {
         const changed = nextCoin !== coin;
         coin = nextCoin; interval = nextInterval;
         if (changed) {
-          levels = []; syncLevels(); book = null; heat = []; funding = []; loadOi();
+          levelData = null; syncLevels(); book = null; heat = []; funding = []; loadOi();
           for (const id of Object.keys(aux)) dropAux(id);
           startFeeds();
         }

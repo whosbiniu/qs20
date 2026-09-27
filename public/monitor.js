@@ -370,10 +370,20 @@ const Monitor = (() => {
     catch { tvState = { id: '', error: 'Bloomberg TV: ' + (pl() ? 'brak transmisji na żywo' : 'no live stream'), busy: false } }
     if (pane === 'tv') renderPane()
   }
+  // In the macOS app the player is a native overlay (YouTube refuses file:// pages); the page only reports where the box is.
+  const nativeTv = location.protocol === 'file:' && window.webkit?.messageHandlers?.tv
+  function tvOverlay(id) {
+    if (!nativeTv) return
+    const host = id && root?.querySelector('.tv-box')
+    if (!host) return nativeTv.postMessage({ hide: true })
+    const r = host.getBoundingClientRect()
+    nativeTv.postMessage({ id, x: r.left, y: r.top, w: r.width, h: r.height })
+  }
   function renderPane() {
     if (!root) return
+    if (pane !== 'tv') tvOverlay('')
     const box = root.querySelector('#monPane'), rows = []
-    if (pane === 'tv' && tvState.id && box.querySelector('.tv-box iframe')) { root.querySelector('#monTabs').querySelectorAll('button').forEach(b => b.classList.toggle('active', b.dataset.p === pane)); return }
+    if (pane === 'tv' && tvState.id && box.querySelector('.tv-box')) { root.querySelector('#monTabs').querySelectorAll('button').forEach(b => b.classList.toggle('active', b.dataset.p === pane)); return }
     root.querySelector('#monTabs').innerHTML = PANES.map(k => `<button data-p="${k}" class="${k === pane ? 'active' : ''}">${esc(UI.tabs[k][pl() ? 1 : 0])}</button>`).join('')
     box.onclick = null
     if (pane === 'events') {
@@ -408,8 +418,9 @@ const Monitor = (() => {
     } else if (pane === 'tv') {
       if (!tvState.id && !tvState.error && !tvState.busy) loadTv()
       box.innerHTML = tvState.id
-        ? `<div class="tv-box"><iframe src="https://www.youtube.com/embed/${tvState.id}?autoplay=1&mute=1&rel=0" title="Bloomberg TV" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe></div><div class="pane-note"><a href="https://www.youtube.com/@markets/live" target="_blank" rel="noopener noreferrer" style="color:var(--ink)">${pl() ? 'otwórz na YouTube ↗' : 'open on YouTube ↗'}</a></div>`
+        ? `<div class="tv-box">${nativeTv ? '' : `<iframe src="https://www.youtube.com/embed/${tvState.id}?autoplay=1&mute=1&rel=0" title="Bloomberg TV" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>`}</div><div class="pane-note"><a href="https://www.youtube.com/@markets/live" target="_blank" rel="noopener noreferrer" style="color:var(--ink)">${pl() ? 'otwórz na YouTube ↗' : 'open on YouTube ↗'}</a></div>`
         : `<div class="none">${tvState.error ? esc(tvState.error) + ' <a href="#" id="monTvRetry" style="color:var(--ink)">↻</a>' : t('connecting')}</div>`
+      requestAnimationFrame(() => tvOverlay(pane === 'tv' ? tvState.id : ''))
     } else {
       box.innerHTML = (data?.articles || []).map(a =>
         `<a class="item" href="${esc(a.url)}" target="_blank" rel="noopener noreferrer" title="${esc(a.domain)}"><time>${hhmm(a.time)}</time><span class="t">${esc(pl() && a.pl ? a.pl : a.title)}</span></a>`).join('')
@@ -575,6 +586,8 @@ const Monitor = (() => {
     })
     canvas.addEventListener('pointerleave', () => { tip.hidden = true })
     new ResizeObserver(resize).observe(canvas.parentElement)
+    new ResizeObserver(() => { if (pane === 'tv') tvOverlay(tvState.id) }).observe(root)
+    root.querySelector('#monPane').addEventListener('scroll', () => { if (pane === 'tv') tvOverlay(tvState.id) })
     window.addEventListener('themechange', redraw)
     build(); renderBar(); renderLists(); renderSelection(); resize()
   }
@@ -587,7 +600,7 @@ const Monitor = (() => {
       else { resize(); load() }
       clearInterval(timer); timer = setInterval(() => { if (!document.hidden && visible) load() }, 60000)
     },
-    hide() { visible = false; clearInterval(timer); root?.querySelector('.tv-box')?.remove() },
+    hide() { visible = false; clearInterval(timer); tvOverlay(''); root?.querySelector('.tv-box')?.remove() },
     // Called by the shell whenever the PL / EN switch changes.
     rerender, rerenderLists: rerender,
   }

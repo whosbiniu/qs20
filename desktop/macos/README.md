@@ -127,3 +127,17 @@ The separate Post Creator macOS application is unchanged.
 Integration smoke test: `dist/UNCsWay.app/Contents/MacOS/UNCsWay --self-test-integrations`.
 It checks ticker icons, both Post Creator modes and Hyperliquid data through the app bridge; it needs network
 access and writes `/tmp/qs-integrations-preview.png`.
+
+## Chart studies (Terminal, ƒx Indykatory)
+
+`public/terminal-studies*.js` add to the indicator catalog of the Hyperliquid terminal: OHLC and Bar Stats legend,
+VWAP with ±σ bands (day/week/month reset), VPVR (visible range) and VPSV (session) volume profiles, previous/current
+day-week-month levels, Volume Bubbles, OB Depth, OB Profile, order book Heatmap, Open Interest, Funding Rate and
+Trade Counter / Pulse. The drawing bar gains Anchored VWAP, a range Volume Profile and Long/Short position tools.
+The calculations are pure functions in `terminal-studies.js` (tested by `scripts/test-terminal-studies.cjs`).
+
+Data limits: Hyperliquid publishes no liquidation, take-profit/stop-loss or long/short-ratio feeds, so those catalog
+entries are listed as unavailable. The order book heat map, open interest history and trade counter are collected in
+the open tab (open interest is sampled every 15 s); funding history and key levels come from Hyperliquid on demand.
+`/api/hl/depth` and `/api/hl/funding` are served by `lib/hyperliquid.mjs` on the web and by `hyperliquid-data.js`
+through the native proxy in the app.

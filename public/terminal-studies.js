@@ -103,11 +103,12 @@
 
   // Open / high / low of the current and the previous day, week and month, plus Monday and weekend.
   // Levels at the same price are merged into one label ("Monday High / Weekly High").
-  function keyLevels({ daily = [], weekly = [], monthly = [] }, now = Math.floor(Date.now() / 1000)) {
+  function keyLevels({ daily = [], weekly = [], monthly = [] }, now = Math.floor(Date.now() / 1000), groups = null) {
     const upto = list => list.filter(c => sound(c) && c.time <= now).sort((a, b) => a.time - b.time);
     const d = upto(daily), w = upto(weekly), m = upto(monthly);
     const raw = [];
-    const add = (label, price, group) => { if (finite(price)) raw.push({ label, price, group }); };
+    // `groups` (e.g. { day: true, weekend: false }) leaves out switched-off groups before equal prices are merged.
+    const add = (label, price, group) => { if (finite(price) && !(groups && groups[group] === false)) raw.push({ label, price, group }); };
     const pair = (list, name, previous, group) => {
       const cur = list.at(-1), prev = list.at(-2);
       if (cur) { add(name + ' Open', cur.open, group); add(name + ' High', cur.high, group); add(name + ' Low', cur.low, group); }

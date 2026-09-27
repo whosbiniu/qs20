@@ -30,7 +30,7 @@ const Theme = (() => {
     // Variables of the framed Kwartały pages that carry text and accent colours.
     style.setProperty('--text', theme.ink); style.setProperty('--muted', theme.dim);
     for (const key of ['green', 'blue', 'hot']) style.setProperty('--' + key, theme.ink);
-    root.dataset.mode = mode; style.colorScheme = mode;
+    root.dataset.colorMode = mode; style.colorScheme = mode;
     window.dispatchEvent(new CustomEvent('themechange', { detail: current }));
   }
   const persist = () => { try { localStorage.setItem('theme', current); localStorage.setItem('mode', mode); } catch {} };

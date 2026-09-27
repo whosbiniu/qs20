@@ -34,7 +34,7 @@ html,body,.app,.topbar,.stage,.labels,.timeline,.footer,.economic,.session-panel
 .tooltip{background:var(--bg);border:1px solid var(--ink);box-shadow:none}
 .tiprow{color:var(--dim)}.tiprow b,.tiprow b.holiday{color:var(--ink)}
 .tiprow b.q1{color:var(--q1)}.tiprow b.q2{color:#ff7388}.tiprow b.q3{color:#00d688}.tiprow b.q4{color:#5ab9f5}
-html[data-mode=light] .tiprow b.q2{color:#c81e3f}html[data-mode=light] .tiprow b.q3{color:#00875a}html[data-mode=light] .tiprow b.q4{color:#1a73b8}
+html[data-color-mode=light] .tiprow b.q2{color:#c81e3f}html[data-color-mode=light] .tiprow b.q3{color:#00875a}html[data-color-mode=light] .tiprow b.q4{color:#1a73b8}
 .pane h2,.economic h2,.session-panel h2,.collapsible-panel>summary h2{color:var(--ink);font-size:12px;letter-spacing:.24em;text-transform:uppercase}
 .pane h2{color:var(--dim)}
 .event{border-top-color:var(--faint)}.badge{border-color:var(--line);color:var(--dim)}.event small,.event time{color:var(--dim)}

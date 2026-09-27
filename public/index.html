@@ -17,7 +17,7 @@ body{display:flex;flex-direction:column;padding:10px;gap:10px}
 .bar{display:flex;align-items:center;gap:16px;color:var(--dim)}
 .bar .brand{color:var(--ink);letter-spacing:.2em;display:inline-flex;align-items:center;gap:9px}
 .bar .brand img{width:22px;height:22px;filter:drop-shadow(0 0 6px rgb(var(--ink-rgb)/.2))}
-html[data-mode=light] .bar .brand img{filter:invert(1) hue-rotate(180deg)}
+html[data-color-mode=light] .bar .brand img{filter:invert(1) hue-rotate(180deg)}
 .bar .clock{margin-left:0}
 .modes{display:flex;gap:6px;margin-left:auto;align-items:center}.modes+.swatches{margin-left:14px}
 .modes button{width:24px;height:22px;padding:0;display:grid;place-items:center;background:transparent;border:1px solid var(--line);color:var(--dim);cursor:pointer}

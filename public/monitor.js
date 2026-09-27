@@ -38,7 +38,7 @@ const Monitor = (() => {
   }
   const LEVELS_LIGHT = { critical: '#d61f1f', high: '#d9710a', elevated: '#a68a00', low: '#1f8f4a' }
   let COLORS = COLORS_DARK, LEVELS = LEVELS_DARK
-  const pickPalette = () => { const light = document.documentElement.dataset.mode === 'light'; COLORS = light ? COLORS_LIGHT : COLORS_DARK; LEVELS = light ? LEVELS_LIGHT : LEVELS_DARK }
+  const pickPalette = () => { const light = document.documentElement.dataset.colorMode === 'light'; COLORS = light ? COLORS_LIGHT : COLORS_DARK; LEVELS = light ? LEVELS_LIGHT : LEVELS_DARK }
   pickPalette()
   // registered at load, not on first open: the palette must follow the theme even while the map has not been shown yet
   window.addEventListener('themechange', () => { pickPalette(); if (typeof rerender === 'function') rerender() })
@@ -55,7 +55,7 @@ const Monitor = (() => {
     .mon-bar button{padding:2px 8px;font-size:11px;white-space:nowrap}
     .mon-bar button[data-l]{border-left:3px solid var(--c)}
     .mon-bar button[data-l].active{background:var(--c);border-color:var(--c);color:#050505}
-    html[data-mode=light] .mon-bar button[data-l].active{color:#fff}
+    html[data-color-mode=light] .mon-bar button[data-l].active{color:#fff}
     .mon-foot .legend{display:flex;flex-wrap:wrap;gap:4px 14px}.mon-foot .legend b{font-weight:400;color:var(--c)}
     .mon.compact .legend{display:none}.mon.compact .mon-foot{padding:3px 10px}
     .mon-side{gap:0}.mon-side #monPane{flex:1 1 auto;min-height:160px;max-height:none;overflow-y:auto}

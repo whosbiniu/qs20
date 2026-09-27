@@ -100,4 +100,22 @@ const bp = S.bookProfile(book, { rows: 4, span: 0.02 });
 near(bp.rows.reduce((n, r) => n + r.bid, 0), 3); near(bp.rows.reduce((n, r) => n + r.ask, 0), 4);
 assert.equal(S.bookProfile({ bids: [], asks: [] }), null);
 
-console.log('PASS terminal studies: VWAP, anchored VWAP, volume profiles, key levels, bubbles, bar stats, order book depth');
+// Classic studies, checked by hand on tiny series.
+const bars = closes => closes.map((c, i) => ({ time: 1000 + i * 60, open: c, high: c, low: c, close: c, volume: 1 }));
+const values = list => list.map(p => +p.value.toFixed(9));
+assert.deepEqual(values(S.sma(bars([1, 2, 3, 4, 5]), 3)), [2, 3, 4]);
+assert.deepEqual(values(S.ema(bars([1, 2, 3, 4, 5]), 3)), [2, 3, 4]);   // seeded with the SMA, then k = 2 / (3 + 1)
+assert.equal(S.ema(bars([1, 2]), 3).length, 0);
+assert.deepEqual(values(S.rsi(bars([1, 2, 1, 2]), 2)), [50, 75]);        // Wilder smoothing of gains / losses
+assert.deepEqual(values(S.rsi(bars([1, 2, 3, 4]), 2)), [100, 100]);
+assert.deepEqual(values(S.rsi(bars([4, 3, 2, 1]), 2)), [0, 0]);
+assert.deepEqual(values(S.rsi(bars([2, 2, 2]), 2)), [50]);
+const bb = S.bollinger(bars([1, 3]), { length: 2, mult: 1 });
+near(bb[0].middle, 2); near(bb[0].upper, 3); near(bb[0].lower, 1);
+const atrBars = [{ time: 1, open: 1, high: 2, low: 0, close: 1 }, { time: 2, open: 1, high: 3, low: 1, close: 2 }, { time: 3, open: 4, high: 5, low: 4, close: 4.5 }];
+assert.deepEqual(values(S.atr(atrBars, 2)), [2, 2.5]);                   // true range counts the gap from the previous close
+const m = S.macd(bars([1, 2, 3, 4, 5]), { fast: 2, slow: 3, signal: 2 });
+assert.deepEqual(m.map(p => +p.macd.toFixed(9)), [0.5, 0.5, 0.5]);
+assert.equal(m[0].signal, null); near(m[1].signal, 0.5); near(m[2].histogram, 0);
+
+console.log('PASS terminal studies: VWAP, anchored VWAP, volume profiles, key levels, bubbles, bar stats, order book depth, SMA / EMA / RSI / Bollinger / ATR / MACD');

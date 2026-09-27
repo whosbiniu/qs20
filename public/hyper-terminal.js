@@ -7,9 +7,7 @@ window.HyperTerminal = (() => {
       <div class="ht-stats"><div>WOLUMEN 24H <b id="ht-volume">—</b></div><div>OPEN INTEREST <b id="ht-oi">—</b></div><div>FUNDING / H <b id="ht-funding">—</b></div></div>
       <div class="ht-periods" id="ht-periods"></div>
       <div class="ht-chart-tools"><button type="button" id="ht-indicators-open" aria-expanded="false" aria-controls="ht-indicator-panel">ƒx Indykatory</button><button id="ht-fit" type="button">Dopasuj wykres</button></div>
-      <aside class="ht-indicator-panel" id="ht-indicator-panel" hidden aria-label="Biblioteka indykatorów"><div class="ht-library-head"><strong>Indykatory</strong><button type="button" id="ht-indicators-close" aria-label="Zamknij panel indykatorów">×</button></div><input type="search" id="ht-indicator-search" placeholder="Szukaj indykatora…" aria-label="Szukaj indykatora"><div id="ht-indicator-list"></div><h4>Ustawienia aktywnych indykatorów</h4>
-      <div class="st-settings" id="ht-studies-settings" hidden></div>
-      <div class="ht-tpo-controls" id="ht-profile" hidden><label>TPO <select id="ht-tpo-mode"><option value="daily">Dzienne</option><option value="session">Sesyjne</option><option value="weekly">Tygodniowe</option><option value="monthly">Miesięczne</option></select></label><span id="ht-tpo-hours" hidden><label>Od <input id="ht-tpo-from" type="time" step="1800" value="08:00"></label><label>Do <input id="ht-tpo-to" type="time" step="1800" value="16:30"></label> UTC</span><label>Krok ceny <input id="ht-step" type="number" min="0" step="any" value="0"></label><span id="ht-profile-info" role="status"></span></div><section id="ht-orderflow" aria-label="Ustawienia order flow"></section></aside><div class="ht-chart" id="ht-chart"><div class="ht-active-indicators" id="ht-active-indicators" aria-label="Aktywne indykatory"></div></div><div class="ht-message" id="ht-message" hidden></div>
+      <aside class="ht-indicator-panel" id="ht-indicator-panel" hidden aria-label="Biblioteka indykatorów"><div class="ht-library-head"><strong>Indykatory</strong><button type="button" id="ht-indicators-close" aria-label="Zamknij panel indykatorów">×</button></div><input type="search" id="ht-indicator-search" placeholder="Szukaj indykatora…" aria-label="Szukaj indykatora"><div id="ht-indicator-list"></div></aside><div class="ht-ind-pop" id="ht-ind-pop" hidden role="dialog" aria-labelledby="ht-ind-pop-title"><div class="ht-ind-pop-head"><strong id="ht-ind-pop-title"></strong><button type="button" id="ht-ind-pop-remove" title="Usuń indykator z wykresu">Usuń</button><button type="button" id="ht-ind-pop-close" data-pop-close aria-label="Zamknij ustawienia">×</button></div><div class="st-settings" id="ht-studies-settings" hidden></div><div class="ht-tpo-controls" id="ht-profile" hidden><label>TPO <select id="ht-tpo-mode"><option value="daily">Dzienne</option><option value="session">Sesyjne</option><option value="weekly">Tygodniowe</option><option value="monthly">Miesięczne</option></select></label><span id="ht-tpo-hours" hidden><label>Od <input id="ht-tpo-from" type="time" step="1800" value="08:00"></label><label>Do <input id="ht-tpo-to" type="time" step="1800" value="16:30"></label> UTC</span><label>Krok ceny <input id="ht-step" type="number" min="0" step="any" value="0"></label><span id="ht-profile-info" role="status"></span></div><section id="ht-orderflow" aria-label="Ustawienia order flow" hidden></section><p class="ht-ind-pop-empty" id="ht-ind-pop-empty">Ten indykator nie ma ustawień.</p></div><div class="ht-chart" id="ht-chart"><div class="ht-active-indicators" id="ht-active-indicators" aria-label="Aktywne indykatory"></div></div><div class="ht-message" id="ht-message" hidden></div>
     </div><aside class="ht-book"><header><strong>ARKUSZ ZLECEŃ</strong><span id="ht-book-time"></span></header><div class="ht-book-title"><span>CENA</span><span>WIELKOŚĆ</span><span>SUMA</span></div><div id="ht-asks"></div><div class="ht-spread" id="ht-spread">—</div><div id="ht-bids"></div></aside>
   </div>`
   const $ = id => document.getElementById(id)
@@ -27,7 +25,6 @@ window.HyperTerminal = (() => {
   const studies = TerminalStudies.attach({ settingsHost: $('ht-studies-settings'), fetchJson: url => json(url), orderflow })
   const saveSettings = () => Store.set('hl-indicators', JSON.stringify(settings))
   $('ht-step').value = settings.step
-  $('ht-profile').hidden = !settings.tpo
   $('ht-tpo-mode').value = settings.mode
   $('ht-tpo-from').value = settings.from
   $('ht-tpo-to').value = settings.to
@@ -196,13 +193,20 @@ window.HyperTerminal = (() => {
   function indicatorEnabled(id) { return id === 'volume' || id === 'tpo' ? !!settings[id] : ['footprint', 'delta', 'profile'].includes(id) ? orderflow.isEnabled(id) : studies.isEnabled(id) }
   function setIndicator(id, value) {
     if (id === 'volume') { settings.volume = value; saveSettings(); volumeSeries?.applyOptions({ visible: value }) }
-    else if (id === 'tpo') { settings.tpo = value; saveSettings(); $('ht-profile').hidden = !value; if (value) loadProfile(); else { ++profileRequest; clearProfileLines() } }
+    else if (id === 'tpo') { settings.tpo = value; saveSettings(); if (value) loadProfile(); else { ++profileRequest; clearProfileLines() } }
     else if (['footprint', 'delta', 'profile'].includes(id)) orderflow.setEnabled(id, value)
     else studies.setEnabled(id, value)
-    $('ht-orderflow').hidden = !['footprint', 'delta', 'profile'].some(key => orderflow.isEnabled(key))
   }
-  $('ht-orderflow').hidden = !['footprint', 'delta', 'profile'].some(key => orderflow.isEnabled(key))
-  TerminalIndicators.attach({ button: $('ht-indicators-open'), panel: $('ht-indicator-panel'), list: $('ht-indicator-list'), search: $('ht-indicator-search'), active: $('ht-active-indicators'), close: $('ht-indicators-close'), get: indicatorEnabled, set: setIndicator })
+  // One indicator's settings at a time, in the popover next to its chip on the chart.
+  const ORDERFLOW = ['footprint', 'delta', 'profile']
+  function showSettings(id) {
+    const study = studies.showSettings(id)
+    $('ht-profile').hidden = id !== 'tpo'
+    $('ht-orderflow').hidden = !ORDERFLOW.includes(id)
+    return study || id === 'tpo' || ORDERFLOW.includes(id)
+  }
+  TerminalIndicators.attach({ button: $('ht-indicators-open'), panel: $('ht-indicator-panel'), list: $('ht-indicator-list'), search: $('ht-indicator-search'), active: $('ht-active-indicators'), close: $('ht-indicators-close'), get: indicatorEnabled, set: setIndicator,
+    pop: { el: $('ht-ind-pop'), title: $('ht-ind-pop-title'), empty: $('ht-ind-pop-empty'), remove: $('ht-ind-pop-remove'), close: $('ht-ind-pop-close') }, showSettings })
   $('ht-step').addEventListener('change', e => { settings.step = Math.max(0, Number(e.target.value) || 0); e.target.value = settings.step; saveSettings(); renderProfile() })
   for (const [id, key] of [['ht-tpo-mode', 'mode'], ['ht-tpo-from', 'from'], ['ht-tpo-to', 'to']]) $(id).addEventListener('change', e => {
     if (key !== 'mode' && (!e.target.value || Number(e.target.value.slice(3)) % 30 !== 0)) { e.target.value = settings[key]; return }

@@ -180,6 +180,80 @@
     return { rows: grid, mid: depth.mid, low, high };
   }
 
-  const api = { vwap, anchoredVwap, volumeProfile, sessionProfiles, keyLevels, bubbles, barStats, bookDepth, bookProfile, periodKey, weekday };
+  // ---- classic studies. Each returns { time, value } points (value only once enough bars exist). ----
+  const closes = candles => candles.filter(sound);
+  function sma(candles, length, pick = c => c.close) {
+    const list = closes(candles), out = [];
+    let sum = 0;
+    list.forEach((c, i) => {
+      sum += pick(c);
+      if (i >= length) sum -= pick(list[i - length]);
+      if (i >= length - 1) out.push({ time: c.time, value: sum / length });
+    });
+    return out;
+  }
+  // Seeded with the simple average of the first `length` values, like most charting packages.
+  function emaOf(values, length) {
+    const k = 2 / (length + 1), out = new Array(values.length).fill(null);
+    let prev = null, sum = 0;
+    values.forEach((v, i) => {
+      if (prev === null) { sum += v; if (i === length - 1) prev = sum / length; }
+      else prev = v * k + prev * (1 - k);
+      out[i] = prev;
+    });
+    return out;
+  }
+  function ema(candles, length) {
+    const list = closes(candles), values = emaOf(list.map(c => c.close), length);
+    return list.map((c, i) => ({ time: c.time, value: values[i] })).filter(p => p.value !== null);
+  }
+  function bollinger(candles, { length = 20, mult = 2 } = {}) {
+    const list = closes(candles), out = [];
+    for (let i = length - 1; i < list.length; i++) {
+      const window = list.slice(i - length + 1, i + 1).map(c => c.close);
+      const mean = window.reduce((a, b) => a + b, 0) / length;
+      const sd = Math.sqrt(window.reduce((a, b) => a + (b - mean) ** 2, 0) / length);
+      out.push({ time: list[i].time, middle: mean, upper: mean + mult * sd, lower: mean - mult * sd });
+    }
+    return out;
+  }
+  // Wilder's smoothing (RMA): RSI and ATR.
+  function rmaOf(values, length) {
+    const out = new Array(values.length).fill(null);
+    let prev = null, sum = 0;
+    values.forEach((v, i) => {
+      if (prev === null) { sum += v; if (i === length - 1) prev = sum / length; }
+      else prev = (prev * (length - 1) + v) / length;
+      out[i] = prev;
+    });
+    return out;
+  }
+  function rsi(candles, length = 14) {
+    const list = closes(candles);
+    if (list.length <= length) return [];
+    const moves = list.slice(1).map((c, i) => c.close - list[i].close);
+    const gain = rmaOf(moves.map(m => Math.max(0, m)), length), loss = rmaOf(moves.map(m => Math.max(0, -m)), length);
+    const out = [];
+    moves.forEach((_, i) => {
+      if (gain[i] === null) return;
+      out.push({ time: list[i + 1].time, value: loss[i] === 0 ? (gain[i] === 0 ? 50 : 100) : 100 - 100 / (1 + gain[i] / loss[i]) });
+    });
+    return out;
+  }
+  function macd(candles, { fast = 12, slow = 26, signal = 9 } = {}) {
+    const list = closes(candles), values = list.map(c => c.close);
+    const f = emaOf(values, fast), s = emaOf(values, slow);
+    const line = list.map((c, i) => f[i] === null || s[i] === null ? null : { time: c.time, value: f[i] - s[i] }).filter(Boolean);
+    const sig = emaOf(line.map(p => p.value), signal);
+    return line.map((p, i) => ({ time: p.time, macd: p.value, signal: sig[i], histogram: sig[i] === null ? null : p.value - sig[i] }));
+  }
+  function atr(candles, length = 14) {
+    const list = closes(candles);
+    const ranges = list.map((c, i) => i ? Math.max(c.high - c.low, Math.abs(c.high - list[i - 1].close), Math.abs(c.low - list[i - 1].close)) : c.high - c.low);
+    const smooth = rmaOf(ranges, length);
+    return list.map((c, i) => ({ time: c.time, value: smooth[i] })).filter(p => p.value !== null);
+  }
+
+  const api = { vwap, anchoredVwap, volumeProfile, sessionProfiles, keyLevels, bubbles, barStats, bookDepth, bookProfile, periodKey, weekday, sma, ema, bollinger, rsi, macd, atr };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.TerminalStudiesMath = api;
 })(typeof globalThis === 'undefined' ? this : globalThis);

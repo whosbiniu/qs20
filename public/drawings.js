@@ -28,6 +28,36 @@ const Drawings = (() => {
     TOOLS.splice(TOOLS.findIndex(t => t[0] === 'erase'), 0, [id, def.title]);
   }
   const TEXT_FONT = '13px ui-monospace,Menlo,monospace';
+  const font = d => `${d.size || 13}px ui-monospace,Menlo,monospace`;
+  // Editing toolbar of the selected drawing: colour, width (text: size), line style, lock, delete.
+  const SWATCHES = ['', '#6b9eff', '#7fcf8f', '#e07a7a', '#e8c268', '#b797d6'];
+  const DASH = { solid: [], dashed: [7, 4], dotted: [2, 3] };
+  const STYLES = ['solid', 'dashed', 'dotted'];
+  const EDIT_ICONS = {
+    width: '<path d="M2 8h12M4.500 5.500 2 8l2.500 2.500M11.500 5.500 14 8l-2.500 2.500"/>',
+    size: '<path d="M2 13 5.500 3h1L10 13M3.300 9.500h5.400M11 13l1.800-5h.4L15 13M11.700 11.200h2.600"/>',
+    solid: '<path d="M1.500 8h13"/>', dashed: '<path d="M1.500 8h3.500M6.300 8h3.500M11 8h3.500"/>', dotted: '<path d="M2 8h.5M5 8h.5M8 8h.5M11 8h.5M14 8h.5" stroke-width="2" stroke-linecap="round"/>',
+    edit: '<path d="M10.500 2.500l3 3L6 13H3v-3z"/>',
+    lock: '<rect x="3.500" y="7" width="9" height="6.500" rx="1"/><path d="M5.500 7V5a2.500 2.500 0 0 1 5 0v2"/>',
+    unlock: '<rect x="3.500" y="7" width="9" height="6.500" rx="1"/><path d="M5.500 7V5a2.500 2.500 0 0 1 5 0"/>',
+    trash: '<path d="M3 4h10M6 4V2.500h4V4M4.500 4l.5 9.500h6l.5-9.500M7 6.500v5M9 6.500v5"/>',
+  };
+  const editIcon = name => `<svg viewBox="0 0 16 16" aria-hidden="true">${EDIT_ICONS[name]}</svg>`;
+  if (typeof document !== 'undefined' && document.head) {
+    const style = document.createElement('style');
+    style.textContent = `.draw-edit{position:absolute;z-index:8;display:flex;align-items:center;gap:5px;padding:4px 5px;background:var(--tw-chrome,var(--bg));border:1px solid var(--line);border-radius:8px;box-shadow:0 8px 28px #0008;font:11px -apple-system,BlinkMacSystemFont,sans-serif;color:var(--ink);white-space:nowrap;user-select:none}
+.draw-edit[hidden]{display:none}.draw-edit svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.2;stroke-linecap:round;stroke-linejoin:round}
+.draw-edit .de-grip{cursor:grab;color:var(--dim);padding:0 1px;letter-spacing:-2px;font-size:12px;line-height:1}.draw-edit .de-grip:active{cursor:grabbing}
+.draw-edit .de-group{display:flex;align-items:center;gap:4px;padding:2px 5px;border:1px solid var(--line);border-radius:6px}.draw-edit .de-sep{width:1px;align-self:stretch;background:var(--line)}
+.draw-edit button{display:grid;place-items:center;width:24px;height:24px;padding:0;background:transparent;border:1px solid transparent;border-radius:5px;color:var(--dim);cursor:pointer}
+.draw-edit button:hover{color:var(--ink);background:var(--faint)}.draw-edit button[aria-pressed=true]{color:var(--ink)}
+.draw-edit button.de-swatch,.draw-edit button.de-swatch:hover,.draw-edit button.de-swatch[aria-pressed=true]{width:20px;height:20px;border-radius:5px;background:var(--c);border:2px solid transparent;box-shadow:inset 0 0 0 1px #0004}.draw-edit button.de-swatch:hover{border-color:var(--dim)}.draw-edit button.de-swatch[aria-pressed=true]{border-color:var(--ink);box-shadow:inset 0 0 0 2px var(--bg)}
+.draw-edit .de-custom{position:relative;display:grid;place-items:center;width:20px;height:20px;border:1px dashed var(--dim);border-radius:5px;color:var(--dim);cursor:pointer;font-size:13px;line-height:1}.draw-edit .de-custom:hover{color:var(--ink);border-color:var(--ink)}
+.draw-edit .de-custom input{position:absolute;inset:0;opacity:0;width:100%;height:100%;cursor:pointer;padding:0;border:0}
+.draw-edit .de-width{color:var(--dim);height:30px}.draw-edit .de-width input.de-num{width:26px;height:22px;margin:0;padding:0 2px;font:inherit;font-size:12px;color:var(--ink);background:transparent;border:0;border-radius:3px;outline:0;text-align:center;-moz-appearance:textfield;appearance:textfield}
+.draw-edit .de-width input.de-num:focus{background:var(--faint)}.draw-edit .de-width input.de-num::-webkit-inner-spin-button,.draw-edit .de-width input.de-num::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}.draw-edit .de-width [data-width-icon]{display:flex}.draw-edit [data-delete]:hover{color:#e07a7a}`;
+    document.head.append(style);
+  }
 
   // Only one drawing can be selected across all chart panels: the panel that owns the selection.
   let owner = null;
@@ -40,7 +70,18 @@ const Drawings = (() => {
     const bar = document.createElement('div');
     bar.className = 'draw-bar';
     bar.innerHTML = TOOLS.filter(([id]) => !CUSTOM[id]?.volume || panel.volume).map(([id, title]) => `<button type="button" data-tool="${id}" title="${title}" aria-label="${title}"><svg viewBox="0 0 16 16">${ICONS[id]}</svg></button>`).join('');
-    box.append(canvas, bar);
+    const editBar = document.createElement('div');
+    editBar.className = 'draw-edit'; editBar.hidden = true;
+    editBar.setAttribute('role', 'toolbar'); editBar.setAttribute('aria-label', 'Edycja rysunku');
+    editBar.innerHTML = `<span class="de-grip" title="Przeciągnij, aby przesunąć pasek" aria-hidden="true">⋮⋮</span>
+      <div class="de-group" role="group" aria-label="Kolor">${SWATCHES.map(c => `<button type="button" class="de-swatch" data-color="${c}" style="--c:${c || 'var(--ink)'}" title="${c ? 'Kolor ' + c : 'Kolor domyślny'}" aria-label="${c ? 'Kolor ' + c : 'Kolor domyślny'}"></button>`).join('')}<label class="de-custom" title="Własny kolor">+<input type="color" data-custom aria-label="Własny kolor"></label></div>
+      <div class="de-group de-width"><span data-width-icon></span><input type="number" class="de-num" data-width min="1" max="8" step="1" aria-label="Grubość linii" title="Strzałki ↑ ↓ lub wpisz liczbę"></div>
+      <button type="button" data-style title="Styl linii" aria-label="Styl linii"></button>
+      <span class="de-sep"></span>
+      <button type="button" data-edit-text title="Edytuj tekst" aria-label="Edytuj tekst">${editIcon('edit')}</button>
+      <button type="button" data-lock aria-pressed="false"></button>
+      <button type="button" data-delete title="Usuń (Backspace)" aria-label="Usuń rysunek">${editIcon('trash')}</button>`;
+    box.append(canvas, bar, editBar);
     const ctx = canvas.getContext('2d');
     let tool = 'cursor', items = [], pending = null, cursor = null, hover = null, selected = null, frame = 0, clearArmed = 0, size = { w: 0, h: 0, dpr: 1 };
     const key = () => 'draw:' + panel.symbol;
@@ -93,13 +134,14 @@ const Drawings = (() => {
     // What registered tool types need to paint and hit-test themselves.
     const toolApi = { toScreen, toData, logicalOf, timeOf, label, fmtPrice, panel, get size() { return size; }, get candles() { return panel.candles || []; }, segDist: (p, a, b) => segDist(p, a, b) };
     function paintShape(d, ink, ghost) {
+      ink = d.color || ink;
       if (CUSTOM[d.type]) { ctx.setLineDash([]); CUSTOM[d.type].paint(ctx, d, toolApi, ink, ghost, d === hover || d === selected); ctx.setLineDash([]); return; }
       const pts = d.points.map(toScreen);
       if (pts.some(p => !p)) return;
-      const [a, b] = pts, W = size.w, H = size.h;
-      ctx.strokeStyle = ink; ctx.fillStyle = ink; ctx.lineWidth = d === hover || d === selected ? 2 : 1; ctx.setLineDash(ghost ? [4, 4] : []);
+      const [a, b] = pts, W = size.w, H = size.h, lit = d === hover || d === selected ? 1 : 0, dash = ghost ? [4, 4] : DASH[d.style] || [];
+      ctx.strokeStyle = ink; ctx.fillStyle = ink; ctx.lineWidth = (d.width || 1) + lit; ctx.setLineDash(dash);
       if (d.type === 'brush') {
-        ctx.setLineDash([]); ctx.lineWidth = d === hover || d === selected ? 3 : 2; ctx.lineJoin = ctx.lineCap = 'round';
+        ctx.lineWidth = (d.width || 2) + lit; ctx.lineJoin = ctx.lineCap = 'round';
         ctx.beginPath(); ctx.moveTo(pts[0].x, pts[0].y);
         // Midpoint curves smooth the stroke without shifting its endpoints.
         for (let i = 1; i < pts.length - 1; i++) ctx.quadraticCurveTo(pts[i].x, pts[i].y, (pts[i].x + pts[i + 1].x) / 2, (pts[i].y + pts[i + 1].y) / 2);
@@ -107,8 +149,9 @@ const Drawings = (() => {
         ctx.lineJoin = 'miter'; ctx.lineCap = 'butt'; return;
       }
       if (d.type === 'text') {
-        ctx.setLineDash([]); ctx.font = TEXT_FONT; ctx.textBaseline = 'middle'; ctx.fillText(d.text || '', a.x, a.y);
-        if (d === hover || d === selected) { const w = ctx.measureText(d.text || '').width; ctx.strokeRect(a.x - 3.5, a.y - 10.5, w + 7, 21); }
+        const h = (d.size || 13) + 8;
+        ctx.setLineDash([]); ctx.font = font(d); ctx.textBaseline = 'middle'; ctx.fillText(d.text || '', a.x, a.y);
+        if (d === hover || d === selected) { const w = ctx.measureText(d.text || '').width; ctx.lineWidth = 1; ctx.strokeRect(a.x - 3.5, a.y - h / 2 - .5, w + 7, h + 1); }
         return;
       }
       const dot = p => { ctx.fillRect(p.x - 2.5, p.y - 2.5, 5, 5); };
@@ -122,15 +165,14 @@ const Drawings = (() => {
         ctx.globalAlpha = .1; ctx.fill(); ctx.globalAlpha = 1; ctx.stroke(); ctx.setLineDash([]);
       } else if (d.type === 'fib') {
         const [pa, pb] = d.points, x0 = Math.min(a.x, b.x), x1 = Math.max(a.x, b.x);
-        ctx.setLineDash([]);
         for (const level of FIB) {
           const price = pb.p + (pa.p - pb.p) * level, y = panel.series.priceToCoordinate(price);
           if (y === null) continue;
           ctx.globalAlpha = level === 0 || level === 1 ? 1 : .6;
-          ctx.beginPath(); ctx.moveTo(x0, y); ctx.lineTo(x1, y); ctx.stroke(); ctx.globalAlpha = 1;
-          label(`${level} · ${fmtPrice(price)}`, x1 + 4, y, ink);
+          ctx.setLineDash(dash); ctx.beginPath(); ctx.moveTo(x0, y); ctx.lineTo(x1, y); ctx.stroke(); ctx.globalAlpha = 1;
+          ctx.setLineDash([]); label(`${level} · ${fmtPrice(price)}`, x1 + 4, y, ink);
         }
-        ctx.setLineDash([3, 3]); ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke(); ctx.setLineDash([]);
+        ctx.lineWidth = 1; ctx.setLineDash([3, 3]); ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke(); ctx.setLineDash([]);
       } else if (d.type === 'measure') {
         ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke(); ctx.setLineDash([]); dot(a); dot(b);
         const dp = d.points[1].p - d.points[0].p, pct = dp / d.points[0].p * 100;
@@ -143,7 +185,8 @@ const Drawings = (() => {
     function paint(d, ink, ghost) {
       paintShape(d, ink, ghost);
       if (ghost || d !== selected) return;
-      const pts = (d.type === 'brush' ? [d.points[0], d.points[d.points.length - 1]] : d.points).map(toScreen).filter(Boolean);
+      ink = d.color || ink;
+      const pts = handlesOf(d).map(toScreen).filter(Boolean);
       ctx.setLineDash([]); ctx.lineWidth = 1;
       for (const q of pts) { ctx.fillStyle = Theme.css('--bg') || '#050505'; ctx.fillRect(q.x - 4, q.y - 4, 8, 8); ctx.strokeStyle = ink; ctx.strokeRect(q.x - 3.5, q.y - 3.5, 7, 7); }
     }
@@ -159,6 +202,7 @@ const Drawings = (() => {
         if (pending.type === 'brush' ? pts.length > 1 : pts.length === NEEDS[pending.type]) paint({ ...pending, points: pts }, ink, true);
       }
       ctx.textBaseline = 'alphabetic';
+      placeEditor();
     }
     function redraw() { if (!frame) frame = requestAnimationFrame(draw); }
     const settle = redraw;   // the price scale rescales a moment after the time scale moves
@@ -179,9 +223,9 @@ const Drawings = (() => {
       if (d.type === 'trend' || d.type === 'measure') return segDist(p, a, b);
       if (d.type === 'brush') return pts.slice(1).reduce((m, q, i) => Math.min(m, segDist(p, pts[i], q)), Infinity);
       if (d.type === 'text') {
-        ctx.font = TEXT_FONT;
+        ctx.font = font(d);
         const w = ctx.measureText(d.text || '').width;
-        return p.x >= a.x - 4 && p.x <= a.x + w + 4 && Math.abs(p.y - a.y) <= 10 ? 0 : Infinity;
+        return p.x >= a.x - 4 && p.x <= a.x + w + 4 && Math.abs(p.y - a.y) <= (d.size || 13) / 2 + 4 ? 0 : Infinity;
       }
       if (d.type === 'rect') {
         const x0 = Math.min(a.x, b.x), x1 = Math.max(a.x, b.x), y0 = Math.min(a.y, b.y), y1 = Math.max(a.y, b.y);
@@ -191,6 +235,9 @@ const Drawings = (() => {
       return Math.min(...FIB.map(level => { const y = panel.series.priceToCoordinate(d.points[1].p + (d.points[0].p - d.points[1].p) * level); return y === null ? Infinity : segDist(p, { x: x0, y }, { x: x1, y }); }));
     }
     const nearest = p => items.reduce((best, d) => { const dist = distance(d, p); return dist < 8 && (!best || dist < best.dist) ? { d, dist } : best; }, null)?.d || null;
+    // Anchor points that can be dragged one by one (a brush stroke and a text only move as a whole).
+    const handlesOf = d => d.type === 'brush' ? [d.points[0], d.points[d.points.length - 1]] : d.points;
+    const handleAt = (d, p) => d.type === 'brush' || d.type === 'text' ? -1 : d.points.findIndex(q => { const s = toScreen(q); return s && Math.hypot(s.x - p.x, s.y - p.y) <= 7; });
 
     // ---- interaction --------------------------------------------------------------------------
     function setTool(next) {
@@ -203,7 +250,7 @@ const Drawings = (() => {
       }
       closeEditor(false);
       tool = next; pending = null; hover = null;
-      canvas.style.pointerEvents = tool === 'cursor' ? 'none' : 'auto';
+      canvas.style.pointerEvents = tool === 'cursor' ? 'none' : 'auto'; grabbing = false;
       canvas.style.cursor = tool === 'erase' ? 'pointer' : tool === 'text' ? 'text' : 'crosshair';
       bar.querySelectorAll('button').forEach(b => b.classList.toggle('active', b.dataset.tool === tool));
       redraw();
@@ -221,19 +268,21 @@ const Drawings = (() => {
     let editor = null;
     function closeEditor(keep) {
       if (!editor) return;
-      const { input, point } = editor, text = input.value.trim().slice(0, 200);
+      const { input, point, item } = editor, text = input.value.trim().slice(0, 200);
       editor = null; input.remove();
+      if (item) { if (keep && text && text !== item.text) { item.text = text; save(); } redraw(); return; }
       if (keep && text) commit([point], { text });
     }
-    function openEditor(pos, point) {
+    function openEditor(pos, point, item) {
       const input = document.createElement('input');
       input.className = 'draw-text'; input.maxLength = 200; input.placeholder = 'tekst…';
+      if (item) { input.value = item.text || ''; input.style.font = font(item); }
       input.style.left = pos.x + 'px'; input.style.top = pos.y + 'px';
-      editor = { input, point };
+      editor = { input, point, item };
       input.addEventListener('keydown', e => {
         e.stopPropagation();
         if (e.key === 'Enter') closeEditor(true);
-        else if (e.key === 'Escape') { closeEditor(false); setTool('cursor'); }
+        else if (e.key === 'Escape') { closeEditor(false); if (!item) setTool('cursor'); }
       });
       input.addEventListener('blur', () => closeEditor(true));
       input.addEventListener('pointerdown', e => e.stopPropagation());
@@ -247,7 +296,8 @@ const Drawings = (() => {
       e.preventDefault(); e.stopPropagation();
       canvas.setPointerCapture(e.pointerId);
       const pos = local(e);
-      if (tool === 'erase') { const d = nearest(pos); if (d) { items = items.filter(i => i !== d); if (selected === d) selected = null; hover = null; save(); redraw(); } return; }
+      if (tool === 'cursor') { startDrag(pos, e); return; }
+      if (tool === 'erase') { const d = nearest(pos); if (d && !d.locked) { items = items.filter(i => i !== d); if (selected === d) selected = null; hover = null; save(); redraw(); } return; }
       const p = toData(pos.x, pos.y);
       if (!p) return;
       if (tool === 'text') { closeEditor(true); if (tool === 'text') openEditor(pos, p); return; }
@@ -259,6 +309,7 @@ const Drawings = (() => {
       else redraw();
     });
     canvas.addEventListener('pointermove', e => {
+      if (drag) { moveDrag(local(e)); return; }
       cursor = local(e);
       if (tool === 'erase') { const next = nearest(cursor); if (next !== hover) { hover = next; redraw(); } return; }
       if (tool === 'brush') {
@@ -277,6 +328,7 @@ const Drawings = (() => {
       if (pending) redraw();
     });
     canvas.addEventListener('pointerup', e => {
+      if (drag) { endDrag(); return; }
       if (tool === 'brush') { const pos = local(e), last = toData(pos.x, pos.y); if (pending && last && pending.points.length < 8000) pending.points.push(last); if (pending && pending.points.length > 1) commit(pending.points); else pending = null; stroke = null; redraw(); return; }
       // Click-drag also works: releasing far from the press point places the second point.
       if (!downAt || !pending || downAt.had || pending.points.length !== 1 || NEEDS[tool] !== 2) { downAt = null; return; }
@@ -284,7 +336,7 @@ const Drawings = (() => {
       if (Math.hypot(pos.x - downAt.x, pos.y - downAt.y) > 8) { const p = toData(pos.x, pos.y); if (p) { pending.points.push(p); commit(pending.points); } }
       downAt = null;
     });
-    canvas.addEventListener('pointercancel', () => { pending = null; stroke = null; downAt = null; redraw(); });
+    canvas.addEventListener('pointercancel', () => { if (drag) endDrag(); pending = null; stroke = null; downAt = null; redraw(); });
     canvas.addEventListener('pointerleave', () => { cursor = null; if (pending) redraw(); });
     bar.addEventListener('click', e => { const t = e.target.closest('[data-tool]')?.dataset.tool; if (t) setTool(t === tool && t !== 'cursor' ? 'cursor' : t); });
     bar.addEventListener('pointerdown', e => e.stopPropagation());
@@ -293,13 +345,14 @@ const Drawings = (() => {
     // Selecting: in cursor mode the chart receives the pointer (panning), so a click that did not move is a selection.
     const select = d => {
       if (d === selected) return;
+      manual = null;
       if (d && owner && owner !== self) owner.deselect();
       selected = d; if (d) owner = self;
       redraw();
     };
     let press = null;
     box.addEventListener('pointerdown', e => {
-      press = tool === 'cursor' && e.button === 0 && !e.target.closest('.draw-bar, .draw-text') ? { x: e.clientX, y: e.clientY } : null;
+      press = tool === 'cursor' && e.button === 0 && !e.target.closest('.draw-bar, .draw-text, .draw-edit') ? { x: e.clientX, y: e.clientY } : null;
     });
     box.addEventListener('pointerup', e => {
       if (!press) return;
@@ -309,6 +362,129 @@ const Drawings = (() => {
       const r = canvas.getBoundingClientRect();
       select(nearest({ x: e.clientX - r.left, y: e.clientY - r.top }));
     });
+    // ---- moving and reshaping: in cursor mode a drawing under the pointer takes the pointer ----------
+    // The canvas only catches the pointer over a drawing, so the chart still pans everywhere else.
+    let drag = null, grabbing = false;
+    function hoverAt(pos) {
+      const handle = selected && !selected.locked ? handleAt(selected, pos) : -1;
+      const d = handle >= 0 ? selected : nearest(pos);
+      const grab = !!d && (!d.locked || d !== selected);
+      if (grab !== grabbing) { grabbing = grab; canvas.style.pointerEvents = grab ? 'auto' : 'none'; }
+      canvas.style.cursor = !d ? '' : d.locked ? 'pointer' : handle >= 0 ? 'crosshair' : 'move';
+      if (d !== hover) { hover = d; redraw(); }
+    }
+    box.addEventListener('pointermove', e => {
+      if (tool !== 'cursor' || drag || e.target.closest('.draw-bar, .draw-edit, .draw-text')) return;
+      const r = canvas.getBoundingClientRect();
+      hoverAt({ x: e.clientX - r.left, y: e.clientY - r.top });
+    });
+    box.addEventListener('pointerleave', () => { if (tool === 'cursor' && !drag) { if (grabbing) { grabbing = false; canvas.style.pointerEvents = 'none'; } if (hover) { hover = null; redraw(); } } });
+    function startDrag(pos, e) {
+      const handle = selected && !selected.locked ? handleAt(selected, pos) : -1;
+      const d = handle >= 0 ? selected : nearest(pos);
+      if (!d) { grabbing = false; canvas.style.pointerEvents = 'none'; return; }
+      select(d);
+      if (d.locked) return;
+      const l = panel.chart.timeScale().coordinateToLogical(pos.x), p = panel.series.coordinateToPrice(pos.y);
+      if (l === null || p === null) return;
+      drag = { d, handle, l, p, orig: d.points.map(q => ({ ...q })), moved: false };
+    }
+    function moveDrag(pos) {
+      const { d, handle, orig } = drag;
+      if (handle >= 0) { const q = toData(pos.x, pos.y); if (q) d.points[handle] = q; }
+      else {
+        const l = panel.chart.timeScale().coordinateToLogical(pos.x), p = panel.series.coordinateToPrice(pos.y);
+        if (l === null || p === null) return;
+        // Shift in bar (logical) space, so a move keeps its size across weekend gaps in the candles.
+        d.points = orig.map(q => { const ql = logicalOf(q.t); return { t: ql === null ? q.t : timeOf(ql + l - drag.l), p: q.p + p - drag.p }; });
+      }
+      drag.moved = true; redraw();
+    }
+    function endDrag() { if (drag?.moved) save(); drag = null; redraw(); }
+
+    // ---- editing toolbar -----------------------------------------------------------------------
+    let shownFor = null, manual = null;
+    const $e = sel => editBar.querySelector(sel);
+    function syncEditor() {
+      shownFor = selected;
+      editBar.hidden = !selected;
+      if (!selected) { manual = null; return; }
+      const d = selected, custom = !!CUSTOM[d.type], text = d.type === 'text';
+      editBar.querySelectorAll('[data-color]').forEach(b => b.setAttribute('aria-pressed', String((d.color || '') === b.dataset.color)));
+      $e('[data-custom]').value = /^#[0-9a-f]{6}$/i.test(d.color || '') ? d.color : '#6b9eff';
+      $e('.de-width').hidden = custom;
+      $e('[data-width-icon]').innerHTML = editIcon(text ? 'size' : 'width');
+      const width = $e('[data-width]');
+      width.min = text ? 9 : 1; width.max = text ? 40 : 8;
+      width.value = text ? d.size || 13 : d.width || (d.type === 'brush' ? 2 : 1);
+      width.setAttribute('aria-label', text ? 'Rozmiar tekstu' : 'Grubość linii');
+      width.parentElement.title = text ? 'Rozmiar tekstu' : 'Grubość linii';
+      $e('[data-style]').hidden = custom || text;
+      $e('[data-style]').innerHTML = editIcon(d.style || 'solid');
+      $e('[data-edit-text]').hidden = !text;
+      const lock = $e('[data-lock]');
+      lock.innerHTML = editIcon(d.locked ? 'lock' : 'unlock'); lock.setAttribute('aria-pressed', String(!!d.locked));
+      lock.title = d.locked ? 'Odblokuj (można przesuwać)' : 'Zablokuj (bez przesuwania i gumki)'; lock.setAttribute('aria-label', lock.title);
+      editBar.dataset.width = '';   // re-measure on the next placement
+    }
+    function placeEditor() {
+      if (selected !== shownFor) syncEditor();
+      if (!selected || editBar.hidden) return;
+      if (!editBar.dataset.width) { if (!editBar.offsetWidth) return; editBar.dataset.width = editBar.offsetWidth + 'x' + editBar.offsetHeight; }
+      const [w, h] = editBar.dataset.width.split('x').map(Number);
+      let x, y;
+      if (manual) ({ x, y } = manual);
+      else {
+        // Above the drawing, or below it when there is no room.
+        const pts = selected.points.map(toScreen).filter(Boolean);
+        if (!pts.length) return;
+        const xs = pts.map(q => q.x), ys = pts.map(q => q.y), top = selected.type === 'hline' ? ys[0] : Math.min(...ys), bottom = selected.type === 'vline' ? size.h / 2 : Math.max(...ys);
+        x = selected.type === 'hline' ? size.w / 2 - w / 2 : (Math.min(...xs) + Math.max(...xs)) / 2 - w / 2;
+        y = selected.type === 'vline' ? 12 : top - h - 14;
+        if (y < 6) y = Math.min(bottom + 14, size.h - h - 6);
+      }
+      x = Math.max(6, Math.min(x, size.w - w - 6)); y = Math.max(6, Math.min(y, size.h - h - 6));
+      editBar.style.left = x + 'px'; editBar.style.top = y + 'px';
+    }
+    function change(fn) { if (!selected) return; fn(selected); save(); syncEditor(); redraw(); }
+    editBar.addEventListener('pointerdown', e => e.stopPropagation());
+    editBar.addEventListener('click', e => {
+      const b = e.target.closest('button');
+      if (!b) return;
+      if (b.dataset.color !== undefined) change(d => { if (b.dataset.color) d.color = b.dataset.color; else delete d.color; });
+      else if (b.hasAttribute('data-style')) change(d => { d.style = STYLES[(STYLES.indexOf(d.style || 'solid') + 1) % STYLES.length]; if (d.style === 'solid') delete d.style; });
+      else if (b.hasAttribute('data-lock')) change(d => { d.locked = !d.locked; if (!d.locked) delete d.locked; });
+      else if (b.hasAttribute('data-delete')) removeSelected();
+      else if (b.hasAttribute('data-edit-text')) { const d = selected, at = toScreen(d.points[0]); if (at) openEditor(at, d.points[0], d); }
+    });
+    $e('[data-custom]').addEventListener('input', e => change(d => { d.color = e.target.value; }));
+    $e('[data-width]').addEventListener('change', e => {
+      const input = e.target, value = Math.round(Number(input.value));
+      if (!Number.isFinite(value)) { syncEditor(); return; }
+      change(d => { const v = Math.max(Number(input.min), Math.min(Number(input.max), value)); if (d.type === 'text') d.size = v; else d.width = v; });
+    });
+    $e('[data-width]').addEventListener('keydown', e => {
+      e.stopPropagation();
+      if (e.key === 'Enter') e.target.blur();
+      // Arrow keys apply at once (the value changes natively, "change" would wait for blur).
+      if (e.key === 'ArrowUp' || e.key === 'ArrowDown') setTimeout(() => e.target.dispatchEvent(new Event('change')), 0);
+    });
+    $e('.de-width').addEventListener('wheel', e => {
+      e.preventDefault(); e.stopPropagation();
+      const input = $e('[data-width]');
+      input.value = Math.max(Number(input.min), Math.min(Number(input.max), Number(input.value) + (e.deltaY < 0 ? 1 : -1)));
+      input.dispatchEvent(new Event('change'));
+    }, { passive: false });
+    // The grip moves the toolbar itself (until another drawing is selected).
+    $e('.de-grip').addEventListener('pointerdown', e => {
+      e.preventDefault(); e.stopPropagation();
+      const grip = e.currentTarget, start = { x: e.clientX - editBar.offsetLeft, y: e.clientY - editBar.offsetTop };
+      grip.setPointerCapture(e.pointerId);
+      const move = ev => { manual = { x: ev.clientX - start.x, y: ev.clientY - start.y }; placeEditor(); };
+      const up = () => { grip.removeEventListener('pointermove', move); grip.removeEventListener('pointerup', up); grip.removeEventListener('pointercancel', up); };
+      grip.addEventListener('pointermove', move); grip.addEventListener('pointerup', up); grip.addEventListener('pointercancel', up);
+    });
+
     function removeSelected() {
       if (!selected) return false;
       items = items.filter(i => i !== selected); selected = null; hover = null; save(); redraw();

@@ -7,6 +7,8 @@ window.TerminalStudies = (() => {
   const catalog = [
     { id: 'ohlc', title: 'OHLC', group: 'Podstawowe', description: 'Otwarcie, maksimum, minimum, zamknięcie, zmiana i wolumen świecy pod kursorem.' },
     { id: 'barstats', title: 'Bar Stats', group: 'Podstawowe', description: 'Zakres, korpus, knoty, luka i szacowana delta świecy pod kursorem.' },
+    { id: 'ma', title: 'Średnie kroczące (EMA / SMA)', chip: 'EMA / SMA', group: 'Trend', description: 'Do trzech średnich na wykresie, domyślnie EMA 20 / 50 / 200. Typ, długości i kolory w ustawieniach.' },
+    { id: 'bb', title: 'Bollinger Bands', chip: 'BB', group: 'Zmienność', description: 'Średnia 20 świec i pasma ±2 odchylenia standardowe. Zwężone pasma często poprzedzają mocny ruch.' },
     { id: 'vwap', title: 'VWAP', group: 'Ceny', description: 'VWAP z pasmami ±σ, reset dzienny, tygodniowy lub miesięczny. Anchored VWAP: narzędzie w pasku rysowania (kliknij świecę).' },
     { id: 'vpvr', title: 'VPVR: widoczny zakres', group: 'Profile', description: 'Profil wolumenu z tego, co widać na wykresie: POC, VAH i VAL. Zakres zaznaczony ręcznie: narzędzie w pasku rysowania.' },
     { id: 'vpsv', title: 'VPSV: profil sesji', group: 'Profile', description: 'Osobny profil wolumenu dla każdego dnia lub tygodnia, z linią POC.' },
@@ -18,12 +20,17 @@ window.TerminalStudies = (() => {
     { id: 'oi', title: 'Open Interest', group: 'Rynek', description: 'Otwarte pozycje w osobnym panelu. Hyperliquid podaje tylko bieżącą wartość, więc próbkuję ją co 15 s.' },
     { id: 'funding', title: 'Funding Rate', group: 'Rynek', description: 'Godzinowa stawka funding z ostatnich 14 dni w osobnym panelu.' },
     { id: 'counter', title: 'Trade Counter / Pulse', group: 'Order flow', description: 'Liczba transakcji na świecę i puls (transakcji na minutę) ze strumienia zebranego w tej karcie.' },
+    { id: 'rsi', title: 'RSI', group: 'Oscylatory', description: 'Relative Strength Index (14) w osobnym panelu, z poziomami wykupienia 70 i wyprzedania 30.' },
+    { id: 'macd', title: 'MACD', group: 'Oscylatory', description: 'MACD (12, 26, 9) w osobnym panelu: linia, sygnał i histogram różnicy.' },
+    { id: 'atr', title: 'ATR', group: 'Zmienność', description: 'Average True Range (14) w osobnym panelu: średni zakres świecy, np. do odległości stop lossa.' },
     ...['Liquidation Heatmap', 'Hyperliquid Take Profit Heatmap', 'Hyperliquid Stop Loss Heatmap', 'Hyperliquid Liquidations Heatmap', 'Liquidations', 'Net Positioning (NS/NL)']
       .map(title => ({ id: 'na:' + title, title, group: 'Niedostępne', description: NOT_PUBLIC, unavailable: true })),
   ];
   const IDS = new Set(catalog.filter(d => !d.unavailable).map(d => d.id));
   const defaults = { vwap: { reset: 'day', bands: 1 }, vpvr: { rows: 32, area: 70 }, vpsv: { period: 'day', rows: 24 },
-    levels: { day: true, week: true, month: true, monday: true, weekend: false }, bubbles: { top: 10 }, depth: { sig: 3 }, obprofile: { sig: 3 }, heatmap: { sig: 4 } };
+    levels: { day: true, week: true, month: true, monday: true, weekend: false }, bubbles: { top: 10 }, depth: { sig: 3 }, obprofile: { sig: 3 }, heatmap: { sig: 4 },
+    ma: { type: 'ema', a: 20, b: 50, c: 200, ca: '#6b9eff', cb: '#e8c268', cc: '#b797d6' }, bb: { length: 20, mult: 2, color: '#6b9eff' },
+    rsi: { length: 14, upper: 70, lower: 30, color: '#b797d6' }, macd: { fast: 12, slow: 26, signal: 9 }, atr: { length: 14, color: '#e8c268' } };
   const compact = n => Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 2 }).format(n);
   const price = p => p >= 1000 ? p.toLocaleString('en-US', { maximumFractionDigits: 2 }) : p >= 1 ? p.toFixed(3) : p.toFixed(5);
   const LEVEL_STYLE = { day: 1, week: 2, month: 0, monday: 3, weekend: 4 };   // dotted, dashed, solid, large dashed, sparse dotted
@@ -33,7 +40,9 @@ window.TerminalStudies = (() => {
 .st-legend b{color:var(--ink);font-weight:400}.st-legend div{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .st-settings{display:flex;flex-wrap:wrap;gap:8px 16px;padding:8px 0;color:var(--dim)}.st-settings[hidden]{display:none}
 .st-settings label{display:flex;gap:6px;align-items:center}.st-settings select,.st-settings input[type=number]{background:transparent;color:var(--ink);border:1px solid var(--line);font:inherit;padding:2px 4px;color-scheme:dark}
-.st-settings input[type=number]{width:64px}.st-settings b{color:var(--ink);font-weight:400}`;
+.st-settings input[type=number]{width:64px}.st-settings b{color:var(--ink);font-weight:400}
+.st-settings input[type=color]{width:26px;height:22px;padding:0 2px;border:1px solid var(--line);background:transparent;cursor:pointer}
+.st-settings .st-reset{font:inherit;font-size:10px;background:transparent;color:var(--dim);border:1px solid var(--line);padding:3px 8px;cursor:pointer}.st-settings .st-reset:hover{color:var(--ink)}`;
   document.head.append(style);
 
   function attach({ settingsHost, fetchJson, orderflow }) {
@@ -45,6 +54,7 @@ window.TerminalStudies = (() => {
     let panel, coin = '', interval = '1h', requestUpdate = () => {}, legend, status = '', pollTimer = null;
     let levelData = null, levels = [], levelLines = [], levelStamp = 0, book = null, heat = [], funding = [], oiSamples = [], fundingStamp = 0;
     const aux = {};   // pane studies: id -> series
+    const multi = {};   // studies built from several series (averages, bands, RSI, MACD, ATR): id -> { series, lines }
     let vwapData = null, vpsvData = null, bubbleData = null, vpvrMemo = { key: '', value: null };
     const candles = () => panel?.candles || [];
     const enabled = id => !!on[id];
@@ -270,14 +280,38 @@ window.TerminalStudies = (() => {
     function dropAux(id) {
       const s = aux[id];
       if (!s) return;
-      try { const index = s.getPane().paneIndex(); panel.chart.removeSeries(s); if (index > 0) panel.chart.removePane(index); } catch { /* the chart was already torn down */ }
+      try { const index = s.getPane().paneIndex(), before = panel.chart.panes().length; panel.chart.removeSeries(s); if (index > 0 && panel.chart.panes().length === before) panel.chart.removePane(index); } catch { /* the chart was already torn down */ }
       delete aux[id];
+    }
+    // A new lower pane would squeeze the earlier ones: give every lower pane the same height again.
+    function sizePanes() { try { panel.chart.panes().slice(1).forEach(p => p.setHeight(100)); } catch {} }
+    // Several series of one study share a pane (price pane 0 for overlays, a new pane below otherwise).
+    function setSeries(id, overlay, specs) {
+      let entry = multi[id];
+      if (!entry) {
+        const pane = overlay ? 0 : panel.chart.panes().length;
+        entry = multi[id] = { series: specs.map(s => panel.chart.addSeries(s.kind, s.options, pane)), lines: [] };
+        if (!overlay) sizePanes();
+      }
+      specs.forEach((s, i) => { entry.series[i].applyOptions(s.options); entry.series[i].setData(s.data); });
+      return entry;
+    }
+    function dropSeries(id) {
+      const entry = multi[id];
+      if (!entry) return;
+      delete multi[id];
+      try {
+        const index = entry.series[0].getPane().paneIndex(), before = panel.chart.panes().length;
+        for (const s of entry.series) panel.chart.removeSeries(s);
+        // Only remove the pane if the chart did not already drop it together with its last series.
+        if (index > 0 && panel.chart.panes().length === before) panel.chart.removePane(index);
+      } catch { /* the chart was already torn down */ }
     }
     function ensureAux(id, make) {
       if (aux[id]) return aux[id];
       const pane = panel.chart.panes().length;
       aux[id] = make(pane);
-      try { panel.chart.panes()[pane]?.setHeight(110); } catch {}
+      sizePanes();
       return aux[id];
     }
     function syncAux() {
@@ -303,6 +337,48 @@ window.TerminalStudies = (() => {
         for (const t of trades) { const time = TerminalOrderflow.bucket(t.time, orderflow.interval || interval); counts.set(time, (counts.get(time) || 0) + 1); }
         s.setData([...counts].sort((a, b) => a[0] - b[0]).filter(([time]) => !list.length || time >= list[0].time).map(([time, value]) => ({ time, value, color: ink })));
       } else dropAux('counter');
+      syncClassic(list, ink);
+    }
+    // Averages and bands sit on the price pane; RSI, MACD and ATR each get a pane below.
+    function syncClassic(list, ink) {
+      const line = (color, width = 1, extra = {}) => ({ color, lineWidth: width, lastValueVisible: false, priceLineVisible: false, crosshairMarkerVisible: false, ...extra });
+      const last = list.at(-1)?.close, precision = last > 100 ? 2 : last > 1 ? 4 : 6, format = { type: 'price', precision, minMove: 10 ** -precision };
+      if (enabled('ma')) {
+        const m = cfg.ma, specs = ['a', 'b', 'c'].map(k => {
+          const length = Math.round(m[k]), on = length >= 2;
+          const data = on ? (m.type === 'sma' ? M.sma(list, length) : M.ema(list, length)) : [];
+          return { kind: LightweightCharts.LineSeries, options: line(m['c' + k], 1.5, { title: on ? `${m.type.toUpperCase()} ${length}` : '', visible: on, priceFormat: format }), data };
+        });
+        setSeries('ma', true, specs);
+      } else dropSeries('ma');
+      if (enabled('bb')) {
+        const bands = M.bollinger(list, { length: Math.round(cfg.bb.length), mult: cfg.bb.mult }), c = cfg.bb.color;
+        setSeries('bb', true, [
+          { kind: LightweightCharts.LineSeries, options: line(c, 1, { priceFormat: format }), data: bands.map(b => ({ time: b.time, value: b.upper })) },
+          { kind: LightweightCharts.LineSeries, options: line(c, 1, { lineStyle: 2, priceFormat: format }), data: bands.map(b => ({ time: b.time, value: b.middle })) },
+          { kind: LightweightCharts.LineSeries, options: line(c, 1, { priceFormat: format }), data: bands.map(b => ({ time: b.time, value: b.lower })) },
+        ]);
+      } else dropSeries('bb');
+      if (enabled('rsi')) {
+        const r = cfg.rsi, entry = setSeries('rsi', false, [{ kind: LightweightCharts.LineSeries,
+          options: { title: `RSI ${Math.round(r.length)}`, color: r.color, lineWidth: 1.5, priceLineVisible: false, lastValueVisible: true, priceFormat: { type: 'price', precision: 1, minMove: 0.1 },
+            autoscaleInfoProvider: () => ({ priceRange: { minValue: 0, maxValue: 100 } }) }, data: M.rsi(list, Math.round(r.length)).map(p => ({ time: p.time, value: p.value })) }]);
+        for (const l of entry.lines) entry.series[0].removePriceLine(l);
+        entry.lines = [r.upper, r.lower].map(price => entry.series[0].createPriceLine({ price, color: Theme.css('--dim'), lineWidth: 1, lineStyle: 2, axisLabelVisible: false, title: '' }));
+      } else dropSeries('rsi');
+      if (enabled('macd')) {
+        const m = cfg.macd, data = M.macd(list, { fast: Math.round(m.fast), slow: Math.round(m.slow), signal: Math.round(m.signal) }), f = { type: 'price', precision, minMove: 10 ** -precision };
+        setSeries('macd', false, [
+          { kind: LightweightCharts.HistogramSeries, options: { title: '', priceLineVisible: false, lastValueVisible: false, priceFormat: f },
+            data: data.filter(p => p.histogram !== null).map(p => ({ time: p.time, value: p.histogram, color: p.histogram >= 0 ? '#8dcc9c88' : '#dc8e8988' })) },
+          { kind: LightweightCharts.LineSeries, options: line(ink, 1.5, { title: `MACD ${Math.round(m.fast)} ${Math.round(m.slow)} ${Math.round(m.signal)}`, lastValueVisible: true, priceFormat: f }), data: data.map(p => ({ time: p.time, value: p.macd })) },
+          { kind: LightweightCharts.LineSeries, options: line('#e8c268', 1, { priceFormat: f }), data: data.filter(p => p.signal !== null).map(p => ({ time: p.time, value: p.signal })) },
+        ]);
+      } else dropSeries('macd');
+      if (enabled('atr')) {
+        setSeries('atr', false, [{ kind: LightweightCharts.LineSeries, options: { title: `ATR ${Math.round(cfg.atr.length)}`, color: cfg.atr.color, lineWidth: 1.5, priceLineVisible: false, lastValueVisible: true, priceFormat: format },
+          data: M.atr(list, Math.round(cfg.atr.length)) }]);
+      } else dropSeries('atr');
     }
 
     // ---- legend: OHLC, bar stats, pulse ---------------------------------------------------------
@@ -326,26 +402,61 @@ window.TerminalStudies = (() => {
     }
 
     // ---- settings ------------------------------------------------------------------------------
+    // Settings are shown for one study at a time (the one opened from its chip or from the library).
     const option = (value, label, current) => `<option value="${value}"${String(current) === String(value) ? ' selected' : ''}>${label}</option>`;
+    const number = (path, value, min, max, step = 1) => `<input type="number" min="${min}" max="${max}" step="${step}" data-cfg="${path}" value="${value}">`;
+    const color = (path, value) => `<input type="color" data-cfg="${path}" value="${value}" aria-label="Kolor">`;
+    let settingsId = null;
+    function settingsHtml(id) {
+      if (!enabled(id)) return '';
+      const c = cfg[id];
+      const html = {
+        vwap: () => `<label>reset <select data-cfg="vwap.reset">${option('day', 'dzień', c.reset)}${option('week', 'tydzień', c.reset)}${option('month', 'miesiąc', c.reset)}</select></label><label>pasma <select data-cfg="vwap.bands">${option(0, 'brak', c.bands)}${option(1, '±1σ', c.bands)}${option(2, '±1σ ±2σ', c.bands)}</select></label>`,
+        vpvr: () => `<label>wiersze ${number('vpvr.rows', c.rows, 8, 120)}</label><label>obszar wartości % ${number('vpvr.area', c.area, 50, 95)}</label>`,
+        vpsv: () => `<label>okres <select data-cfg="vpsv.period">${option('day', 'dzień', c.period)}${option('week', 'tydzień', c.period)}</select></label><label>wiersze ${number('vpsv.rows', c.rows, 8, 80)}</label>`,
+        levels: () => [['day', 'dzień'], ['week', 'tydzień'], ['month', 'miesiąc'], ['monday', 'poniedziałek'], ['weekend', 'weekend']].map(([k, t]) => `<label><input type="checkbox" data-check="levels.${k}"${c[k] ? ' checked' : ''}> ${t}</label>`).join(''),
+        bubbles: () => `<label>największe <select data-cfg="bubbles.top">${[5, 10, 20].map(n => option(n, n + '%', c.top)).join('')}</select> świec</label>`,
+        depth: () => `<label>agregacja <select data-cfg="depth.sig">${[2, 3, 4, 5].map(n => option(n, n + ' cyfry', c.sig)).join('')}</select></label>`,
+        obprofile: () => `<label>agregacja <select data-cfg="obprofile.sig">${[2, 3, 4, 5].map(n => option(n, n + ' cyfry', c.sig)).join('')}</select></label>`,
+        heatmap: () => `<label>agregacja <select data-cfg="heatmap.sig">${[2, 3, 4, 5].map(n => option(n, n + ' cyfry', c.sig)).join('')}</select></label>`,
+        ma: () => `<label>typ <select data-cfg="ma.type">${option('ema', 'EMA', c.type)}${option('sma', 'SMA', c.type)}</select></label>` + ['a', 'b', 'c'].map((k, i) => `<label>${i + 1}. ${number('ma.' + k, c[k], 0, 500)} ${color('ma.c' + k, c['c' + k])}</label>`).join('') + '<small>0 = wyłączona</small>',
+        bb: () => `<label>długość ${number('bb.length', c.length, 2, 200)}</label><label>odchylenia ${number('bb.mult', c.mult, 0.5, 5, 0.1)}</label><label>kolor ${color('bb.color', c.color)}</label>`,
+        rsi: () => `<label>długość ${number('rsi.length', c.length, 2, 100)}</label><label>wykupienie ${number('rsi.upper', c.upper, 50, 100)}</label><label>wyprzedanie ${number('rsi.lower', c.lower, 0, 50)}</label><label>kolor ${color('rsi.color', c.color)}</label>`,
+        macd: () => `<label>szybka ${number('macd.fast', c.fast, 2, 100)}</label><label>wolna ${number('macd.slow', c.slow, 3, 200)}</label><label>sygnał ${number('macd.signal', c.signal, 2, 50)}</label>`,
+        atr: () => `<label>długość ${number('atr.length', c.length, 2, 100)}</label><label>kolor ${color('atr.color', c.color)}</label>`,
+      }[id];
+      return html ? html() + `<button type="button" class="st-reset" data-reset="${id}">Przywróć domyślne</button>` : '';
+    }
     function renderSettings() {
-      if (!settingsHost) return;
-      const parts = [];
-      if (enabled('vwap')) parts.push(`<label><b>VWAP</b> reset <select data-cfg="vwap.reset">${option('day', 'dzień', cfg.vwap.reset)}${option('week', 'tydzień', cfg.vwap.reset)}${option('month', 'miesiąc', cfg.vwap.reset)}</select> pasma <select data-cfg="vwap.bands">${option(0, 'brak', cfg.vwap.bands)}${option(1, '±1σ', cfg.vwap.bands)}${option(2, '±1σ ±2σ', cfg.vwap.bands)}</select></label>`);
-      if (enabled('vpvr')) parts.push(`<label><b>VPVR</b> wiersze <input type="number" min="8" max="120" data-cfg="vpvr.rows" value="${cfg.vpvr.rows}"> obszar wartości % <input type="number" min="50" max="95" data-cfg="vpvr.area" value="${cfg.vpvr.area}"></label>`);
-      if (enabled('vpsv')) parts.push(`<label><b>VPSV</b> okres <select data-cfg="vpsv.period">${option('day', 'dzień', cfg.vpsv.period)}${option('week', 'tydzień', cfg.vpsv.period)}</select> wiersze <input type="number" min="8" max="80" data-cfg="vpsv.rows" value="${cfg.vpsv.rows}"></label>`);
-      if (enabled('levels')) parts.push(`<label><b>Poziomy</b> ${[['day', 'dzień'], ['week', 'tydzień'], ['month', 'miesiąc'], ['monday', 'poniedziałek'], ['weekend', 'weekend']].map(([k, t]) => `<span><input type="checkbox" data-check="levels.${k}"${cfg.levels[k] ? ' checked' : ''}> ${t}</span>`).join(' ')}</label>`);
-      if (enabled('bubbles')) parts.push(`<label><b>Bubbles</b> największe <select data-cfg="bubbles.top">${[5, 10, 20].map(n => option(n, n + '%', cfg.bubbles.top)).join('')}</select> świec</label>`);
-      for (const [id, name] of [['depth', 'OB Depth'], ['obprofile', 'OB Profile'], ['heatmap', 'Heatmap']]) if (enabled(id)) parts.push(`<label><b>${name}</b> agregacja <select data-cfg="${id}.sig">${[2, 3, 4, 5].map(n => option(n, n + ' cyfry', cfg[id].sig)).join('')}</select></label>`);
-      settingsHost.innerHTML = parts.join('');
-      settingsHost.hidden = !parts.length;
+      if (!settingsHost) return false;
+      const html = settingsId ? settingsHtml(settingsId) : '';
+      settingsHost.innerHTML = html;
+      settingsHost.hidden = !html;
+      return !!html;
+    }
+    function applied(id) {
+      persist();
+      if (id === 'levels') syncLevels(); else if (['depth', 'obprofile', 'heatmap'].includes(id)) { if (id === 'heatmap') heat = []; pollBook(); } else recompute();
+      requestUpdate();
     }
     settingsHost?.addEventListener('change', e => {
       const path = e.target.dataset.cfg || e.target.dataset.check;
       if (!path) return;
-      const [id, key] = path.split('.'), value = e.target.dataset.check ? e.target.checked : Number.isNaN(Number(e.target.value)) ? e.target.value : Number(e.target.value);
-      cfg[id][key] = value; persist();
-      if (id === 'levels') syncLevels(); else if (['depth', 'obprofile', 'heatmap'].includes(id)) { if (id === 'heatmap') heat = []; pollBook(); } else recompute();
-      requestUpdate();
+      const [id, key] = path.split('.');
+      let value = e.target.dataset.check ? e.target.checked : Number.isNaN(Number(e.target.value)) || e.target.type === 'color' ? e.target.value : Number(e.target.value);
+      if (e.target.type === 'number') {
+        // Out-of-range or empty numbers snap back into the allowed range (or to the previous value).
+        value = e.target.value === '' ? cfg[id][key] : Math.min(Number(e.target.max), Math.max(Number(e.target.min), value));
+        e.target.value = value;
+      }
+      cfg[id][key] = value;
+      applied(id);
+    });
+    settingsHost?.addEventListener('click', e => {
+      const id = e.target.closest?.('[data-reset]')?.dataset.reset;
+      if (!id || !defaults[id]) return;
+      cfg[id] = { ...defaults[id] };
+      renderSettings(); applied(id);
     });
 
     // ---- public --------------------------------------------------------------------------------
@@ -357,6 +468,8 @@ window.TerminalStudies = (() => {
     return {
       catalog: catalog.filter(d => IDS.has(d.id) || d.unavailable),
       isEnabled: enabled,
+      // Show the settings of one study in the settings host; false when it has none.
+      showSettings(id) { settingsId = id; return renderSettings(); },
       setEnabled(id, value) {
         if (!IDS.has(id)) return;
         on[id] = !!value; persist();

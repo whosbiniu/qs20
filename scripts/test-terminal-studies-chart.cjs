@@ -25,7 +25,7 @@ const lines = [], series = [], panes = [{}], primitives = [];
 const chart = {
   timeScale: () => ({ applyOptions: noop, logicalToCoordinate: l => l * 10, getVisibleLogicalRange: () => ({ from: 10, to: 60 }) }),
   subscribeCrosshairMove: fn => { chart.crosshair = fn; },
-  panes: () => panes, addSeries(kind, options, pane) { const s = { options, data: [], setData(d) { this.data = d; }, applyOptions: noop, getPane: () => ({ paneIndex: () => pane }) }; series.push(s); if (pane >= panes.length) panes.push({ setHeight: noop }); return s; },
+  panes: () => panes, addSeries(kind, options, pane) { const s = { options, data: [], setData(d) { this.data = d; }, applyOptions(o) { Object.assign(this.options, o); }, createPriceLine: o => o, removePriceLine: noop, getPane: () => ({ paneIndex: () => panes.indexOf(home) }) }; series.push(s); if (pane >= panes.length) panes.push({ setHeight: noop }); const home = panes[pane]; return s; },
   removeSeries(s) { series.splice(series.indexOf(s), 1); }, removePane(i) { panes.splice(i, 1); },
 };
 const panel = { el: element(), chart, candles: hourly, series: { priceToCoordinate: p => 500 - p * 2, attachPrimitive: p => primitives.push(p), createPriceLine: o => { lines.push(o); return o; }, removePriceLine: o => lines.splice(lines.indexOf(o), 1) } };
@@ -104,6 +104,26 @@ const Studies = sandbox.window.TerminalStudies;
   assert.equal(lines.length, 0);
 
   // Switching market drops the market-bound state: the panes of still-enabled studies are rebuilt empty.
+  // Averages and Bollinger sit on the price pane; RSI, MACD and ATR each open a pane of their own.
+  const panesBefore = panes.length;
+  for (const id of ['ma', 'bb', 'rsi', 'macd', 'atr']) studies.setEnabled(id, true);
+  assert.equal(panes.length, panesBefore + 3);
+  const titled = t => series.find(x => x.options.title === t);
+  assert.ok(titled('EMA 20').data.length > 50 && titled('EMA 50').data.length > 0);
+  assert.equal(titled('RSI 14').data.length, hourly.length - 14);
+  assert.ok(titled('RSI 14').data.every(p => p.value >= 0 && p.value <= 100));
+  assert.ok(titled('ATR 14').data.length > 0 && titled('MACD 12 26 9').data.length > 0);
+  // Settings are rendered for one study at a time, and a change is applied and remembered.
+  const host = element();
+  const withHost = Studies.attach({ settingsHost: host, fetchJson, orderflow });
+  assert.equal(withHost.showSettings('rsi'), true);   // enabled in the saved state shared through localStorage
+  assert.match(host.innerHTML, /data-cfg="rsi.length"/); assert.doesNotMatch(host.innerHTML, /vwap.reset/);
+  assert.equal(withHost.showSettings('ohlc'), false);
+  assert.equal(withHost.showSettings(null), false);
+  for (const id of ['ma', 'bb', 'rsi', 'macd', 'atr']) studies.setEnabled(id, false);
+  assert.equal(panes.length, panesBefore);
+  assert.ok(!series.some(x => /^(EMA|RSI|ATR|MACD)/.test(x.options.title || '')));
+
   studies.setMarket('BTC', '1h');
   assert.equal(series.length, 2);
   assert.equal(series.find(x => x.options.title === 'Funding %/h').data.length, 0);

@@ -7,30 +7,72 @@
     { id: 'delta', title: 'Delta / CVD', group: 'Order flow', description: 'Delta i skumulowana delta w dolnej części wykresu. Transakcje zebrane w tej karcie.' },
     { id: 'profile', title: 'Volume Profile', group: 'Profile', description: 'Profil po prawej stronie wykresu. POC, VAH i VAL z zebranego zakresu.' },
   ]
-  function attach({ button, panel, list, search, active, close, get, set }) {
+  // `pop` (optional): { el, title, empty, remove, close } and `showSettings(id)` → whether that indicator has settings.
+  // Clicking an active chip (or ⚙ in the library) opens its settings right next to the chip.
+  function attach({ button, panel, list, search, active, close, get, set, pop, showSettings }) {
     const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]))
     function render() {
       const q = search.value.trim().toLocaleLowerCase('pl')
       const entries = catalog.filter(d => `${d.title} ${d.group} ${d.description}`.toLocaleLowerCase('pl').includes(q))
-      list.innerHTML = entries.map(d => `<div class="ht-indicator-entry"><div><b>${esc(d.title)}</b><small>${esc(d.group)}</small><p>${esc(d.description)}</p></div>${d.unavailable ? '<button type="button" disabled>Niedostępny</button>' : `<button type="button" data-indicator="${d.id}" aria-label="${get(d.id) ? 'Usuń' : 'Dodaj'} ${esc(d.title)}" aria-pressed="${get(d.id)}">${get(d.id) ? 'Usuń' : '+ Dodaj'}</button>`}</div>`).join('') || '<p>Brak pasujących indykatorów.</p>'
+      const gear = d => pop && get(d.id) ? `<button type="button" class="ht-indicator-gear" data-open-settings="${d.id}" title="Ustawienia" aria-label="Ustawienia: ${esc(d.title)}">⚙</button>` : ''
+      list.innerHTML = entries.map(d => `<div class="ht-indicator-entry"><div><b>${esc(d.title)}</b><small>${esc(d.group)}</small><p>${esc(d.description)}</p></div>${d.unavailable ? '<button type="button" disabled>Niedostępny</button>' : `${gear(d)}<button type="button" data-indicator="${d.id}" aria-label="${get(d.id) ? 'Usuń' : 'Dodaj'} ${esc(d.title)}" aria-pressed="${get(d.id)}">${get(d.id) ? 'Usuń' : '+ Dodaj'}</button>`}</div>`).join('') || '<p>Brak pasujących indykatorów.</p>'
       const selected = catalog.filter(d => !d.unavailable && get(d.id))
-      active.innerHTML = selected.map(d => `<span><button type="button" data-settings="${d.id}" aria-label="Ustawienia: ${esc(d.title)}">${esc(d.title)}</button><button type="button" data-remove="${d.id}" aria-label="Usuń ${esc(d.title)}">×</button></span>`).join('')
+      active.innerHTML = selected.map(d => `<span${d.id === current ? ' class="open"' : ''}><button type="button" data-settings="${d.id}" title="Ustawienia" aria-label="Ustawienia: ${esc(d.title)}" aria-expanded="${d.id === current}">${esc(d.chip || d.title)}</button><button type="button" data-remove="${d.id}" title="Usuń" aria-label="Usuń ${esc(d.title)}">×</button></span>`).join('')
       active.hidden = !selected.length
       button.textContent = `ƒx Indykatory${selected.length ? ' · ' + selected.length : ''}`
+      if (current && !get(current)) closeSettings()
+      else if (current) place()
+    }
+    // ---- settings popover -------------------------------------------------------------------------
+    let current = null
+    const chipOf = id => active.querySelector?.(`[data-settings="${id}"]`)?.parentElement
+    function place() {
+      const anchor = chipOf(current), host = pop.el.offsetParent
+      if (!anchor || !host) return
+      const box = host.getBoundingClientRect(), a = anchor.getBoundingClientRect()
+      pop.el.style.left = Math.max(8, Math.min(a.left - box.left, box.width - pop.el.offsetWidth - 8)) + 'px'
+      pop.el.style.top = (a.bottom - box.top + 6) + 'px'
+    }
+    function openSettings(id) {
+      if (!pop) return
+      if (current === id) { closeSettings(); return }
+      current = id
+      pop.title.textContent = catalog.find(d => d.id === id)?.title || id
+      pop.empty.hidden = !!showSettings(id)
+      pop.el.hidden = false
+      render()
+      pop.el.querySelector?.('input,select,button:not([data-pop-close])')?.focus({ preventScroll: true })
+    }
+    function closeSettings() {
+      if (!pop || !current) return
+      current = null; pop.el.hidden = true; showSettings(null); render()
+    }
+    if (pop) {
+      pop.close.addEventListener('click', closeSettings)
+      pop.remove.addEventListener('click', () => { const id = current; closeSettings(); set(id, false); render() })
+      pop.el.addEventListener('keydown', e => { if (e.key === 'Escape') { e.stopPropagation(); const id = current; closeSettings(); active.querySelector?.(`[data-settings="${id}"]`)?.focus() } })
+      // A click anywhere else closes it (the chips toggle it themselves).
+      document.addEventListener('pointerdown', e => { if (current && !pop.el.contains(e.target) && !e.target.closest?.('[data-settings],[data-open-settings]')) closeSettings() })
+      window.addEventListener('resize', () => { if (current) place() })
     }
     function show(value) { panel.hidden = !value; button.setAttribute('aria-expanded', String(value)); if (value) search.focus(); else button.focus() }
     button.addEventListener('click', () => show(panel.hidden))
     close.addEventListener('click', () => show(false))
     search.addEventListener('input', render)
-    list.addEventListener('click', e => { const id = e.target.closest('[data-indicator]')?.dataset.indicator; if (catalog.some(d => d.id === id)) { set(id, !get(id)); render() } })
+    list.addEventListener('click', e => {
+      const open = e.target.closest('[data-open-settings]')?.dataset.openSettings
+      if (open) { show(false); current = null; openSettings(open); return }
+      const id = e.target.closest('[data-indicator]')?.dataset.indicator; if (catalog.some(d => d.id === id)) { set(id, !get(id)); render() }
+    })
     active.addEventListener('click', e => {
       const remove = e.target.closest('[data-remove]')?.dataset.remove
       if (remove) { set(remove, false); render(); return }
-      if (e.target.closest('[data-settings]')) show(true)
+      const settings = e.target.closest('[data-settings]')?.dataset.settings
+      if (settings) { if (pop) openSettings(settings); else show(true) }
     })
     panel.addEventListener('keydown', e => { if (e.key === 'Escape') { e.stopPropagation(); show(false) } })
     render()
-    return { render }
+    return { render, openSettings, closeSettings }
   }
   root.TerminalIndicators = { catalog, attach }
 })(globalThis)

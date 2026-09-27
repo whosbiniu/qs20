@@ -69,6 +69,43 @@
     })).filter(i => i.title && Number.isFinite(i.time) && /^https:\/\/(www\.)?financialjuice\.com\//.test(i.link));
   }
 
+  // ---- Economic calendar beyond the current week --------------------------------------------------
+  // Forex Factory's public feed only has this week's file, and its site is behind Cloudflare, so the next
+  // week uses the Forex Factory file when published and otherwise TradingView's public calendar, which is
+  // the only source here for whole months and quarters. Events are US only, like the current-week view.
+  const etDay = ms => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(ms));
+  const isoDay = date => date.toISOString().slice(0, 10);
+  function rangeBounds(range, now = Date.now()) {
+    const [y, m, d] = etDay(now).split('-').map(Number);
+    const today = new Date(Date.UTC(y, m - 1, d));
+    if (range === 'next-week') {
+      const start = new Date(today);
+      start.setUTCDate(d - (today.getUTCDay() + 6) % 7 + 7);
+      const end = new Date(start);
+      end.setUTCDate(start.getUTCDate() + 6);
+      return { from: isoDay(start), to: isoDay(end) };
+    }
+    if (range === 'month') return { from: isoDay(new Date(Date.UTC(y, m, 1))), to: isoDay(new Date(Date.UTC(y, m + 1, 0))) };
+    if (range === 'quarter') {
+      const first = (Math.floor((m - 1) / 3) + 1) * 3;
+      return { from: isoDay(new Date(Date.UTC(y, first, 1))), to: isoDay(new Date(Date.UTC(y, first + 3, 0))) };
+    }
+    return null;
+  }
+  const scaleTag = { K: 'K', M: 'M', B: 'B', T: 'T' };
+  function tvValue(value, unit, scale) {
+    if (value === null || value === undefined || !Number.isFinite(Number(value))) return '';
+    const number = String(Math.round(Number(value) * 1000) / 1000);
+    return number + (unit === '%' ? '%' : '') + (scaleTag[scale] || '');
+  }
+  function fromTradingView(rows) {
+    return rows.filter(e => typeof e.title === 'string' && Number.isFinite(Date.parse(e.date))).map(e => ({
+      title: e.title, date: new Date(e.date).toISOString(),
+      impact: e.importance >= 1 ? 'High' : e.importance === 0 ? 'Medium' : 'Low',
+      forecast: tvValue(e.forecast, e.unit, e.scale), previous: tvValue(e.previous, e.unit, e.scale),
+    }));
+  }
+
   function create(fetchText) {
     async function getText(url) {
       const r = await fetchText(url);
@@ -159,7 +196,9 @@
           const json = await getJson(`https://query1.finance.yahoo.com/v8/finance/spark?symbols=${chunk.map(([, y]) => encodeURIComponent(y)).join(',')}&range=5d&interval=1d`);
           for (const [label, feed] of chunk) {
             const q = json[feed];
-            if (Number.isFinite(q?.fulldayPrice)) data.push({ symbol: label, price: q.fulldayPrice, change: Number.isFinite(q.fulldayChangePercent) ? q.fulldayChangePercent : null });
+            // `chart` is the terminal symbol to open when the quote is clicked (NQ=F -> NQ1!, DX-Y.NYB -> DXY1!).
+            const chart = feed === 'DX-Y.NYB' ? 'DXY1!' : /^[A-Z0-9]{1,6}=F$/.test(feed) ? feed.slice(0, -2) + '1!' : feed;
+            if (Number.isFinite(q?.fulldayPrice)) data.push({ symbol: label, chart, price: q.fulldayPrice, change: Number.isFinite(q.fulldayChangePercent) ? q.fulldayChangePercent : null });
           }
         } catch {}
       }
@@ -205,17 +244,53 @@
       return withTranslations();
     }
 
-    return { chart, highs, tape, news };
+    const calendars = new Map();
+    async function calendar(range) {
+      const bounds = rangeBounds(range);
+      if (!bounds) throw Object.assign(new Error('bad range'), { status: 400 });
+      const hit = calendars.get(range);
+      if (hit && Date.now() - hit.at < 900000) return hit.data;
+      const inRange = list => list.filter(e => { const day = etDay(Date.parse(e.date)); return day >= bounds.from && day <= bounds.to; })
+        .sort((a, b) => Date.parse(a.date) - Date.parse(b.date));
+      let events = null, source = 'TradingView';
+      if (range === 'next-week') {
+        try {
+          const rows = JSON.parse(await getText('https://nfs.faireconomy.media/ff_calendar_nextweek.json'));
+          const usd = rows.filter(e => e.country === 'USD' && typeof e.title === 'string' && Number.isFinite(Date.parse(e.date)))
+            .map(e => ({ title: e.title, date: e.date, impact: String(e.impact || ''), forecast: String(e.forecast || ''), previous: String(e.previous || '') }));
+          if (Array.isArray(rows) && usd.length) { events = inRange(usd); source = 'Forex Factory'; }
+        } catch {}
+      }
+      if (!events) {
+        const start = new Date(bounds.from + 'T00:00:00Z'), end = new Date(bounds.to + 'T00:00:00Z');
+        start.setUTCDate(start.getUTCDate() - 1);
+        end.setUTCDate(end.getUTCDate() + 2);
+        const json = await getJson(`https://economic-calendar.tradingview.com/events?from=${start.toISOString()}&to=${end.toISOString()}&countries=US`);
+        if (json.status !== 'ok') throw new Error('invalid calendar');
+        // Beyond its publication horizon (about four weeks) the answer is simply empty.
+        events = inRange(fromTradingView(Array.isArray(json.result) ? json.result : []));
+      }
+      // Providers publish releases only a few weeks ahead; report how far this list actually reaches.
+      const availableTo = events.length ? etDay(Date.parse(events[events.length - 1].date)) : null;
+      const data = { events, holidays: [], updatedAt: new Date().toISOString(), range, source, ...bounds, availableTo, partial: availableTo === null || availableTo < isoDay(new Date(Date.parse(bounds.to + 'T00:00:00Z') - 3 * 86400000)) };
+      calendars.set(range, { at: Date.now(), data });
+      return data;
+    }
+
+    return { chart, highs, tape, news, calendar };
   }
 
   // Node transport (Next route handlers, dev server).
   function nodeTransport() {
     return async url => {
-      const response = await fetch(url, { cache: 'no-store', signal: AbortSignal.timeout(15000), headers: { 'User-Agent': 'Mozilla/5.0', Accept: '*/*' } });
+      // TradingView's calendar endpoint only answers requests that carry its own origin.
+      const headers = { 'User-Agent': 'Mozilla/5.0', Accept: '*/*' };
+      if (new URL(url).hostname === 'economic-calendar.tradingview.com') headers.Origin = 'https://www.tradingview.com';
+      const response = await fetch(url, { cache: 'no-store', signal: AbortSignal.timeout(15000), headers });
       return { status: response.status, text: await response.text() };
     };
   }
 
-  const api = { FRAMES, TAPE, feedFor, aggregate, parseRss, create, nodeTransport };
+  const api = { FRAMES, TAPE, feedFor, aggregate, parseRss, rangeBounds, tvValue, fromTradingView, create, nodeTransport };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.TerminalData = api;
 })(typeof globalThis === 'undefined' ? this : globalThis);

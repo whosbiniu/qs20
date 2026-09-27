@@ -50,6 +50,14 @@ main{flex:1;min-width:0;position:relative}
 .page{position:absolute;inset:0}
 [hidden]{display:none!important}
 #charts{display:grid;grid-template:1fr 1fr / 1fr 1fr;gap:10px}
+#charts.n1{grid-template:1fr / 1fr}
+#charts.n2{grid-template:1fr / 1fr 1fr}
+#charts.n3 .cell:nth-child(3){grid-column:1 / -1}
+.cell.active{border-color:var(--ink)}
+#lay button{padding:3px 6px;line-height:0}
+#lay svg{width:18px;height:14px;fill:none;stroke:currentColor;stroke-width:1}
+#tape .q{cursor:pointer}
+#tape .q:hover b{text-decoration:underline;text-underline-offset:3px}
 .cell{border:1px solid var(--line);display:flex;flex-direction:column;min-width:0;min-height:0;padding:10px 12px 8px}
 .head{display:flex;justify-content:space-between;align-items:baseline;gap:12px}
 .head .sym{font:inherit;font-weight:700;width:9ch;margin-right:10px;padding:1px 4px;background:transparent;color:var(--ink);border:1px solid transparent;text-transform:uppercase}
@@ -58,14 +66,14 @@ main{flex:1;min-width:0;position:relative}
 .sub{color:var(--dim);margin-bottom:8px}
 .body{flex:1;min-height:0;display:flex;gap:14px}
 .chart{flex:1;min-width:0;position:relative}
-.twin{width:170px;flex:none;display:flex;flex-direction:column}
+.twin{width:196px;flex:none;display:flex;flex-direction:column}
 .twin h4{margin:0 0 4px;display:flex;justify-content:space-between;font-weight:700}
 .twin h4 i{font-style:normal;font-weight:400;color:var(--dim)}
 .twin div.r{display:flex;justify-content:space-between;gap:10px;padding:2px 0;border-top:1px solid var(--faint)}
 .twin div.r span{color:var(--dim)}
 @media(max-height:1100px){.twin .frame{display:none}}
 .twin .r.cyc{border-top-color:var(--line)}
-.twin .r.cyc b{font-weight:400;letter-spacing:.02em}
+.twin .r.cyc b{font-weight:400;letter-spacing:.02em;white-space:nowrap}
 .twin .r.cyc span{cursor:help}
 .twin .frame{margin-top:auto;border:1px solid var(--line);padding:6px 8px;color:var(--dim)}
 .twin .frame b{color:var(--ink);display:block}
@@ -85,6 +93,12 @@ footer .live{color:var(--ink)}
   <button data-tab="quarters"><b>F4</b>Kwartały</button>
   <button data-tab="highs"><b>F5</b>Aktualne L/H</button>
   <div class="tools" id="tf"></div>
+  <div class="tools" id="lay" style="margin-left:0"><span>wykresy</span>
+    <button data-n="1" aria-label="1 wykres" title="1 wykres"><svg viewBox="0 0 18 14"><rect x=".5" y=".5" width="17" height="13"/></svg></button>
+    <button data-n="2" aria-label="2 wykresy" title="2 wykresy"><svg viewBox="0 0 18 14"><rect x=".5" y=".5" width="8" height="13"/><rect x="9.5" y=".5" width="8" height="13"/></svg></button>
+    <button data-n="3" aria-label="3 wykresy" title="3 wykresy"><svg viewBox="0 0 18 14"><rect x=".5" y=".5" width="8" height="6"/><rect x="9.5" y=".5" width="8" height="6"/><rect x=".5" y="7.5" width="17" height="6"/></svg></button>
+    <button data-n="4" aria-label="4 wykresy" title="4 wykresy"><svg viewBox="0 0 18 14"><rect x=".5" y=".5" width="8" height="6"/><rect x="9.5" y=".5" width="8" height="6"/><rect x=".5" y="7.5" width="8" height="6"/><rect x="9.5" y="7.5" width="8" height="6"/></svg></button>
+  </div>
   <div class="tools" style="margin-left:0"><button class="side-toggle active" id="sideToggle" title="Pasek wydarzeń">Wydarzenia ▸</button></div>
 </nav>
 <div id="tape" aria-label="Najpopularniejsze instrumenty świata"><div class="track" id="tapeTrack"></div></div>
@@ -132,6 +146,7 @@ const panels = SYMBOLS.map((symbol, i) => {
     <div class="body"><div class="chart"></div>
       <aside class="twin"><h4>numeric twin <i>as values</i></h4><div class="rows"></div><div class="cycles"></div>
         <div class="frame"><b class="fsym">${symbol}</b>Yahoo Finance<br>panel 0${i + 1}/04</div></aside></div>`
+  cell.addEventListener('pointerdown', () => setActive(i), true)
   $('charts').append(cell)
   const el = cell.querySelector('.chart')
   const chart = LightweightCharts.createChart(el, {
@@ -206,7 +221,7 @@ async function loadTape() {
   try {
     const { quotes } = await (await fetch('/api/tape')).json()
     if (!quotes.length) return
-    const cell = q => `<span class="q" data-s="${q.symbol}"><b>${q.symbol}</b>${tapeFmt(q.price)}<span>${q.change == null ? '' : (q.change >= 0 ? '+' : '−') + Math.abs(q.change).toFixed(2) + '%'}</span></span>`
+    const cell = q => `<span class="q" data-s="${q.symbol}" data-c="${q.chart || ''}" title="Otwórz na wykresie"><b>${q.symbol}</b>${tapeFmt(q.price)}<span>${q.change == null ? '' : (q.change >= 0 ? '+' : '−') + Math.abs(q.change).toFixed(2) + '%'}</span></span>`
     const track = $('tapeTrack')
     if (track.children.length === quotes.length * 2) {
       // Same instruments: update text only so the scroll position is not reset.
@@ -247,8 +262,39 @@ async function load(p) {
   }
 }
 
+// Number of visible charts (1-4) and the panel that receives tickers clicked in the tape.
+let count = Number(localStorage.getItem('count'))
+if (![1, 2, 3, 4].includes(count)) count = 4
+let active = 0
+function setActive(i) {
+  active = i
+  panels.forEach((p, n) => p.cell.classList.toggle('active', n === i && count > 1))
+}
+function applyLayout() {
+  $('charts').className = 'page n' + count
+  panels.forEach((p, n) => { p.cell.hidden = n >= count })
+  $('lay').querySelectorAll('button').forEach(b => b.classList.toggle('active', Number(b.dataset.n) === count))
+  setActive(Math.min(active, count - 1))
+  // The grid resizes the charts asynchronously; refit once it has settled.
+  requestAnimationFrame(() => panels.slice(0, count).forEach(p => p.chart.timeScale().fitContent()))
+}
+$('lay').onclick = e => {
+  const n = Number(e.target.closest('button')?.dataset.n)
+  if (!n || n === count) return
+  count = n
+  localStorage.setItem('count', String(n))
+  applyLayout()
+  refresh()
+}
+$('tapeTrack').addEventListener('click', e => {
+  const chart = e.target.closest('.q')?.dataset.c
+  if (!chart) return
+  tab('charts')
+  setSymbol(panels[active], chart)
+})
+
 async function refresh() {
-  const ok = await Promise.all(panels.map(load))
+  const ok = await Promise.all(panels.slice(0, count).map(load))
   $('status').textContent = ok.every(Boolean) ? '● na żywo' : '● błąd danych'
   $('updated').textContent = 'aktualizacja: ' + new Date().toLocaleTimeString('pl-PL')
 }
@@ -268,9 +314,10 @@ function tab(name) {
   document.querySelectorAll('nav > button').forEach(b => b.classList.toggle('active', b.dataset.tab === name))
   for (const id of TABS) $(id).hidden = id !== name
   $('tf').hidden = name !== 'charts'
+  $('lay').hidden = name !== 'charts'
   const url = { calendar: CALENDAR_URL, quarters: QUARTERS_URL, highs: HIGHS_URL }[name]
   if (url && !$(name).firstChild) $(name).innerHTML = `<iframe src="${url}" title="${name}"></iframe>`
-  if (name === 'charts') panels.forEach(p => p.chart.timeScale().fitContent())
+  if (name === 'charts') panels.slice(0, count).forEach(p => p.chart.timeScale().fitContent())
   $('side').hidden = name === 'news' || !sideOpen
   history.replaceState(null, '', '#' + name)
 }
@@ -321,6 +368,7 @@ $('newsFilter').oninput = () => renderNews()
 loadNews()
 setInterval(() => { if (!document.hidden) loadNews() }, 60000)
 
+applyLayout()
 tab(TABS.includes(location.hash.slice(1)) ? location.hash.slice(1) : 'charts')
 refresh()
 setInterval(() => { if (!document.hidden) refresh() }, 30000)

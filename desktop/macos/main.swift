@@ -130,7 +130,8 @@ final class MarketHighsBridge: NSObject, WKScriptMessageHandlerWithReply {
 
 /// Generic GET for the terminal's data layer (terminal-data.js). Only the data providers it uses are reachable.
 final class ProxyBridge: NSObject, WKScriptMessageHandlerWithReply {
-    static let hosts: Set<String> = ["query1.finance.yahoo.com", "www.financialjuice.com", "translate.googleapis.com"]
+    static let hosts: Set<String> = ["query1.finance.yahoo.com", "www.financialjuice.com", "translate.googleapis.com",
+                                     "nfs.faireconomy.media", "economic-calendar.tradingview.com"]
 
     func userContentController(_ userContentController: WKUserContentController,
                                didReceive message: WKScriptMessage,
@@ -144,6 +145,8 @@ final class ProxyBridge: NSObject, WKScriptMessageHandlerWithReply {
         var request = URLRequest(url: url)
         request.timeoutInterval = 15
         request.setValue("Mozilla/5.0", forHTTPHeaderField: "User-Agent")
+        // TradingView's calendar only answers requests that carry its own origin.
+        if host == "economic-calendar.tradingview.com" { request.setValue("https://www.tradingview.com", forHTTPHeaderField: "Origin") }
         URLSession.shared.dataTask(with: request) { data, response, error in
             DispatchQueue.main.async {
                 guard error == nil, let http = response as? HTTPURLResponse else { replyHandler(nil, "Network error"); return }
@@ -218,7 +221,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
             }
             const terminalRoutes = ['/api/chart', '/api/highs', '/api/tape', '/api/news'];
             const url = new URL(path, 'https://terminal.invalid');
-            if (terminalRoutes.includes(url.pathname)) {
+            if (terminalRoutes.includes(url.pathname) || (url.pathname === '/api/events' && url.searchParams.has('range'))) {
               // Same data layer as the web server, with the native app as its transport.
               const data = window.__terminalData ||= TerminalData.create(async target => {
                 const reply = await window.webkit.messageHandlers.proxy.postMessage(target);
@@ -229,6 +232,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
                 const q = url.searchParams;
                 if (url.pathname === '/api/chart') return json(await data.chart(q.get('symbol') || '', q.get('interval') || '1D'));
                 if (url.pathname === '/api/highs') return json(await data.highs(q.get('symbol') || ''));
+                if (url.pathname === '/api/events') return json(await data.calendar(q.get('range') || ''));
                 if (url.pathname === '/api/tape') return json({quotes: await data.tape()});
                 return json(await data.news());
               } catch (error) {
@@ -333,6 +337,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
                 """) { result, error in
                     guard error == nil, let output = result as? String else { print("FAIL", error as Any); exit(1) }
                     print(output)
+                    // Calendar ranges go through the same native proxy (TradingView needs its Origin header).
+                    webView.callAsyncJavaScript("const r = await fetch('/api/events?range=next-week'); const d = await r.json(); return r.status + ' events=' + (d.events || []).length + ' source=' + d.source",
+                                                arguments: [:], in: nil, in: .page) { calendar in print("calendar:", calendar) }
                     webView.callAsyncJavaScript("const r = await fetch('/api/news'); return r.status + ' ' + (await r.text()).slice(0, 160)",
                                                 arguments: [:], in: nil, in: .page) { news in print("news:", news) }
                     webView.takeSnapshot(with: nil) { image, _ in

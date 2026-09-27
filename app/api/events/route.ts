@@ -1,6 +1,7 @@
 import snapshot from "./snapshot.json"
 import { NextRequest } from "next/server"
 import { SESSION_COOKIE, validSession } from "../../../lib/site-auth.mjs"
+import { terminal, terminalRoute } from "../../../lib/terminal-api"
 
 export const dynamic = "force-dynamic"
 
@@ -35,6 +36,8 @@ function fallback() {
 }
 
 export async function GET(request: NextRequest) {
+  const range = request.nextUrl.searchParams.get("range")
+  if (range) return terminalRoute(request, () => terminal.calendar(range))
   if (!validSession(request.cookies.get(SESSION_COOKIE)?.value)) {
     return Response.json({ error: "Authentication required" }, { status: 401, headers: { "Cache-Control": "private, no-store" } })
   }

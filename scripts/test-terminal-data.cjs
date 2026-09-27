@@ -35,6 +35,20 @@ function chart(feed,volume){return {meta:{symbol:feed,shortName:'Index'},timesta
 Highs.register('DXY1!','DX-Y.NYB');
 assert.equal(Highs.summarizeAll(chart('DX-Y.NYB',0),null,'DXY1!',at('2026-09-22T13:00:00Z')).periods.day.high.price,110);
 
+// Calendar ranges: bounds are computed in New York time, weeks start on Monday.
+assert.deepEqual(Terminal.rangeBounds('next-week',at('2026-09-27T12:00:00Z')),{from:'2026-09-28',to:'2026-10-04'});
+assert.deepEqual(Terminal.rangeBounds('next-week',at('2026-09-28T03:00:00Z')),{from:'2026-09-28',to:'2026-10-04'}); // still Sunday evening in New York
+assert.deepEqual(Terminal.rangeBounds('month',at('2026-12-15T12:00:00Z')),{from:'2027-01-01',to:'2027-01-31'});
+assert.deepEqual(Terminal.rangeBounds('quarter',at('2026-09-27T12:00:00Z')),{from:'2026-10-01',to:'2026-12-31'});
+assert.deepEqual(Terminal.rangeBounds('quarter',at('2026-11-15T12:00:00Z')),{from:'2027-01-01',to:'2027-03-31'});
+assert.equal(Terminal.rangeBounds('today'),null);
+assert.equal(Terminal.tvValue(54.8),'54.8');
+assert.equal(Terminal.tvValue(4.1,'%'),'4.1%');
+assert.equal(Terminal.tvValue(100,undefined,'K'),'100K');
+assert.equal(Terminal.tvValue(null,'%'),'');
+assert.deepEqual(Terminal.fromTradingView([{title:'NFP',date:'2026-10-02T12:30:00.000Z',importance:1,forecast:100,previous:162,scale:'K'},{title:'x',date:'bad',importance:0}]),
+  [{title:'NFP',date:'2026-10-02T12:30:00.000Z',impact:'High',forecast:'100K',previous:'162K'}]);
+
 // End to end with a fake transport: chart, cycles, tape and translated headlines.
 (async()=>{
   const calls=[];
@@ -58,12 +72,27 @@ assert.equal(Highs.summarizeAll(chart('DX-Y.NYB',0),null,'DXY1!',at('2026-09-22T
   const h=await data.highs('NQ1!');
   assert.equal(h.symbol,'NQ1!');
   for(const key of ['hotm','lotm','hotw','lotw','hotd','lotd'])assert.ok(h[key]===null||h[key].length===3,key);
-  assert.deepEqual((await data.tape())[0],{symbol:'NQ1!',price:100.5,change:1.5});
+  assert.deepEqual((await data.tape())[0],{symbol:'NQ1!',chart:'NQ1!',price:100.5,change:1.5});
   const news=await data.news();
   assert.equal(news.items[0].pl,'Przetłumaczone');
   assert.equal(news.items[0].title,"Fed's Powell & co: rates");
+  // Calendar: next week falls back to TradingView when Forex Factory has no file; beyond its horizon the answer is empty.
+  const tv={status:'ok',result:[{title:'ISM',date:'2026-10-01T14:00:00.000Z',importance:1,forecast:54.8,previous:54.6},{title:'Late',date:'2026-10-02T14:00:00.000Z',importance:-1}]};
+  const cal=Terminal.create(async url=>url.includes('nextweek')?{status:404,text:''}:url.includes('tradingview')?{status:200,text:JSON.stringify(tv)}:transport(url));
+  const week=await cal.calendar('next-week');
+  assert.equal(week.source,'TradingView');
+  assert.equal(week.events.length,2);
+  assert.equal(week.availableTo,'2026-10-02');
+  assert.equal(week.partial,false);
+  const empty=Terminal.create(async url=>url.includes('tradingview')?{status:200,text:JSON.stringify({status:'ok'})}:{status:404,text:''});
+  const none=await empty.calendar('quarter');
+  assert.deepEqual([none.events.length,none.availableTo,none.partial],[0,null,true]);
+  await assert.rejects(empty.calendar('year'),/bad range/);
+  const ff=Terminal.create(async url=>url.includes('nextweek')?{status:200,text:JSON.stringify([{title:'CPI',country:'USD',date:'2026-09-30T08:30:00-04:00',impact:'High',forecast:'0.3%',previous:'0.2%'},{title:'Other',country:'EUR',date:'2026-09-30T08:30:00-04:00',impact:'High'}])}:{status:500,text:''});
+  const ffWeek=await ff.calendar('next-week');
+  assert.deepEqual([ffWeek.source,ffWeek.events.length,ffWeek.events[0].title],['Forex Factory',1,'CPI']);
   // A failing feed keeps serving the previous headlines instead of throwing.
   const failing=Terminal.create(async url=>url.includes('financialjuice')?{status:429,text:''}:transport(url));
   await assert.rejects(failing.news(),/429/);
-  console.log('PASS terminal data: symbols, 6H candles, RSS parsing, quarterly cycle, index volume, chart/highs/tape/news with translation');
+  console.log('PASS terminal data: symbols, 6H candles, RSS parsing, quarterly cycle, index volume, chart/highs/tape/news with translation, calendar ranges');
 })().catch(error=>{console.error(error);process.exit(1);});

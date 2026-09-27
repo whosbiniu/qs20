@@ -250,6 +250,8 @@ footer .live{color:var(--ink)}
 <script src="theme.js"></script>
 <script src="lightweight-charts.js"></script>
 <script src="drawings.js"></script>
+<script src="terminal-profile.js"></script>
+<script src="terminal-orderflow.js"></script>
 <script src="hyper-terminal.js"></script>
 <script src="post-creator-icons.js"></script>
 <script src="post-creator.js"></script>
@@ -486,7 +488,7 @@ function tab(name) {
   Home.leave()
   for (const id of TABS) $(id).hidden = id !== name
   if (name === 'home') Home.enter()
-  if (name === 'hyper-terminal') HyperTerminal.show()
+  if (name === 'hyper-terminal' || name === 'home' && Home.has('hyper-terminal')) HyperTerminal.show()
   if (name === 'post-creator') PostCreator.show()
   // Charts and the map may be shown by their own page or as a widget on the dashboard.
   const chartsShown = name === 'charts' || name === 'home' && Home.has('charts')

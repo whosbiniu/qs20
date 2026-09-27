@@ -1,10 +1,11 @@
 // Strona główna: a dashboard of panels. Every page of the terminal can be added as a widget, resized,
-// reordered, opened full-size or removed. Charts and Monitor are single instances, so their section is
+// reordered, opened full-size or removed. Charts, Terminal and Monitor are single instances, so their section is
 // moved into the widget while the dashboard is open and moved back when another page is shown; the
 // framed pages and the headline list are simply created again inside the widget.
 const Home = (() => {
   const WIDGETS = {
     charts: { title: 'Wykresy', move: true },
+    'hyper-terminal': { title: 'Terminal', move: true },
     news: { title: 'Wydarzenia · FinancialJuice', news: true },
     calendar: { title: 'Kalendarz ekonomiczny', url: () => CALENDAR_URL },
     quarters: { title: 'Kwartały', url: () => QUARTERS_URL },

@@ -3,7 +3,7 @@
 // reference layers (conflicts, bases, cables, ...) come from monitor-geo.js. Layers are told apart by
 // shape and glyph, not colour, to match the terminal look. All text follows the global `lang` (pl / en).
 const Monitor = (() => {
-  const BG = '#050505'
+  const bg = () => Theme.css('--bg')
   const MAX_LAT = 85
   const RANGES = ['24h', '48h', '7d', '30d']
   // key → [shape, glyph, label en, label pl]. Every layer has its own colour (COLORS); shape and glyph stay as a second cue.
@@ -24,12 +24,24 @@ const Monitor = (() => {
     economic: ['diamond', '$', 'Economic centres', 'Centra ekonomiczne'],
     natural: ['quake', '', 'Natural events', 'Zdarzenia naturalne'],
   }
-  const COLORS = {
+  // Two palettes: the bright one for the black page, a deeper one that keeps its contrast on the light page.
+  const COLORS_DARK = {
     conflicts: '#ff4d4d', instability: '#ff9a1f', military: '#ff9a1f', hotspots: '#ff7ac6', bases: '#a78bfa', nuclear: '#a3e635',
     cables: '#38bdf8', pipelines: '#d4a017', shipping: '#2dd4bf', waterways: '#2dd4bf', sanctions: '#cbd5e1',
     weather: '#fde047', canadaAlerts: '#f0abfc', economic: '#86efac', natural: '#f5f5f5',
   }
-  const LEVELS = { critical: '#ff4d4d', high: '#ff9a1f', elevated: '#fde047', low: '#4ade80' }
+  const LEVELS_DARK = { critical: '#ff4d4d', high: '#ff9a1f', elevated: '#fde047', low: '#4ade80' }
+  const COLORS_LIGHT = {
+    conflicts: '#d61f1f', instability: '#d9710a', military: '#d9710a', hotspots: '#c2338f', bases: '#6d4de0', nuclear: '#4d8f0a',
+    cables: '#0a7fc0', pipelines: '#a67a00', shipping: '#0e8f80', waterways: '#0e8f80', sanctions: '#5b6675',
+    weather: '#a68a00', canadaAlerts: '#a23cc4', economic: '#1f8f4a', natural: '#111111',
+  }
+  const LEVELS_LIGHT = { critical: '#d61f1f', high: '#d9710a', elevated: '#a68a00', low: '#1f8f4a' }
+  let COLORS = COLORS_DARK, LEVELS = LEVELS_DARK
+  const pickPalette = () => { const light = document.documentElement.dataset.mode === 'light'; COLORS = light ? COLORS_LIGHT : COLORS_DARK; LEVELS = light ? LEVELS_LIGHT : LEVELS_DARK }
+  pickPalette()
+  // registered at load, not on first open: the palette must follow the theme even while the map has not been shown yet
+  window.addEventListener('themechange', () => { pickPalette(); if (typeof rerender === 'function') rerender() })
   const rgba = (hex, a) => `rgba(${parseInt(hex.slice(1, 3), 16)},${parseInt(hex.slice(3, 5), 16)},${parseInt(hex.slice(5, 7), 16)},${a})`
   const PATHS = ['cables', 'pipelines', 'shipping']   // layers drawn as lines
   const ORDER = Object.keys(LAYERS)
@@ -43,6 +55,7 @@ const Monitor = (() => {
     .mon-bar button{padding:2px 8px;font-size:11px;white-space:nowrap}
     .mon-bar button[data-l]{border-left:3px solid var(--c)}
     .mon-bar button[data-l].active{background:var(--c);border-color:var(--c);color:#050505}
+    html[data-mode=light] .mon-bar button[data-l].active{color:#fff}
     .mon-foot .legend{display:flex;flex-wrap:wrap;gap:4px 14px}.mon-foot .legend b{font-weight:400;color:var(--c)}
     .mon.compact .legend{display:none}.mon.compact .mon-foot{padding:3px 10px}
     .mon-side{gap:0}.mon-side #monPane{flex:1 1 auto;min-height:160px;max-height:none;overflow-y:auto}
@@ -230,7 +243,7 @@ const Monitor = (() => {
     if (!ctx || !visible) return
     const INK = Theme.css('--ink'), DIM = Theme.css('--dim'), inkRgb = Theme.css('--ink-rgb').replace(/ /g, ',')
     ctx.setTransform(size.dpr, 0, 0, size.dpr, 0, 0)
-    ctx.fillStyle = BG
+    ctx.fillStyle = bg()
     ctx.fillRect(0, 0, size.w, size.h)
     hit = []
     const copies = [-1, 0, 1]
@@ -301,7 +314,7 @@ const Monitor = (() => {
       const [kind, glyph] = LAYERS[layer], col = COLORS[layer], live = layer === 'weather' || layer === 'canadaAlerts', r = layer === 'conflicts' ? 8 : live ? 6 : 6.5
       for (const item of items[layer]) place(item, (x, y) => {
         shape(kind === 'slash' || kind === 'round' ? 'circle' : kind, x, y, r)
-        ctx.fillStyle = layer === 'conflicts' ? rgba(col, .3) : BG; ctx.fill()
+        ctx.fillStyle = layer === 'conflicts' ? rgba(col, .3) : bg(); ctx.fill()
         ctx.strokeStyle = col; ctx.lineWidth = layer === 'conflicts' ? 1.6 : 1; ctx.stroke()
         if (kind === 'slash') { ctx.beginPath(); ctx.moveTo(x - r * .7, y + r * .7); ctx.lineTo(x + r * .7, y - r * .7); ctx.stroke() }
         if (glyph) { ctx.fillStyle = col; ctx.font = `${glyph.length > 1 ? 7 : 9}px ui-monospace,Menlo,monospace`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(glyph, x, y + .5); ctx.textAlign = 'start'; ctx.textBaseline = 'alphabetic' }
@@ -608,7 +621,6 @@ const Monitor = (() => {
     root.querySelector('#monTvBtn').onclick = () => { tv.open = !tv.open; renderTv() }
     root.querySelector('#monTvClose').onclick = () => { tv.open = false; renderTv() }
     root.querySelector('#monTv').onclick = e => { if (e.target.closest('#monTvRetry')) { e.preventDefault(); loadTv() } }
-    window.addEventListener('themechange', redraw)
     build(); renderBar(); renderLists(); renderSelection(); resize()
   }
 

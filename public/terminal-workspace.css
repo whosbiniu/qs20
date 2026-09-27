@@ -1,4 +1,4 @@
-/* Workspace chrome is scoped to the terminal; the rest of UNC keeps its theme. */
+/* Workspace chrome is scoped to the terminal; the rest of UNC keeps its theme. BBB and UNC share one palette. */
 #hyper-terminal[data-workspace] {
   --bg:#202126; --ink:#e4e5e9; --ink-rgb:228 229 233; --dim:#8b8d99;
   --line:#34353d; --faint:#292a31; --tw-chrome:#191a1f; --tw-accent:#da9c7c;
@@ -6,11 +6,6 @@
   background:var(--bg); color:var(--ink); container-type:inline-size;
   font:11px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
   font-variant-numeric:tabular-nums; color-scheme:dark;
-}
-#hyper-terminal[data-workspace=UNC] {
-  --bg:#10141c; --ink:#d1d9e5; --ink-rgb:209 217 229; --dim:#7b879a;
-  --line:#293140; --faint:#19212d; --tw-chrome:#141a24; --tw-accent:#a7bddf;
-  --tw-up:#8fcabc; --tw-down:#ae92bb;
 }
 .tw {height:100%; min-height:0; display:flex; flex-direction:column; overflow:hidden; border:1px solid var(--line)}
 .tw *, .tw *::before, .tw *::after {box-sizing:border-box}
@@ -181,3 +176,8 @@ body.terminal-open .shell {gap:0}
   .tw #ht-fit {display:none}
   .tw .ht-periods button {padding:3px 5px}
 }
+.tw .ht-symbol-btn {padding:3px 6px;margin-left:-6px}
+.tw .ht-symbol-btn:hover,.tw .ht-symbol-btn[aria-expanded=true] {background:var(--faint);color:var(--ink)}
+.tw .ht-jump {top:43px;left:10px;background:var(--tw-chrome)}
+.tw .ht-jump-row.active {box-shadow:inset 2px 0 var(--tw-accent)}
+.tw-grid[data-count="4"] .ht-jump,.tw-grid[data-count="2"] .ht-jump {top:34px}

@@ -2,7 +2,8 @@ window.HyperTerminal = (() => {
   const root = document.getElementById('hyper-terminal')
   root.innerHTML = `<div class="ht">
     <aside class="ht-markets"><header><strong>ULUBIONE</strong><span id="ht-count"></span></header><input id="ht-search" type="search" placeholder="Ticker + Enter, aby dodać" aria-label="Wpisz ticker, aby dodać do ulubionych" autocomplete="off" spellcheck="false"><div class="ht-list" id="ht-list"></div></aside>
-    <div class="ht-main"><header class="ht-head"><div><strong id="ht-symbol">XYZ100</strong><span id="ht-dex">xyz</span></div><div class="ht-price" id="ht-price">—</div><div class="ht-change" id="ht-change">—</div><div class="ht-spacer"></div><span class="ht-source">Dane: Hyperliquid</span></header>
+    <div class="ht-main"><header class="ht-head"><div><button type="button" class="ht-symbol-btn" id="ht-symbol-btn" title="Zmień ticker" aria-haspopup="listbox" aria-expanded="false" aria-controls="ht-jump"><strong id="ht-symbol">XYZ100</strong><span class="ht-caret" aria-hidden="true">▾</span></button><span id="ht-dex">xyz</span></div><div class="ht-price" id="ht-price">—</div><div class="ht-change" id="ht-change">—</div><div class="ht-spacer"></div><span class="ht-source">Dane: Hyperliquid</span></header>
+      <div class="ht-jump" id="ht-jump" hidden><input id="ht-jump-input" type="search" placeholder="Szukaj tickera…" aria-label="Szukaj innego tickera" aria-controls="ht-jump-list" autocomplete="off" spellcheck="false"><div class="ht-jump-list" id="ht-jump-list" role="listbox" aria-label="Wyniki wyszukiwania tickera"></div></div>
       <div class="ht-stats"><div>WOLUMEN 24H <b id="ht-volume">—</b></div><div>OPEN INTEREST <b id="ht-oi">—</b></div><div>FUNDING / H <b id="ht-funding">—</b></div></div>
       <div class="ht-periods" id="ht-periods"></div>
       <div class="ht-chart-tools"><button type="button" id="ht-indicators-open" aria-expanded="false" aria-controls="ht-indicator-panel">ƒx Indykatory</button><button id="ht-fit" type="button">Dopasuj wykres</button></div>
@@ -223,6 +224,45 @@ window.HyperTerminal = (() => {
     if (favorite) { toggleFavorite(favorite); return }
     const coin = e.target.closest('[data-coin]')?.dataset.coin
     if (coin) select(coin)
+  })
+  // Clicking the ticker name opens a search: switch the chart to another market without touching the favourites.
+  let jumpResults = [], jumpIndex = 0
+  function renderJump() {
+    const q = $('ht-jump-input').value.trim().toUpperCase()
+    jumpResults = q ? findMarkets(q).slice(0, 12) : favorites.map(c => all.find(m => m.coin === c)).filter(Boolean)
+    jumpIndex = Math.min(jumpIndex, Math.max(0, jumpResults.length - 1))
+    $('ht-jump-list').innerHTML = jumpResults.map((m, i) => `<button type="button" class="ht-jump-row${i === jumpIndex ? ' active' : ''}${m.coin === selected ? ' current' : ''}" role="option" aria-selected="${i === jumpIndex}" data-jump="${esc(m.coin)}"><span><b>${esc(m.name)}</b><small>${esc(m.dex)}</small></span><span class="ht-market-price">${fmt(m.price)}<small class="${m.change >= 0 ? 'positive' : 'negative'}">${m.change == null ? '—' : (m.change >= 0 ? '+' : '') + m.change.toFixed(2) + '%'}</small></span></button>`).join('')
+      || `<p class="ht-empty">${q ? 'Nie znaleziono takiego tickera.' : 'Wpisz ticker, np. BTC albo SP500.'}</p>`
+  }
+  function openJump() {
+    $('ht-jump').hidden = false; $('ht-symbol-btn').setAttribute('aria-expanded', 'true')
+    $('ht-jump-input').value = ''; jumpIndex = 0; renderJump(); $('ht-jump-input').focus()
+  }
+  function closeJump(refocus) {
+    if ($('ht-jump').hidden) return
+    $('ht-jump').hidden = true; $('ht-symbol-btn').setAttribute('aria-expanded', 'false')
+    if (refocus) $('ht-symbol-btn').focus()
+  }
+  // pointerdown keeps focus in the input, so focusout below only fires for clicks outside the search.
+  $('ht-symbol-btn').addEventListener('pointerdown', e => e.preventDefault())
+  $('ht-symbol-btn').addEventListener('click', () => $('ht-jump').hidden ? openJump() : closeJump(true))
+  $('ht-jump').addEventListener('pointerdown', e => { if (e.target.id !== 'ht-jump-input') e.preventDefault() })
+  $('ht-jump').addEventListener('focusout', e => { if (!$('ht-jump').contains(e.relatedTarget)) closeJump(false) })
+  $('ht-jump-input').addEventListener('input', () => { jumpIndex = 0; renderJump() })
+  $('ht-jump-input').addEventListener('keydown', e => {
+    if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeJump(true) }
+    else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault()
+      if (jumpResults.length) { jumpIndex = (jumpIndex + (e.key === 'ArrowDown' ? 1 : -1) + jumpResults.length) % jumpResults.length; renderJump() }
+    } else if (e.key === 'Enter') {
+      e.preventDefault()
+      const match = jumpResults[jumpIndex]
+      if (match) { closeJump(true); select(match.coin) }
+    }
+  })
+  $('ht-jump-list').addEventListener('click', e => {
+    const coin = e.target.closest('[data-jump]')?.dataset.jump
+    if (coin) { closeJump(true); select(coin) }
   })
   $('ht-periods').addEventListener('click', e => { const p = e.target.closest('[data-period]')?.dataset.period; if (p && p !== interval) { interval = p; Store.set('hl-interval', p); orderflow.setMarket(selected, interval); studies.setMarket(selected, interval); renderQuote(); loadChart() } })
   window.addEventListener('themechange', theme)

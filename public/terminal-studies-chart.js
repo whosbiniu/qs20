@@ -366,7 +366,7 @@ window.TerminalStudies = (() => {
         if (id === 'heatmap') {
           if (!value) heat = [];
           // The history grows to the right of the last candle, so leave room for it.
-          panel?.chart.timeScale().applyOptions({ rightOffset: value ? 15 : 0 });
+          panel?.chart.timeScale().applyOptions({ rightOffset: value ? 15 : 10 });
         }
         if (id === 'levels') { if (value) loadLevels(); else syncLevels(); }
         if (id === 'funding' && value) loadFunding();

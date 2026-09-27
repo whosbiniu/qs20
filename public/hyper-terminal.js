@@ -1,7 +1,7 @@
 window.HyperTerminal = (() => {
   const root = document.getElementById('hyper-terminal')
   root.innerHTML = `<div class="ht">
-    <aside class="ht-markets"><header><strong>HYPERLIQUID</strong><span id="ht-count"></span></header><input id="ht-search" type="search" placeholder="Szukaj: XYZ100, SP500, BTC…" aria-label="Szukaj rynku"><div class="ht-list" id="ht-list"></div></aside>
+    <aside class="ht-markets"><header><strong>ULUBIONE</strong><span id="ht-count"></span></header><input id="ht-search" type="search" placeholder="Ticker + Enter, aby dodać" aria-label="Wpisz ticker, aby dodać do ulubionych" autocomplete="off" spellcheck="false"><div class="ht-list" id="ht-list"></div></aside>
     <div class="ht-main"><header class="ht-head"><div><strong id="ht-symbol">XYZ100</strong><span id="ht-dex">xyz</span></div><div class="ht-price" id="ht-price">—</div><div class="ht-change" id="ht-change">—</div><div class="ht-spacer"></div><span class="ht-source">Dane: Hyperliquid</span></header>
       <div class="ht-stats"><div>WOLUMEN 24H <b id="ht-volume">—</b></div><div>OPEN INTEREST <b id="ht-oi">—</b></div><div>FUNDING / H <b id="ht-funding">—</b></div></div>
       <div class="ht-periods" id="ht-periods"></div>
@@ -46,7 +46,7 @@ window.HyperTerminal = (() => {
   }
   function setupChart() {
     if (chart) return
-    chart = LightweightCharts.createChart($('ht-chart'), { autoSize: true, localization: { locale: 'pl-PL' }, timeScale: { timeVisible: true, secondsVisible: false } })
+    chart = LightweightCharts.createChart($('ht-chart'), { autoSize: true, localization: { locale: 'pl-PL' }, timeScale: { timeVisible: true, secondsVisible: false, rightOffset: 10 } })
     series = chart.addSeries(LightweightCharts.CandlestickSeries, { priceFormat: { type: 'price', precision: 4, minMove: 0.0001 } })
     volumeSeries = chart.addSeries(LightweightCharts.HistogramSeries, { priceFormat: { type: 'volume' }, priceScaleId: 'volume', lastValueVisible: false, priceLineVisible: false, visible: !!settings.volume })
     volumeSeries.priceScale().applyOptions({ scaleMargins: { top: .9, bottom: 0 } })
@@ -58,11 +58,31 @@ window.HyperTerminal = (() => {
     studies.bindPanel(drawingPanel)
     studies.setMarket(selected, interval)
   }
+  // Favourites replace the full market list: type a ticker to find it, star it (or press Enter) to keep it.
+  let favorites = ['xyz:XYZ100', 'xyz:SP500', 'BTC', 'ETH']
+  try { const stored = JSON.parse(localStorage.getItem('hl-favorites') || 'null'); if (Array.isArray(stored)) favorites = stored.filter(c => typeof c === 'string') } catch {}
+  const saveFavorites = () => { try { localStorage.setItem('hl-favorites', JSON.stringify(favorites)) } catch {} }
+  const marketRow = (m, favorite) => `<div class="ht-market-row"><button class="ht-market${m.coin === selected ? ' active' : ''}" data-coin="${esc(m.coin)}"><span><b>${esc(m.name)}</b><small>${esc(m.dex)}</small></span><span class="ht-market-price">${fmt(m.price)}<small class="${m.change >= 0 ? 'positive' : 'negative'}">${m.change == null ? '—' : (m.change >= 0 ? '+' : '') + m.change.toFixed(2) + '%'}</small></span></button><button class="ht-fav${favorite ? ' on' : ''}" data-fav="${esc(m.coin)}" aria-pressed="${favorite}" aria-label="${favorite ? 'Usuń z ulubionych' : 'Dodaj do ulubionych'}: ${esc(m.name)}" title="${favorite ? 'Usuń z ulubionych' : 'Dodaj do ulubionych'}">${favorite ? '★' : '☆'}</button></div>`
+  // Best match first: the exact ticker, then shorter names.
+  const findMarkets = q => all.filter(m => (m.coin + ' ' + m.name).toUpperCase().includes(q))
+    .sort((a, b) => Number(b.name.toUpperCase() === q) - Number(a.name.toUpperCase() === q) || a.name.length - b.name.length)
+  function toggleFavorite(coin) {
+    favorites = favorites.includes(coin) ? favorites.filter(c => c !== coin) : [...favorites, coin]
+    saveFavorites(); renderList()
+  }
   function renderList() {
     const q = $('ht-search').value.trim().toUpperCase()
-    const list = all.filter(m => (m.coin + ' ' + m.name).toUpperCase().includes(q))
-    $('ht-count').textContent = `${list.length} rynków`
-    $('ht-list').innerHTML = list.map(m => `<button class="ht-market${m.coin === selected ? ' active' : ''}" data-coin="${esc(m.coin)}"><span><b>${esc(m.name)}</b><small>${esc(m.dex)}</small></span><span class="ht-market-price">${fmt(m.price)}<small class="${m.change >= 0 ? 'positive' : 'negative'}">${m.change == null ? '—' : (m.change >= 0 ? '+' : '') + m.change.toFixed(2) + '%'}</small></span></button>`).join('') || '<p class="ht-empty">Brak rynku</p>'
+    if (q) {
+      const found = findMarkets(q)
+      $('ht-count').textContent = `${found.length} wyników`
+      $('ht-list').innerHTML = found.slice(0, 40).map(m => marketRow(m, favorites.includes(m.coin))).join('') || '<p class="ht-empty">Nie znaleziono takiego tickera.</p>'
+      return
+    }
+    const saved = favorites.map(c => all.find(m => m.coin === c)).filter(Boolean)
+    // The market on the chart stays visible even when it is not a favourite yet.
+    const open = selected && !favorites.includes(selected) ? all.find(m => m.coin === selected) : null
+    $('ht-count').textContent = String(saved.length)
+    $('ht-list').innerHTML = (open ? marketRow(open, false) : '') + saved.map(m => marketRow(m, true)).join('') || '<p class="ht-empty">Brak ulubionych. Wpisz ticker powyżej i naciśnij Enter.</p>'
   }
   function renderQuote() {
     const m = all.find(x => x.coin === selected)
@@ -106,9 +126,15 @@ window.HyperTerminal = (() => {
       orderflow.refresh()
       studies.refresh()
       chartKey = key
-      if (changed) chart.timeScale().fitContent()
+      if (changed) fitChart()
       $('ht-message').hidden = true
     } catch (error) { if (stamp === request) { $('ht-message').textContent = error.message; $('ht-message').hidden = false } }
+  }
+  // Fit all candles but keep some free space to the right of the last one, so the price has room.
+  function fitChart() {
+    const scale = chart.timeScale(), count = drawingPanel?.candles.length || 0
+    if (count > 1 && scale.setVisibleLogicalRange) scale.setVisibleLogicalRange({ from: -0.5, to: count - 1 + Math.max(8, Math.round(count * 0.06)) })
+    else scale.fitContent()
   }
   function bookSide(rows, side) {
     let total = 0
@@ -164,13 +190,27 @@ window.HyperTerminal = (() => {
     if (key !== 'mode' && (!e.target.value || Number(e.target.value.slice(3)) % 30 !== 0)) { e.target.value = settings[key]; return }
     settings[key] = e.target.value; $('ht-tpo-hours').hidden = settings.mode !== 'session'; saveSettings(); renderProfile()
   })
-  $('ht-fit').addEventListener('click', () => chart?.timeScale().fitContent())
+  $('ht-fit').addEventListener('click', () => chart && fitChart())
   $('ht-search').addEventListener('input', renderList)
-  $('ht-list').addEventListener('click', e => { const coin = e.target.closest('[data-coin]')?.dataset.coin; if (coin) select(coin) })
+  $('ht-search').addEventListener('keydown', e => {
+    if (e.key !== 'Enter') return
+    // Enter adds the best match to the favourites and opens it.
+    const q = $('ht-search').value.trim().toUpperCase(), match = q ? findMarkets(q)[0] : null
+    if (!match) { if (q) $('ht-list').innerHTML = '<p class="ht-empty">Nie znaleziono takiego tickera.</p>'; return }
+    if (!favorites.includes(match.coin)) { favorites = [...favorites, match.coin]; saveFavorites() }
+    $('ht-search').value = ''
+    select(match.coin); renderList()
+  })
+  $('ht-list').addEventListener('click', e => {
+    const favorite = e.target.closest('[data-fav]')?.dataset.fav
+    if (favorite) { toggleFavorite(favorite); return }
+    const coin = e.target.closest('[data-coin]')?.dataset.coin
+    if (coin) select(coin)
+  })
   $('ht-periods').addEventListener('click', e => { const p = e.target.closest('[data-period]')?.dataset.period; if (p && p !== interval) { interval = p; localStorage.setItem('hl-interval', p); orderflow.setMarket(selected, interval); studies.setMarket(selected, interval); renderQuote(); loadChart() } })
   window.addEventListener('themechange', theme)
-  window.addEventListener('resize', () => chart?.timeScale().fitContent())
+  window.addEventListener('resize', () => chart && fitChart())
   setInterval(() => { if (!root.hidden && !document.hidden && initialized) { loadMarkets(); loadBook() } }, 15000)
   setInterval(() => { if (!root.hidden && !document.hidden && initialized) { loadChart(); loadProfile() } }, 30000)
-  return { show() { if (!initialized) { initialized = true; loadMarkets().then(() => { loadChart(); loadBook(); loadProfile() }) } else { loadMarkets(); loadBook(); loadProfile(); requestAnimationFrame(() => chart?.timeScale().fitContent()) } } }
+  return { show() { if (!initialized) { initialized = true; loadMarkets().then(() => { loadChart(); loadBook(); loadProfile() }) } else { loadMarkets(); loadBook(); loadProfile(); requestAnimationFrame(() => chart && fitChart()) } } }
 })()

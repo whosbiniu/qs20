@@ -132,19 +132,29 @@ final class MarketHighsBridge: NSObject, WKScriptMessageHandlerWithReply {
 final class ProxyBridge: NSObject, WKScriptMessageHandlerWithReply {
     static let hosts: Set<String> = ["query1.finance.yahoo.com", "www.financialjuice.com", "translate.googleapis.com",
                                      "nfs.faireconomy.media", "economic-calendar.tradingview.com",
-                                     "earthquake.usgs.gov", "eonet.gsfc.nasa.gov", "api.adsb.lol", "api.gdeltproject.org"]
+                                     "earthquake.usgs.gov", "eonet.gsfc.nasa.gov", "api.adsb.lol", "api.gdeltproject.org",
+                                     "fc.yahoo.com"]
 
     func userContentController(_ userContentController: WKUserContentController,
                                didReceive message: WKScriptMessage,
                                replyHandler: @escaping (Any?, String?) -> Void) {
-        guard isBundledPage(message.frameInfo), let text = message.body as? String,
+        // The body is either a URL string (GET) or {url, method, body} for the few POSTs (Yahoo's earnings screener).
+        let fields = message.body as? [String: Any]
+        guard isBundledPage(message.frameInfo), let text = (message.body as? String) ?? (fields?["url"] as? String),
               let url = URL(string: text), url.scheme == "https", let host = url.host,
               ProxyBridge.hosts.contains(host) else {
             replyHandler(nil, "Unsupported request"); return
         }
+        let method = (fields?["method"] as? String) ?? "GET"
+        guard ["GET", "POST"].contains(method) else { replyHandler(nil, "Unsupported request"); return }
         if CommandLine.arguments.contains("--offline") { replyHandler(["status": 503, "text": ""], nil); return }
         var request = URLRequest(url: url)
         request.timeoutInterval = 15
+        request.httpMethod = method
+        if method == "POST", let body = fields?["body"] as? String, body.utf8.count < 8192 {
+            request.httpBody = Data(body.utf8)
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        }
         request.setValue("Mozilla/5.0", forHTTPHeaderField: "User-Agent")
         // TradingView's calendar only answers requests that carry its own origin.
         if host == "economic-calendar.tradingview.com" { request.setValue("https://www.tradingview.com", forHTTPHeaderField: "Origin") }
@@ -203,6 +213,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         let config = WKWebViewConfiguration()
+        // Self-tests must not depend on preferences saved by normal use (chart count, theme, home layout).
+        if CommandLine.arguments.contains(where: { $0.hasPrefix("--self-test") }) { config.websiteDataStore = .nonPersistent() }
         config.userContentController.addScriptMessageHandler(calendar, contentWorld: .page, name: "calendar")
         config.userContentController.addScriptMessageHandler(calendarExport, contentWorld: .page, name: "calendarExport")
         config.userContentController.addScriptMessageHandler(marketHighs, contentWorld: .page, name: "marketHighs")
@@ -220,12 +232,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
               const payload = await window.webkit.messageHandlers.marketHighs.postMessage(null);
               return new Response(JSON.stringify(payload), {headers: {'Content-Type': 'application/json'}});
             }
-            const terminalRoutes = ['/api/chart', '/api/highs', '/api/tape', '/api/news', '/api/monitor'];
+            const terminalRoutes = ['/api/chart', '/api/highs', '/api/tape', '/api/news', '/api/monitor', '/api/earnings'];
             const url = new URL(path, 'https://terminal.invalid');
             if (terminalRoutes.includes(url.pathname) || (url.pathname === '/api/events' && url.searchParams.has('range'))) {
               // Same data layer as the web server, with the native app as its transport.
-              const data = window.__terminalData ||= TerminalData.create(async target => {
-                const reply = await window.webkit.messageHandlers.proxy.postMessage(target);
+              const data = window.__terminalData ||= TerminalData.create(async (target, options) => {
+                const reply = await window.webkit.messageHandlers.proxy.postMessage(
+                  options && options.method === 'POST' ? {url: target, method: 'POST', body: options.body} : target);
                 return {status: reply.status, text: reply.text};
               });
               const json = body => new Response(JSON.stringify(body), {headers: {'Content-Type': 'application/json'}});
@@ -236,6 +249,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
                 if (url.pathname === '/api/events') return json(await data.calendar(q.get('range') || ''));
                 if (url.pathname === '/api/tape') return json({quotes: await data.tape()});
                 if (url.pathname === '/api/monitor') return json(await data.monitor());
+                if (url.pathname === '/api/earnings') return json(await data.earnings(q.get('range') || ''));
                 return json(await data.news());
               } catch (error) {
                 return new Response(JSON.stringify({error: String(error.message || error)}),
@@ -332,7 +346,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
                 const state = {charts: count('#charts .cell'), errors: count('#charts .err'),
                   cycles: [...document.querySelectorAll('#charts .cyc b')].filter(b => /Q/.test(b.textContent)).length,
                   tape: count('#tapeTrack .q'), news: count('#newsSide .item'),
-                  translated: [...document.querySelectorAll('#newsSide .item .t[title]')].length};
+                  translated: [...document.querySelectorAll('#newsSide .item .t[title]')].length,
+                  panelState: panels.map(p => [p.symbol, p.loaded, !!p.candles, p.cell.hidden]), cycleText: [...document.querySelectorAll('#charts .cycles')].map(c => c.innerText.replace(/\\s+/g, ' ').slice(0, 40))};
                 state.ok = state.charts === 4 && state.errors === 0 && state.cycles >= 12 && state.tape === 100 && state.news > 20;
                 return JSON.stringify(state);
                 })()

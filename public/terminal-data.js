@@ -78,6 +78,14 @@
   function rangeBounds(range, now = Date.now()) {
     const [y, m, d] = etDay(now).split('-').map(Number);
     const today = new Date(Date.UTC(y, m - 1, d));
+    if (range === 'today') return { from: isoDay(today), to: isoDay(today) };
+    if (range === 'week') {
+      const start = new Date(today);
+      start.setUTCDate(d - (today.getUTCDay() + 6) % 7);
+      const end = new Date(start);
+      end.setUTCDate(start.getUTCDate() + 6);
+      return { from: isoDay(start), to: isoDay(end) };
+    }
     if (range === 'next-week') {
       const start = new Date(today);
       start.setUTCDate(d - (today.getUTCDay() + 6) % 7 + 7);
@@ -130,6 +138,22 @@
       return point && { id: String(e.id), title: String(e.title || ''), category: String(e.categories?.[0]?.title || ''), ...point, url: link };
     }).filter(e => e && finite(e.lat) && finite(e.lon) && Number.isFinite(e.time)).sort((a, b) => b.time - a.time);
   }
+  const ringCentre = ring => ring?.length ? [ring.reduce((a, c) => a + c[0], 0) / ring.length, ring.reduce((a, c) => a + c[1], 0) / ring.length] : null;
+  const geometryCentre = g => g?.type === 'Polygon' ? ringCentre(g.coordinates?.[0]) : g?.type === 'MultiPolygon' ? ringCentre(g.coordinates?.[0]?.[0]) : g?.type === 'Point' ? g.coordinates : null;
+  // US National Weather Service alerts (only those that carry a polygon can be placed on the map).
+  function parseWeather(json) {
+    return (json?.features || []).map(f => {
+      const c = geometryCentre(f.geometry), p = f.properties || {};
+      return c && { id: String(p.id || f.id), lon: c[0], lat: c[1], title: String(p.event || ''), area: String(p.areaDesc || '').slice(0, 140), severity: String(p.severity || ''), time: Date.parse(p.sent || p.effective), url: '' };
+    }).filter(w => w && w.title && finite(w.lat) && finite(w.lon) && Number.isFinite(w.time)).sort((a, b) => b.time - a.time);
+  }
+  // Environment Canada alerts (OGC API features).
+  function parseCanada(json) {
+    return (json?.features || []).map(f => {
+      const c = geometryCentre(f.geometry), p = f.properties || {};
+      return c && { id: String(f.id), lon: c[0], lat: c[1], title: String(p.alert_short_name_en || p.alert_name_en || ''), area: String(p.feature_name_en || ''), severity: String(p.risk_colour_en || ''), province: String(p.province || ''), time: Date.parse(p.publication_datetime), url: '' };
+    }).filter(w => w.title && finite(w.lat) && finite(w.lon) && Number.isFinite(w.time)).sort((a, b) => b.time - a.time);
+  }
   function parseAircraft(json) {
     return (json?.ac || []).filter(a => finite(a.lat) && finite(a.lon)).slice(0, 800).map(a => ({
       id: String(a.hex), callsign: String(a.flight || '').trim(), type: String(a.t || ''), reg: String(a.r || ''),
@@ -145,12 +169,12 @@
   }
 
   function create(fetchText) {
-    async function getText(url) {
-      const r = await fetchText(url);
+    async function getText(url, options) {
+      const r = await fetchText(url, options);
       if (r.status !== 200) throw new Error('upstream HTTP ' + r.status);
       return r.text;
     }
-    const getJson = async url => JSON.parse(await getText(url));
+    const getJson = async (url, options) => JSON.parse(await getText(url, options));
     const yahoo = (feed, interval, range, extra = '') =>
       `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(feed)}?interval=${interval}&range=${range}${extra}`;
 
@@ -282,6 +306,52 @@
       return withTranslations();
     }
 
+    // Earnings from Yahoo's screener API. It needs a cookie plus a "crumb" token, both obtained anonymously.
+    let crumb = null;
+    async function yahooCrumb(fresh) {
+      if (crumb && !fresh && Date.now() - crumb.at < 3600000) return crumb.value;
+      await fetchText('https://fc.yahoo.com').catch(() => null);   // sets the session cookie (the body is a 404 page)
+      const value = (await getText('https://query1.finance.yahoo.com/v1/test/getcrumb')).trim();
+      if (!value || /[<\s]/.test(value)) throw new Error('no crumb');
+      crumb = { value, at: Date.now() };
+      return value;
+    }
+    const earningsCache = new Map();
+    async function earnings(range) {
+      const bounds = rangeBounds(range);
+      if (!bounds) throw Object.assign(new Error('bad range'), { status: 400 });
+      const hit = earningsCache.get(range);
+      if (hit && Date.now() - hit.at < 600000) return hit.data;
+      const end = new Date(Date.parse(bounds.to + 'T00:00:00Z') + 86400000).toISOString().slice(0, 10);
+      const body = JSON.stringify({
+        size: 250, offset: 0, sortField: 'intradaymarketcap', sortType: 'DESC', entityIdType: 'earnings',
+        includeFields: ['ticker', 'companyshortname', 'startdatetime', 'startdatetimetype', 'epsestimate', 'epsactual', 'epssurprisepct', 'intradaymarketcap'],
+        query: { operator: 'and', operands: [
+          { operator: 'gte', operands: ['startdatetime', bounds.from] }, { operator: 'lt', operands: ['startdatetime', end] },
+          { operator: 'eq', operands: ['region', 'us'] }] },
+      });
+      const request = async fresh => getJson(`https://query1.finance.yahoo.com/v1/finance/visualization?crumb=${encodeURIComponent(await yahooCrumb(fresh))}&lang=en-US&region=US`,
+        { method: 'POST', body, headers: { 'Content-Type': 'application/json' } });
+      let json;
+      try { json = await request(false); } catch { json = await request(true); }   // an expired crumb answers 401
+      const document = json?.finance?.result?.[0]?.documents?.[0];
+      if (!document) throw new Error('no earnings data');
+      const names = document.columns.map(c => c.id);
+      const cell = (row, id) => row[names.indexOf(id)];
+      const items = document.rows.map(row => ({
+        symbol: String(cell(row, 'ticker') || ''), name: String(cell(row, 'companyshortname') || ''),
+        date: cell(row, 'startdatetime'), timing: String(cell(row, 'startdatetimetype') || ''),
+        epsEstimate: finite(cell(row, 'epsestimate')) ? cell(row, 'epsestimate') : null,
+        epsActual: finite(cell(row, 'epsactual')) ? cell(row, 'epsactual') : null,
+        surprise: finite(cell(row, 'epssurprisepct')) ? cell(row, 'epssurprisepct') : null,
+        marketCap: finite(cell(row, 'intradaymarketcap')) ? cell(row, 'intradaymarketcap') : null,
+      })).filter(e => /^[A-Z0-9.^=-]{1,15}$/.test(e.symbol) && !/-P[A-Z]?$/.test(e.symbol) && Number.isFinite(Date.parse(e.date)))
+        .sort((a, b) => Date.parse(a.date) - Date.parse(b.date) || (b.marketCap || 0) - (a.marketCap || 0));
+      const data = { items, range, ...bounds, source: 'Yahoo Finance', updatedAt: new Date().toISOString() };
+      earningsCache.set(range, { at: Date.now(), data });
+      return data;
+    }
+
     const calendars = new Map();
     async function calendar(range) {
       const bounds = rangeBounds(range);
@@ -331,44 +401,67 @@
     }
     // Slow optional sources must not hold the map back: give them a moment, keep loading in the background.
     const withinMs = (ms, load) => Promise.race([load(), new Promise((_, reject) => setTimeout(() => reject(new Error('slow')), ms))]);
-    const articleTitles = new Map();
-    async function monitor() {
-      const [quakes, events, aircraft, articles] = await Promise.allSettled([
-        layer('quakes', 120000, async () => parseQuakes(await getJson('https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/2.5_day.geojson'))),
-        layer('events', 600000, async () => parseEvents(await getJson('https://eonet.gsfc.nasa.gov/api/v3/events?status=open&limit=200')).slice(0, 200)),
+    const RANGES = {
+      '24h': { ms: 86400000, quakes: '2.5_day', days: 1, gdelt: '24h' }, '48h': { ms: 172800000, quakes: '2.5_week', days: 2, gdelt: '48h' },
+      '7d': { ms: 604800000, quakes: '2.5_week', days: 7, gdelt: '7d' }, '30d': { ms: 2592000000, quakes: '2.5_month', days: 30, gdelt: '30d' },
+    };
+    // English → Polish for the free-text of live events (Google Translate web endpoint), cached per text.
+    const plText = new Map();
+    async function polish(list, field) {
+      await Promise.all(list.filter(i => i[field] && !plText.has(i[field])).map(async i => { try { plText.set(i[field], await translate(i[field])); } catch {} }));
+      return list.map(i => ({ ...i, [field + 'Pl']: plText.get(i[field]) || '' }));
+    }
+    async function monitor(rangeName = '7d') {
+      const range = RANGES[rangeName] || RANGES['7d'], key = rangeName in RANGES ? rangeName : '7d', since = Date.now() - range.ms;
+      const fresh = list => list.filter(i => i.time >= since);
+      const [quakes, events, aircraft, articles, weather, canada] = await Promise.allSettled([
+        layer('quakes' + range.quakes, 120000, async () => parseQuakes(await getJson(`https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/${range.quakes}.geojson`))),
+        // Titles are translated in the background: the map must not wait for them.
+        layer('events' + key, 600000, async () => { const list = fresh(parseEvents(await getJson(`https://eonet.gsfc.nasa.gov/api/v3/events?status=all&days=${range.days}&limit=300`))).slice(0, 250); polish(list, 'title'); return list; }),
         layer('aircraft', 30000, async () => parseAircraft(await getJson('https://api.adsb.lol/v2/mil'))),
         // GDELT allows one request per five seconds, so headlines are cached for ten minutes.
-        withinMs(4000, () => layer('articles', 600000, async () => {
+        withinMs(4000, () => layer('articles' + key, 600000, async () => {
           const query = encodeURIComponent('(war OR attack OR missile OR military OR strike) sourcelang:english');
-          const list = parseArticles(await getJson(`https://api.gdeltproject.org/api/v2/doc/doc?query=${query}&mode=artlist&maxrecords=40&format=json&sort=datedesc&timespan=12h`)).slice(0, 25);
+          const list = parseArticles(await getJson(`https://api.gdeltproject.org/api/v2/doc/doc?query=${query}&mode=artlist&maxrecords=40&format=json&sort=datedesc&timespan=${range.gdelt}`)).slice(0, 25);
           await Promise.all(list.filter(a => !articleTitles.has(a.url)).map(async a => { try { articleTitles.set(a.url, await translate(a.title)); } catch {} }));
           return list;
         })),
+        layer('weather', 300000, async () => { const list = parseWeather(await getJson('https://api.weather.gov/alerts/active?status=actual&severity=Extreme,Severe')).slice(0, 250); polish(list, 'title'); return list; }),
+        layer('canada', 300000, async () => { const list = parseCanada(await getJson('https://api.weather.gc.ca/collections/weather-alerts/items?f=json&limit=300')).slice(0, 250); polish(list, 'title'); return list; }),
       ]);
       const value = (r, fallback = []) => r.status === 'fulfilled' ? r.value : fallback;
-      const failed = [['quakes', quakes], ['events', events], ['aircraft', aircraft], ['articles', articles]].filter(([, r]) => r.status === 'rejected').map(([name]) => name);
-      if (failed.length === 4) throw new Error('no monitor data');
+      const results = { quakes, events, aircraft, articles, weather, canada };
+      const failed = Object.keys(results).filter(name => results[name].status === 'rejected');
+      if (failed.length === Object.keys(results).length) throw new Error('no monitor data');
+      const withPl = list => list.map(i => ({ ...i, titlePl: plText.get(i.title) || '' }));
       return {
-        quakes: value(quakes), events: value(events), aircraft: value(aircraft),
-        articles: value(articles).map(a => ({ ...a, pl: articleTitles.get(a.url) || '' })),
+        range: key,
+        quakes: fresh(value(quakes)), events: withPl(value(events)), aircraft: value(aircraft), weather: withPl(fresh(value(weather))), canada: withPl(value(canada)),
+        articles: fresh(value(articles)).map(a => ({ ...a, pl: articleTitles.get(a.url) || '' })),
         failed, fetchedAt: Date.now(),
       };
     }
+    const articleTitles = new Map();
 
-    return { chart, highs, tape, news, calendar, monitor };
+    return { chart, highs, tape, news, calendar, earnings, monitor };
   }
 
-  // Node transport (Next route handlers, dev server).
+  // Node transport (Next route handlers, dev server). Yahoo hosts share one cookie jar for the crumb flow.
   function nodeTransport() {
-    return async url => {
+    const jar = new Map();
+    const isYahoo = host => host === 'yahoo.com' || host.endsWith('.yahoo.com');
+    return async (url, options = {}) => {
+      const { hostname } = new URL(url);
       // TradingView's calendar endpoint only answers requests that carry its own origin.
-      const headers = { 'User-Agent': 'Mozilla/5.0', Accept: '*/*' };
-      if (new URL(url).hostname === 'economic-calendar.tradingview.com') headers.Origin = 'https://www.tradingview.com';
-      const response = await fetch(url, { cache: 'no-store', signal: AbortSignal.timeout(15000), headers });
+      const headers = { 'User-Agent': 'Mozilla/5.0', Accept: '*/*', ...(options.headers || {}) };
+      if (hostname === 'economic-calendar.tradingview.com') headers.Origin = 'https://www.tradingview.com';
+      if (isYahoo(hostname) && jar.size) headers.Cookie = [...jar].map(([k, v]) => k + '=' + v).join('; ');
+      const response = await fetch(url, { method: options.method || 'GET', body: options.body, cache: 'no-store', signal: AbortSignal.timeout(15000), headers });
+      if (isYahoo(hostname)) for (const cookie of response.headers.getSetCookie?.() || []) { const [pair] = cookie.split(';'); const i = pair.indexOf('='); if (i > 0) jar.set(pair.slice(0, i), pair.slice(i + 1)); }
       return { status: response.status, text: await response.text() };
     };
   }
 
-  const api = { FRAMES, TAPE, feedFor, aggregate, parseRss, parseQuakes, parseEvents, parseAircraft, parseArticles, rangeBounds, tvValue, fromTradingView, create, nodeTransport };
+  const api = { FRAMES, TAPE, feedFor, aggregate, parseRss, parseQuakes, parseEvents, parseWeather, parseCanada, parseAircraft, parseArticles, rangeBounds, tvValue, fromTradingView, create, nodeTransport };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.TerminalData = api;
 })(typeof globalThis === 'undefined' ? this : globalThis);

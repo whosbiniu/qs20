@@ -46,13 +46,14 @@ with tempfile.TemporaryDirectory(prefix="qs-macos-") as work:
     resources.mkdir()
     shutil.copytree(root / "public", resources / "public", copy_function=shutil.copyfile)
     shutil.copyfile(root / "app/api/events/snapshot.json", resources / "snapshot.json")
+    shutil.copyfile(root / "desktop/macos/AppIcon.icns", resources / "AppIcon.icns")
     subprocess.run(["xcrun", "swiftc", "-O", "-target", "arm64-apple-macosx12.0",
                     str(root / "desktop/macos/main.swift"), "-o", str(executable)], check=True)
     info = {
         "CFBundleExecutable": "UNCsWay", "CFBundleIdentifier": "local.uncsway.quarterly",
         "CFBundleName": "UNCsWay", "CFBundleDisplayName": "UNC’sWay",
         "CFBundlePackageType": "APPL", "CFBundleShortVersionString": "2.0.0",
-        "CFBundleVersion": "14", "LSMinimumSystemVersion": "12.0",
+        "CFBundleVersion": "15", "CFBundleIconFile": "AppIcon", "LSMinimumSystemVersion": "12.0",
         "NSHighResolutionCapable": True, "NSPrincipalClass": "NSApplication",
     }
     with (contents / "Info.plist").open("wb") as handle:

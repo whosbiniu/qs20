@@ -41,7 +41,10 @@ assert.deepEqual(Terminal.rangeBounds('next-week',at('2026-09-28T03:00:00Z')),{f
 assert.deepEqual(Terminal.rangeBounds('month',at('2026-12-15T12:00:00Z')),{from:'2027-01-01',to:'2027-01-31'});
 assert.deepEqual(Terminal.rangeBounds('quarter',at('2026-09-27T12:00:00Z')),{from:'2026-10-01',to:'2026-12-31'});
 assert.deepEqual(Terminal.rangeBounds('quarter',at('2026-11-15T12:00:00Z')),{from:'2027-01-01',to:'2027-03-31'});
-assert.equal(Terminal.rangeBounds('today'),null);
+assert.deepEqual(Terminal.rangeBounds('today',at('2026-09-27T12:00:00Z')),{from:'2026-09-27',to:'2026-09-27'});
+assert.deepEqual(Terminal.rangeBounds('week',at('2026-09-27T12:00:00Z')),{from:'2026-09-21',to:'2026-09-27'}); // Sunday belongs to the week that started on Monday
+assert.deepEqual(Terminal.rangeBounds('week',at('2026-09-28T16:00:00Z')),{from:'2026-09-28',to:'2026-10-04'});
+assert.equal(Terminal.rangeBounds('year'),null);
 assert.equal(Terminal.tvValue(54.8),'54.8');
 assert.equal(Terminal.tvValue(4.1,'%'),'4.1%');
 assert.equal(Terminal.tvValue(100,undefined,'K'),'100K');
@@ -112,16 +115,39 @@ assert.equal(new Date(articles[0].time).toISOString(),'2026-09-27T10:15:00.000Z'
   assert.deepEqual([ffWeek.source,ffWeek.events.length,ffWeek.events[0].title],['Forex Factory',1,'CPI']);
   // Monitor: one failing source does not break the others; all failing is an error.
   const mon=Terminal.create(async url=>{
-    if(url.includes('usgs'))return {status:200,text:JSON.stringify({features:[{id:'q',geometry:{coordinates:[1,2,3]},properties:{mag:4,place:'P',time:1,url:'https://earthquake.usgs.gov/q'}}]})};
+    if(url.includes('usgs'))return {status:200,text:JSON.stringify({features:[{id:'q',geometry:{coordinates:[1,2,3]},properties:{mag:4,place:'P',time:Date.now()-60000,url:'https://earthquake.usgs.gov/q'}}]})};
     if(url.includes('adsb.lol'))return {status:200,text:JSON.stringify({ac:[{hex:'a',lat:1,lon:2}]})};
     return {status:500,text:''};
   });
   const world=await mon.monitor();
   assert.deepEqual([world.quakes.length,world.aircraft.length,world.events.length,world.articles.length],[1,1,0,0]);
-  assert.deepEqual(world.failed.sort(),['articles','events']);
+  assert.ok(['events','articles'].every(name=>world.failed.includes(name))&&!['quakes','aircraft'].some(name=>world.failed.includes(name)),String(world.failed));
   await assert.rejects(Terminal.create(async()=>({status:500,text:''})).monitor(),/no monitor data/);
+  // Earnings: Yahoo's screener needs cookie + crumb; preferred shares are dropped; an expired crumb is refreshed once.
+  const seen=[];
+  let crumbs=0;
+  const yahooEarnings=Terminal.create(async(url,options)=>{
+    seen.push([url.split('?')[0],options?.method||'GET']);
+    if(url.startsWith('https://fc.yahoo.com'))return {status:404,text:''};
+    if(url.includes('getcrumb'))return {status:200,text:'crumb'+(++crumbs)};
+    if(url.includes('visualization')){
+      if(url.includes('crumb1'))return {status:401,text:'{"finance":{"error":{"code":"Unauthorized"}}}'};
+      const body=JSON.parse(options.body);
+      assert.equal(body.entityIdType,'earnings');
+      assert.deepEqual(body.query.operands.map(o=>o.operands[1]),['2026-10-01','2026-11-01','us']);
+      return {status:200,text:JSON.stringify({finance:{result:[{documents:[{columns:['ticker','companyshortname','startdatetime','startdatetimetype','epsestimate','epsactual','epssurprisepct','intradaymarketcap'].map(id=>({id})),
+        rows:[['JPM-PC','JPMorgan pref','2026-10-13T12:30:00.000Z','TAS',null,null,null,3e10],['JPM','JPMorgan','2026-10-13T12:30:00.000Z','BMO',4.1,4.3,4.9,9e11],['BAD!','x','2026-10-13T12:30:00.000Z','BMO',null,null,null,1]]}]}]}})};
+    }
+    return {status:404,text:''};
+  });
+  const earn=await yahooEarnings.earnings('month');
+  assert.deepEqual(earn.items.map(e=>e.symbol),['JPM']);
+  assert.deepEqual([earn.items[0].epsEstimate,earn.items[0].epsActual,earn.items[0].timing],[4.1,4.3,'BMO']);
+  assert.equal(crumbs,2); // the first crumb was rejected, a fresh one worked
+  assert.ok(seen.some(([url,method])=>url.includes('visualization')&&method==='POST'));
+  await assert.rejects(yahooEarnings.earnings('year'),/bad range/);
   // A failing feed keeps serving the previous headlines instead of throwing.
   const failing=Terminal.create(async url=>url.includes('financialjuice')?{status:429,text:''}:transport(url));
   await assert.rejects(failing.news(),/429/);
-  console.log('PASS terminal data: symbols, 6H candles, RSS parsing, quarterly cycle, index volume, chart/highs/tape/news with translation, calendar ranges, monitor layers');
+  console.log('PASS terminal data: symbols, 6H candles, RSS parsing, quarterly cycle, index volume, chart/highs/tape/news with translation, calendar ranges, earnings, monitor layers');
 })().catch(error=>{console.error(error);process.exit(1);});

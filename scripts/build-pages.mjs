@@ -28,6 +28,7 @@ if (!html.includes(originalEndpoint)) throw new Error('Missing events endpoint m
 html = html.replace(originalEndpoint, '<meta name="events-endpoint" content="api/events.enc.json" />')
 // Next week/month/quarter need a live server, so the static build drops that endpoint (buttons hide themselves).
 html = html.replace('<meta name="events-range-endpoint" content="/api/events?range=" />\n', '')
+html = html.replace('<meta name="earnings-endpoint" content="/api/earnings?range=" />\n', '')
 html = html.replace('<script src="../terminal-data.js"></script>\n', '')
 if (html.includes('events-range-endpoint')) throw new Error('Range endpoint must not be published')
 const marketEndpoint = '<meta name="market-highs-endpoint" content="/api/market-highs" />'

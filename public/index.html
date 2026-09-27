@@ -4,14 +4,21 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>UNC Terminal</title>
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+<link rel="icon" type="image/png" sizes="64x64" href="favicon-64.png">
+<link rel="apple-touch-icon" href="apple-icon.png">
 <style>
 :root{--bg:#050505;--line:#3a3a34;--ink:#ebe6d3;--dim:#8c8a7c;--faint:#1c1c19}
 *{box-sizing:border-box}
 html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font:12px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace}
 body{display:flex;flex-direction:column;padding:10px;gap:10px}
 .bar{display:flex;align-items:center;gap:16px;color:var(--dim)}
-.bar .brand{color:var(--ink);letter-spacing:.2em}
-.bar .clock{margin-left:auto}
+.bar .brand{color:var(--ink);letter-spacing:.2em;display:inline-flex;align-items:center;gap:9px}
+.bar .brand img{width:22px;height:22px;filter:drop-shadow(0 0 6px #ebe6d333)}
+.bar .clock{margin-left:0}
+.swatches{display:flex;gap:7px;margin-left:auto;align-items:center}
+.swatches button{width:14px;height:14px;border:1px solid var(--line);background:var(--sw);padding:0;cursor:pointer}
+.swatches button.active{outline:1px solid var(--ink);outline-offset:2px}
 nav{display:flex;align-items:stretch;border:1px solid var(--line)}
 nav button{background:none;border:0;border-right:1px solid var(--line);color:var(--dim);font:inherit;padding:8px 16px;cursor:pointer;text-transform:uppercase;letter-spacing:.12em}
 nav button b{margin-right:8px;font-weight:400;opacity:.6}
@@ -41,6 +48,26 @@ main{flex:1;min-width:0;position:relative}
 .item.new .t{font-weight:700}
 .lang{background:transparent;border:1px solid var(--line);color:var(--ink);font:inherit;font-size:11px;padding:1px 7px;cursor:pointer}
 .newsbar{display:flex;gap:8px}.newsbar input{flex:1}
+.tabs{display:flex;flex:1;min-width:0;overflow-x:auto;scrollbar-width:none}
+.tabs::-webkit-scrollbar{display:none}
+nav button,.tools button{white-space:nowrap}
+.home-bar{display:flex;align-items:center;gap:10px;color:var(--dim);padding-bottom:8px;position:absolute;top:0;left:0;right:0;height:32px}
+.home-bar b{color:var(--ink);letter-spacing:.16em;text-transform:uppercase}
+#homeAdd{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+#homeAdd button{background:transparent;border:1px solid var(--line);color:var(--dim);font:inherit;padding:2px 8px;cursor:pointer}
+#homeAdd button:hover{color:var(--ink);border-color:var(--ink)}
+.home-grid{position:absolute;top:36px;left:0;right:0;bottom:0;overflow-y:auto;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;align-content:start;scrollbar-width:thin;scrollbar-color:var(--line) var(--bg)}
+.widget{border:1px solid var(--line);height:var(--h);display:flex;flex-direction:column;min-width:0}
+.widget.wide{grid-column:1 / -1}
+.widget>header{display:flex;align-items:center;gap:6px;padding:6px 10px;border-bottom:1px solid var(--line);background:none;color:var(--ink);font-weight:400;height:auto}
+.widget>header b{letter-spacing:.14em;text-transform:uppercase}
+.widget>header button{background:transparent;border:1px solid var(--line);color:var(--dim);font:inherit;width:24px;height:22px;padding:0;cursor:pointer}
+.widget>header button:hover:not(:disabled){color:var(--ink);border-color:var(--ink)}
+.widget>header button:disabled{opacity:.3;cursor:default}
+.wbody{flex:1;min-height:0;position:relative;overflow:hidden}
+.wbody>.feed{position:absolute;inset:0;padding:0 10px}
+.wbody iframe{border:0}
+.page.in-widget{position:relative!important;inset:auto!important;height:100%}
 .mon{position:absolute;inset:0;display:flex;gap:10px}
 .mon-main{flex:1;min-width:0;display:flex;flex-direction:column;border:1px solid var(--line)}
 .mon-bar,.mon-foot{display:flex;align-items:center;gap:10px;padding:6px 10px;color:var(--dim)}
@@ -88,6 +115,15 @@ main{flex:1;min-width:0;position:relative}
 .sub{color:var(--dim);margin-bottom:8px}
 .body{flex:1;min-height:0;display:flex;gap:14px}
 .chart{flex:1;min-width:0;position:relative}
+.draw-layer{position:absolute;inset:0;z-index:3;pointer-events:none;touch-action:none}
+.draw-bar{position:absolute;left:6px;top:6px;z-index:4;display:flex;flex-direction:column;gap:3px;opacity:.55;transition:opacity .15s}
+.chart:hover .draw-bar,.draw-bar:focus-within{opacity:1}
+.draw-bar button{width:24px;height:24px;padding:0;display:grid;place-items:center;background:var(--bg);border:1px solid var(--line);color:var(--dim);cursor:pointer}
+.draw-bar button:hover{color:var(--ink);border-color:var(--ink)}
+.draw-bar button.active{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.draw-bar button.armed{border-color:var(--ink);color:var(--ink);outline:1px dashed var(--ink)}
+.draw-text{position:absolute;z-index:5;transform:translateY(-50%);min-width:160px;padding:2px 4px;background:var(--bg);color:var(--ink);border:1px solid var(--ink);font:13px ui-monospace,Menlo,monospace;outline:none}
+.draw-bar svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.2}
 .twin{width:196px;flex:none;display:flex;flex-direction:column}
 .twin h4{margin:0 0 4px;display:flex;justify-content:space-between;font-weight:700}
 .twin h4 i{font-style:normal;font-weight:400;color:var(--dim)}
@@ -103,18 +139,81 @@ main{flex:1;min-width:0;position:relative}
 iframe{width:100%;height:100%;border:1px solid var(--line);background:#080a0e}
 footer{display:flex;gap:18px;color:var(--dim)}
 footer .live{color:var(--ink)}
-@media(max-width:900px){#charts{grid-template:repeat(4,minmax(320px,1fr))/1fr;overflow:auto}.twin{display:none}}
+
+/* ---- phones and small tablets ---- */
+@supports(height:100dvh){html,body{height:100dvh}}
+@media(max-width:800px){
+  body{padding:max(6px,env(safe-area-inset-top)) max(6px,env(safe-area-inset-right)) max(6px,env(safe-area-inset-bottom)) max(6px,env(safe-area-inset-left));gap:6px}
+  .bar{flex-wrap:wrap;gap:6px 10px}
+  .bar .brand{font-size:11px}
+  .bar .clock{font-size:11px}
+  nav{flex-wrap:wrap}
+  .tabs{flex:none;width:100%;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+  .tabs::-webkit-scrollbar{display:none}
+  nav button{white-space:nowrap;padding:11px 13px;flex:none}
+  nav button b{display:none}
+  .tools{flex:1 1 auto;width:auto;margin-left:0!important;padding:5px 8px;border-top:1px solid var(--line);overflow-x:auto;flex-wrap:nowrap;justify-content:center}
+  .tools span{display:none}
+  #tape{display:none}
+  .tools button{padding:6px 12px;min-height:32px;flex:none}
+  #lay button{padding:6px 8px}
+  .tools .side-toggle{display:none}
+  #tape{padding:4px 0}
+  #tape .q{padding:0 10px}
+  .shell{gap:0}
+  main{overflow:hidden}
+  /* charts: one column, page scrolls; the numbers sit under each chart */
+  #charts,#charts.n1,#charts.n2,#charts.n3,#charts.n4{grid-template:none;grid-template-columns:minmax(0,1fr);grid-auto-rows:max-content;align-content:start;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch}
+  #charts.n3 .cell:nth-child(3){grid-column:auto}
+  .cell{min-height:0;padding:8px;height:auto}
+  .cell .body{flex-direction:column;min-height:0;flex:none}
+  .chart{flex:none;height:min(58vh,380px);min-width:0}
+  .twin{width:100%;flex:none;margin-top:8px}
+  .twin .rows,.twin .cycles{display:grid;grid-template-columns:1fr 1fr;column-gap:14px}
+  .twin h4{display:none}
+  .twin .frame{display:none}
+  .head{flex-wrap:wrap}
+  .head .sym{font-size:16px;width:10ch;min-height:32px}
+  .head .px{width:100%}
+  .draw-bar{opacity:1;flex-direction:row;flex-wrap:wrap;width:calc(100% - 12px)}
+  .draw-bar button{width:30px;height:30px}
+  #side{display:none}
+  .page{position:relative;inset:auto;min-height:0}
+  main{flex:1;min-height:0;position:relative}
+  .page{position:absolute;inset:0}
+  .news-page{padding:8px}
+  .item{font-size:13px}
+  .news-page .item time{width:52px}
+  /* dashboard */
+  /* the whole dashboard scrolls as one page instead of nesting scrollers */
+  #home{overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch}
+  .home-bar{position:static;flex-wrap:wrap;height:auto;padding-bottom:8px}
+  .home-grid{position:static;overflow:visible;grid-template-columns:minmax(0,1fr)}
+  .widget,.widget.wide{grid-column:auto;height:min(var(--h),80vh);margin-bottom:0}
+  /* monitor: map on top, lists below */
+  .mon{flex-direction:column;overflow-y:auto;gap:8px}
+  .mon-main{flex:none;height:62vh}
+  .mon-side,.mon-side{display:flex;width:auto;flex:none;overflow:visible}
+  .mon-bar{flex-wrap:wrap}
+  .mon-foot{font-size:10px}
+  footer{flex-wrap:wrap;gap:4px 12px;font-size:11px}
+  input,select,textarea{font-size:16px}
+}
+@media(max-width:800px) and (orientation:landscape){.chart{height:70vh}}
 </style>
 </head>
 <body>
-<div class="bar"><span class="brand">UNC ~ · TERMINAL</span><span class="clock" id="clock"></span></div>
+<div class="bar"><span class="brand"><img src="logo.png" alt="">UNC ~ · TERMINAL</span><span class="swatches" id="swatches" role="group" aria-label="Kolor strony"></span><span class="clock" id="clock"></span></div>
 <nav>
-  <button data-tab="charts" class="active"><b>F1</b>Wykresy</button>
+  <div class="tabs">
+  <button data-tab="home" class="active"><b>⌂</b>Start</button>
+  <button data-tab="charts"><b>F1</b>Wykresy</button>
   <button data-tab="calendar"><b>F2</b>Kalendarz ekonomiczny</button>
   <button data-tab="news"><b>F3</b>Wydarzenia</button>
   <button data-tab="quarters"><b>F4</b>Kwartały</button>
   <button data-tab="highs"><b>F5</b>Aktualne L/H</button>
   <button data-tab="monitor"><b>F6</b>Monitor</button>
+  </div>
   <div class="tools" id="tf"></div>
   <div class="tools" id="lay" style="margin-left:0"><span>wykresy</span>
     <button data-n="1" aria-label="1 wykres" title="1 wykres"><svg viewBox="0 0 18 14"><rect x=".5" y=".5" width="17" height="13"/></svg></button>
@@ -127,6 +226,11 @@ footer .live{color:var(--ink)}
 <div id="tape" aria-label="Najpopularniejsze instrumenty świata"><div class="track" id="tapeTrack"></div></div>
 <div class="shell">
 <main>
+  <section class="page" id="home" hidden>
+    <div class="home-bar"><b>strona główna</b><span class="grow"></span><div id="homeAdd"></div></div>
+    <div class="home-grid" id="homeGrid"></div>
+    <p id="homeEmpty" class="none" hidden>Strona główna jest pusta. Dodaj panele przyciskami powyżej albo kliknij zakładkę i wybierz „Dodaj do strony głównej”.</p>
+  </section>
   <section class="page" id="charts"></section>
   <section class="page" id="calendar" hidden></section>
   <section class="page" id="news" hidden><div class="news-page"><div class="newsbar"><input id="newsFilter" type="search" placeholder="filtr wydarzeń…" aria-label="Filtr wydarzeń"><button class="lang" data-lang aria-label="Język nagłówków">PL</button></div><div class="feed" id="newsFull"></div></div></section>
@@ -137,18 +241,22 @@ footer .live{color:var(--ink)}
 <aside id="side" aria-label="Wydarzenia na żywo"><h4>wydarzenia <i>financialjuice · <button class="lang" data-lang aria-label="Język nagłówków">PL</button></i></h4><div class="feed" id="newsSide"></div></aside>
 </div>
 <footer><span class="live" id="status">● łączenie…</span><span id="updated"></span></footer>
+<script src="theme.js"></script>
 <script src="lightweight-charts.js"></script>
+<script src="drawings.js"></script>
+<script src="home.js"></script>
 <script src="cycle-rules.js"></script>
 <script src="day-highs.js"></script>
 <script src="terminal-data.js"></script>
 <script src="world-data.js"></script>
+<script src="monitor-geo.js"></script>
 <script src="monitor.js"></script>
 <script>
 // Kalendarz przekierowuje do widoku wydarzeń z qs2.0 (Timeline/Wydarzenia).
 const CALENDAR_URL = 'quarters/index.html#events'
 const QUARTERS_URL = 'quarters/index.html'
 const HIGHS_URL = 'quarters/highs.html'
-const TABS = ['charts', 'calendar', 'news', 'quarters', 'highs', 'monitor']
+const TABS = ['home', 'charts', 'calendar', 'news', 'quarters', 'highs', 'monitor']
 const DEFAULTS = ['NQ1!', 'ES1!', 'YM1!', 'DXY1!']
 const PRESETS = ['NQ1!', 'ES1!', 'YM1!', 'RTY1!', 'DXY1!', 'BTC1!', 'ETH1!', 'GC1!', 'SI1!', 'CL1!', 'NG1!', 'ZN1!', '6E1!', 'BTC-USD', 'ETH-USD', 'SOL-USD', 'AAPL', 'NVDA', 'TSLA', 'SPY', 'QQQ']
 let saved = []
@@ -158,7 +266,22 @@ const FRAMES = ['1M', '1W', '1D', '6H']
 let frame = localStorage.getItem('frame')
 if (!FRAMES.includes(frame)) frame = '1D'
 
-const INK = '#ebe6d3', DIM = '#8c8a7c', BG = '#050505'
+const BG = '#050505'
+// Colours come from the active theme (CSS variables), so charts follow the colour picker.
+const chartTheme = () => {
+  const dim = Theme.css('--dim'), line = Theme.css('--line')
+  return {
+    layout: { background: { color: BG }, textColor: dim, fontFamily: 'ui-monospace,Menlo,monospace', fontSize: 11 },
+    grid: { vertLines: { visible: false }, horzLines: { color: Theme.css('--faint'), style: 1 } },
+    rightPriceScale: { borderColor: line },
+    timeScale: { borderColor: line },
+    crosshair: { vertLine: { color: dim, labelBackgroundColor: line }, horzLine: { color: dim, labelBackgroundColor: line } },
+  }
+}
+const seriesTheme = () => {
+  const ink = Theme.css('--ink')
+  return { upColor: ink, downColor: BG, borderUpColor: ink, borderDownColor: ink, wickUpColor: ink, wickDownColor: ink, priceLineColor: ink }
+}
 const $ = id => document.getElementById(id)
 const fmt = n => n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const row = (k, v) => `<div class="r"><span>${k}</span>${v}</div>`
@@ -176,24 +299,28 @@ const panels = SYMBOLS.map((symbol, i) => {
   $('charts').append(cell)
   const el = cell.querySelector('.chart')
   const chart = LightweightCharts.createChart(el, {
-    autoSize: true,
-    layout: { background: { color: BG }, textColor: DIM, fontFamily: 'ui-monospace,Menlo,monospace', fontSize: 11 },
-    grid: { vertLines: { visible: false }, horzLines: { color: '#1c1c19', style: 1 } },
-    rightPriceScale: { borderColor: '#3a3a34' },
-    timeScale: { borderColor: '#3a3a34', timeVisible: true, secondsVisible: false },
-    crosshair: { mode: 0, vertLine: { color: DIM, labelBackgroundColor: '#3a3a34' }, horzLine: { color: DIM, labelBackgroundColor: '#3a3a34' } },
+    autoSize: true, ...chartTheme(),
+    handleScroll: { vertTouchDrag: false },
+    timeScale: { ...chartTheme().timeScale, timeVisible: true, secondsVisible: false },
+    crosshair: { mode: 0, ...chartTheme().crosshair },
   })
   // Monochrome candles: up = filled, down = hollow outline.
   const series = chart.addSeries(LightweightCharts.CandlestickSeries, {
-    upColor: INK, downColor: BG, borderUpColor: INK, borderDownColor: INK, wickUpColor: INK, wickDownColor: INK,
-    priceLineStyle: 3, priceLineColor: INK, priceLineWidth: 1,
+    ...seriesTheme(), priceLineStyle: 3, priceLineWidth: 1,
   })
   const panel = { symbol, cell, el, chart, series, tick: null, input: cell.querySelector('.sym') }
+  panel.drawings = Drawings.attach(panel)
   panel.input.onchange = () => setSymbol(panel, panel.input.value)
   panel.input.onkeydown = e => { if (e.key === 'Enter') panel.input.blur() }
   panel.input.onfocus = () => panel.input.select()
   return panel
 })
+window.addEventListener('themechange', () => panels.forEach(p => { p.chart.applyOptions(chartTheme()); p.series.applyOptions(seriesTheme()) }))
+$('swatches').innerHTML = Object.entries(Theme.THEMES).map(([id, t]) => `<button data-theme="${id}" title="${t.label}" aria-label="Kolor: ${t.label}" style="--sw:${t.ink}"></button>`).join('')
+$('swatches').onclick = e => { const id = e.target.closest('[data-theme]')?.dataset.theme; if (id) Theme.set(id) }
+const markTheme = () => $('swatches').querySelectorAll('button').forEach(b => b.classList.toggle('active', b.dataset.theme === Theme.get()))
+window.addEventListener('themechange', markTheme)
+markTheme()
 document.body.insertAdjacentHTML('beforeend', `<datalist id="presets">${PRESETS.map(p => `<option value="${p}">`).join('')}</datalist>`)
 
 async function setSymbol(p, raw) {
@@ -204,6 +331,7 @@ async function setSymbol(p, raw) {
   p.loaded = null
   if (await load(p)) {
     p.input.value = symbol
+    p.drawings.reload()
     localStorage.setItem('symbols', JSON.stringify(panels.map(x => x.symbol)))
   } else {
     // Unknown ticker: restore the previous chart instead of leaving an empty panel.
@@ -270,6 +398,8 @@ async function load(p) {
     if (!r.ok) throw new Error(d.error || r.status)
     if (p.loaded !== frame) { p.series.setData(d.candles); p.chart.timeScale().fitContent() } else p.series.setData(d.candles)
     p.loaded = frame
+    p.candles = d.candles
+    p.drawings.redraw()
     const change = d.price - d.previousClose, pct = change / d.previousClose * 100
     const sign = change >= 0 ? '+' : '−', abs = Math.abs
     const hi = Math.max(...d.candles.map(c => c.high)), lo = Math.min(...d.candles.map(c => c.low))
@@ -319,10 +449,14 @@ $('tapeTrack').addEventListener('click', e => {
   setSymbol(panels[active], chart)
 })
 
-async function refresh() {
-  const ok = await Promise.all(panels.slice(0, count).map(load))
-  $('status').textContent = ok.every(Boolean) ? '● na żywo' : '● błąd danych'
-  $('updated').textContent = 'aktualizacja: ' + new Date().toLocaleTimeString('pl-PL')
+// One refresh at a time: opening a page, changing the layout and the timer must not stack requests.
+let refreshing = null
+function refresh() {
+  return refreshing ||= (async () => {
+    const ok = await Promise.all(panels.slice(0, count).map(load))
+    $('status').textContent = ok.every(Boolean) ? '● na żywo' : '● błąd danych'
+    $('updated').textContent = 'aktualizacja: ' + new Date().toLocaleTimeString('pl-PL')
+  })().finally(() => { refreshing = null })
 }
 
 $('tf').innerHTML = '<span>timeframe</span>' + FRAMES.map(f => `<button data-f="${f}" class="${f === frame ? 'active' : ''}">${f}</button>`).join('')
@@ -337,19 +471,27 @@ $('tf').onclick = e => {
 
 // The qs2.0 pages are loaded lazily, only when their tab is opened.
 function tab(name) {
-  document.querySelectorAll('nav > button').forEach(b => b.classList.toggle('active', b.dataset.tab === name))
+  document.querySelectorAll('nav .tabs > button').forEach(b => b.classList.toggle('active', b.dataset.tab === name))
+  Home.leave()
   for (const id of TABS) $(id).hidden = id !== name
-  $('tf').hidden = name !== 'charts'
-  $('lay').hidden = name !== 'charts'
-  name === 'monitor' ? Monitor.show() : Monitor.hide()
+  if (name === 'home') Home.enter()
+  // Charts and the map may be shown by their own page or as a widget on the dashboard.
+  const chartsShown = name === 'charts' || name === 'home' && Home.has('charts')
+  $('tf').hidden = !chartsShown
+  $('lay').hidden = !chartsShown
+  name === 'monitor' || name === 'home' && Home.has('monitor') ? Monitor.show() : Monitor.hide()
   const url = { calendar: CALENDAR_URL, quarters: QUARTERS_URL, highs: HIGHS_URL }[name]
   if (url && !$(name).firstChild) $(name).innerHTML = `<iframe src="${url}" title="${name}"></iframe>`
-  if (name === 'charts') panels.slice(0, count).forEach(p => p.chart.timeScale().fitContent())
+  if (chartsShown) { applyLayout(); refresh() }
   $('side').hidden = name === 'news' || !sideOpen
   history.replaceState(null, '', '#' + name)
 }
-document.querySelector('nav').addEventListener('click', e => { const t = e.target.closest('[data-tab]'); if (t) tab(t.dataset.tab) })
-addEventListener('keydown', e => { const n = { F1: 'charts', F2: 'calendar', F3: 'news', F4: 'quarters', F5: 'highs', F6: 'monitor' }[e.key]; if (n) { e.preventDefault(); tab(n) } })
+document.querySelector('nav').addEventListener('click', e => {
+  const t = e.target.closest('[data-tab]')
+  if (!t) return
+  tab(t.dataset.tab)
+})
+addEventListener('keydown', e => { const n = { F1: 'charts', F2: 'calendar', F3: 'news', F4: 'quarters', F5: 'highs', F6: 'monitor', F7: 'home' }[e.key]; if (n) { e.preventDefault(); tab(n) } })
 
 setInterval(() => $('clock').textContent = new Date().toLocaleString('pl-PL', { hour12: false }), 1000)
 let sideOpen = localStorage.getItem('side') !== 'closed'
@@ -379,6 +521,7 @@ function renderNews(fresh = new Set()) {
   const list = (items, limit) => items.slice(0, limit).map(i =>
     `<a class="item${fresh.has(i.id) ? ' new' : ''}" href="${esc(i.link)}" target="_blank" rel="noopener noreferrer"><time>${clock(i.time)}</time><span class="t"${lang === 'pl' && i.pl ? ` title="${esc(i.title)}"` : ''}>${esc(lang === 'pl' && i.pl ? i.pl : i.title)}</span></a>`).join('') || '<div class="none">brak wydarzeń</div>'
   $('newsSide').innerHTML = list(headlines, 60)
+  document.querySelectorAll('[data-news]').forEach(el => { el.innerHTML = list(headlines, 60) })
   $('newsFull').innerHTML = list(q ? headlines.filter(i => (i.title + ' ' + i.pl).toLowerCase().includes(q)) : headlines, 200)
 }
 async function loadNews() {
@@ -397,8 +540,7 @@ loadNews()
 setInterval(() => { if (!document.hidden) loadNews() }, 60000)
 
 applyLayout()
-tab(TABS.includes(location.hash.slice(1)) ? location.hash.slice(1) : 'charts')
-refresh()
+tab(TABS.includes(location.hash.slice(1)) ? location.hash.slice(1) : 'home')
 setInterval(() => { if (!document.hidden) refresh() }, 30000)
 </script>
 </body>

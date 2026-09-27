@@ -6,11 +6,13 @@
   <meta name="description" content="UNC'sWay — interaktywna mapa zagnieżdżonych cykli Quarterly Theory." />
   <meta name="events-endpoint" content="/api/events" />
   <meta name="events-range-endpoint" content="/api/events?range=" />
+  <meta name="earnings-endpoint" content="/api/earnings?range=" />
   <meta name="market-highs-endpoint" content="/api/market-highs" />
   <title>UNC'sWay — Quarterly Timeline</title>
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ctext y='52' font-size='52'%3E%E2%9B%93%EF%B8%8F%3C/text%3E%3C/svg%3E" />
   <link rel="stylesheet" href="base.css" />
   <link rel="stylesheet" href="terminal-theme.css" />
+  <script src="../theme.js"></script>
 </head>
 <body>
 <main class="app">
@@ -68,10 +70,11 @@
   </div>
   <section class="economic" id="events-page" hidden aria-labelledby="economic-title">
     <header><div><h2 id="economic-title">Wydarzenia</h2><p>USD · czas Nowego Jorku (ET) · minione i nadchodzące</p></div><a href="https://www.forexfactory.com/calendar" target="_blank" rel="noopener noreferrer">Kalendarz Forex Factory ↗</a></header>
+    <div class="economic-filters" role="group" aria-label="Rodzaj danych"><button type="button" id="modeEvents" aria-pressed="true">Kalendarz</button><button type="button" id="modeEarnings" aria-pressed="false">Earnings</button><span class="grow"></span><span id="impactFilters" class="impact-filters" role="group" aria-label="Filtr wpływu"><span>wpływ</span><button type="button" data-impact="High" aria-pressed="false">Wysoki</button><button type="button" data-impact="Medium" aria-pressed="false">Średni</button><button type="button" data-impact="Low" aria-pressed="false">Niski</button></span></div>
     <div class="economic-filters" role="group" aria-label="Zakres kalendarza"><button type="button" id="eventsToday" aria-pressed="true">Dzisiaj</button><button type="button" id="eventsWeek" aria-pressed="false">Cały tydzień</button><button type="button" id="eventsNextWeek" aria-pressed="false">Następny tydzień</button><button type="button" id="eventsMonth" aria-pressed="false">Następny miesiąc</button><button type="button" id="eventsQuarter" aria-pressed="false">Następny kwartał</button></div>
     <p id="economic-range"></p>
     <p id="economic-status" role="status">Pobieranie wydarzeń…</p>
-    <div class="economic-scroll"><table><thead><tr><th>Data / czas ET</th><th>Wpływ</th><th>Wydarzenie · USD</th><th>Prognoza</th><th>Poprzednio</th></tr></thead><tbody id="economic-events"></tbody></table></div>
+    <div class="economic-scroll"><table><thead id="economic-head"><tr><th>Data / czas ET</th><th>Wpływ</th><th>Wydarzenie · USD</th><th>Prognoza</th><th>Poprzednio</th></tr></thead><tbody id="economic-events"></tbody></table></div>
     <p class="economic-note">Źródło: Forex Factory · odświeżanie co 15 minut. Godziny mogą ulec zmianie. Eksport nie zawiera bieżących wyników publikacji.</p>
   </section>
 </main>

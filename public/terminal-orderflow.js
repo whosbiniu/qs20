@@ -2,32 +2,37 @@
 (function (root) {
   const spans = { '1m': 60, '5m': 300, '15m': 900, '30m': 1800, '1h': 3600, '4h': 14400, '1d': 86400 }
   function bucket(ms, interval) {
-    const t = Math.floor(ms / 1000), date = new Date(ms)
-    if (interval === '1M') return Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1) / 1000
+    const t = Math.floor(ms / 1000)
+    if (interval === '1M') { const date = new Date(ms); return Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1) / 1000 }
     if (interval === '1w') return Math.floor((t - 345600) / 604800) * 604800 + 345600
     const span = spans[interval] || 60
     return Math.floor(t / span) * span
   }
+  const byTime = (a, b) => a.time - b.time || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
   function createStore(coin, limit = 50000) {
     let trades = [], seen = new Set(), floor = 0, trimmed = false
     return {
       add(batch) {
-        let changed = false
+        let changed = false, ordered = true
         for (const t of batch) {
           const price = Number(t.px), size = Number(t.sz), time = Number(t.time)
-          if (t.coin !== coin || !['A', 'B'].includes(t.side) || ![price, size, time].every(Number.isFinite) || price <= 0 || size <= 0 || time < floor || !Number.isSafeInteger(t.tid)) continue
+          if (t.coin !== coin || (t.side !== 'A' && t.side !== 'B') || !Number.isFinite(price) || !Number.isFinite(size) || !Number.isFinite(time) || price <= 0 || size <= 0 || time < floor || !Number.isSafeInteger(t.tid)) continue
           const id = `${time}:${coin}:${t.tid}`
           if (seen.has(id)) continue
-          seen.add(id); trades.push({ id, price, size, time, buy: t.side === 'B' }); changed = true
+          const trade = { id, price, size, time, buy: t.side === 'B' }
+          if (ordered && trades.length && byTime(trades[trades.length - 1], trade) > 0) ordered = false
+          seen.add(id); trades.push(trade); changed = true
         }
-        if (changed) {
-          trades.sort((a, b) => a.time - b.time || a.id.localeCompare(b.id))
-          if (trades.length > limit) {
-            // Drop the whole boundary millisecond, preventing replayed partial batches.
-            floor = trades[trades.length - limit - 1].time + 1
-            trades = trades.filter(t => t.time >= floor)
-            seen = new Set(trades.map(t => t.id)); trimmed = true
-          }
+        // Live trades arrive in time order, so the full sort only runs for late or replayed batches.
+        if (changed && !ordered) trades.sort(byTime)
+        // Trim in chunks (10 % over the limit) rather than on every batch once the buffer is full.
+        if (changed && trades.length > limit * 1.1) {
+          // Drop the whole boundary millisecond, preventing replayed partial batches.
+          floor = trades[trades.length - limit - 1].time + 1
+          let start = trades.length - limit
+          while (start < trades.length && trades[start].time < floor) start++
+          for (let i = 0; i < start; i++) seen.delete(trades[i].id)
+          trades = trades.slice(start); trimmed = true
         }
         return changed
       },
@@ -45,16 +50,19 @@
     if (last - first >= 200) throw Error('Zwiększ krok ceny — limit wynosi 200 poziomów.')
     const row = price => ({ price, bid: 0, ask: 0, total: 0, delta: 0 })
     const rows = Array.from({ length: last - first + 1 }, (_, i) => row((first + i) * step)), bars = new Map()
+    let bar = null, barTime = NaN
     for (const t of trades) {
       const index = Math.floor(t.price / step + 1e-8) - first, time = bucket(t.time, interval)
-      if (!bars.has(time)) bars.set(time, { time, bid: 0, ask: 0, delta: 0, levels: new Map() })
-      const bar = bars.get(time)
-      if (!bar.levels.has(index)) bar.levels.set(index, row(rows[index].price))
-      for (const target of [rows[index], bar.levels.get(index), bar]) {
-        target[t.buy ? 'ask' : 'bid'] += t.size
-        target.delta += t.buy ? t.size : -t.size
-        if ('total' in target) target.total += t.size
+      if (time !== barTime) {
+        barTime = time; bar = bars.get(time)
+        if (!bar) { bar = { time, bid: 0, ask: 0, delta: 0, levels: new Map() }; bars.set(time, bar) }
       }
+      let level = bar.levels.get(index)
+      if (!level) { level = row(rows[index].price); bar.levels.set(index, level) }
+      const r = rows[index], size = t.size
+      if (t.buy) { r.ask += size; level.ask += size; bar.ask += size; r.delta += size; level.delta += size; bar.delta += size }
+      else { r.bid += size; level.bid += size; bar.bid += size; r.delta -= size; level.delta -= size; bar.delta -= size }
+      r.total += size; level.total += size
     }
     let cvd = 0
     const ordered = [...bars.values()].sort((a, b) => a.time - b.time)
@@ -71,6 +79,12 @@
     return { rows, bars: ordered, step, total, cvd, poc: rows[pocIndex].price, val: rows[bottom].price, vah: rows[top].price + step }
   }
   function connect(coin, onTrades, onStatus, deps = {}) {
+    // On the page, trades come through the shared Hyperliquid stream (one socket for every panel and study).
+    const shared = !deps.WebSocket && root.HLStream?.shared
+    if (shared) {
+      const off = shared.subscribe({ type: 'trades', coin }, onTrades, status => onStatus(status === 'idle' ? 'connecting' : status))
+      return { stop: off }
+    }
     const Socket = deps.WebSocket || root.WebSocket
     const later = deps.setTimeout || setTimeout, cancel = deps.clearTimeout || clearTimeout
     let socket, retry, heartbeat, stopped = false, attempts = 0, lastMessage = 0

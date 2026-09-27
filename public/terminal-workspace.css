@@ -117,6 +117,8 @@
 .tw-grid[data-focus]:not([data-focus=""]) {grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr)}
 .tw-status {height:25px;flex:none;display:flex;align-items:center;gap:18px;padding:0 12px;border-top:1px solid var(--line);background:var(--tw-chrome);font-size:9px;color:var(--dim);white-space:nowrap}
 .tw-data-status::before {content:"";display:inline-block;width:5px;height:5px;border-radius:50%;background:var(--dim);margin-right:7px}
+.tw-status[data-live=live] .tw-data-status::before {background:var(--tw-up);box-shadow:0 0 0 2px rgb(from var(--tw-up) r g b / .25)}
+.tw-status[data-live=gap] .tw-data-status::before {background:var(--tw-accent)}
 .tw-zone {padding-left:12px;border-left:1px solid var(--line);letter-spacing:1px}
 .tw-grid[data-count="4"] .ht-stats,.tw-grid[data-count="2"] .ht-stats {display:none}
 .tw-grid[data-count="4"] #ht-fit,.tw-grid[data-count="2"] #ht-fit {display:none}

@@ -36,7 +36,7 @@
     let state = normalize(stored), focused = null, destroyed = false, frame = 0;
     // Narrow windows (the same 700 px as the stylesheet) show the list and order book as overlays. Which overlay is
     // open there is not saved, so shrinking the window never overwrites the desktop layout.
-    let narrow = false, overlay = null;
+    let narrow = false, overlay = null, liveState = '';
     const side = key => narrow ? overlay === key : layout()[key];
     const layout = () => state.layouts[state.active];
     const $ = selector => host.querySelector(selector);
@@ -136,7 +136,9 @@
       // A pane shown again (layout, focus or tab change) repaints its last candles at once instead of reloading.
       const candleKey = key.slice(0, key.lastIndexOf(':'));
       if (p.key !== key && p.last?.key === candleKey) paint(p, p.last.candles, key);
-      if (p.loading === key || !force && p.key === key && Date.now() - (p.last?.at || 0) < 30000) return;
+      follow(p, coin, interval, key);
+      // While the stream is live the candles stay current on their own; REST is only the start and the gap filler.
+      if (p.loading === key || !force && p.key === key && (p.streaming === 'live' || Date.now() - (p.last?.at || 0) < 30000)) return;
       p.controller?.abort(); const controller = new AbortController(); p.controller = controller;
       const stamp = ++p.stamp; p.loading = key;
       if (p.key !== key) { p.key = ''; p.series.setData([]); p.volume.setData([]); p.vwap.setData([]); p.profile.set([]); p.candles = []; p.panel.candles = []; message(p, 'Ładowanie wykresu…'); }
@@ -147,7 +149,37 @@
       } catch (e) { if (stamp === p.stamp && e.name !== 'AbortError') message(p, p.key === key ? 'Nie odświeżono · poprzednie dane' : 'Dane niedostępne · ponowię automatycznie'); }
       finally { if (stamp === p.stamp) p.loading = ''; }
     }
+    // Live candles for a visible pane through the shared Hyperliquid stream (see hl-stream.js).
+    function follow(p, coin, interval, key) {
+      const feed = coin + ':' + interval;
+      if (!root.HLStream || p.feed === feed) return;
+      p.unfollow?.(); p.feed = feed; p.streaming = '';
+      p.unfollow = root.HLStream.shared.subscribe({ type: 'candle', coin, interval }, data => onBar(p, feed, data), status => {
+        const before = p.streaming; p.streaming = status;
+        // Back after a drop: reload the candles the socket missed.
+        if (status === 'live' && before === 'gap') refresh(p, true);
+      });
+    }
+    function onBar(p, feed, data) {
+      if (p.feed !== feed || !p.chart || !p.key.startsWith(feed + ':') || !p.candles.length) return;
+      const bar = root.HLStream.candleOf(data);
+      if (![bar.time, bar.open, bar.high, bar.low, bar.close].every(Number.isFinite)) return;
+      const kind = root.HLStream.mergeCandle(p.candles, bar);
+      if (!kind) return;
+      const mode = layout().panels[p.slot - 1].mode;
+      if (mode === 'volume') {
+        const c = palette();
+        p.series.update(bar);
+        p.volume.update({ time: bar.time, value: Math.max(0, bar.volume || 0), color: bar.close >= bar.open ? c.up + '40' : c.down + '40' });
+      } else if (!p.repaint) {
+        // VWAP and TPO depend on the whole session: recompute at most every 2 s.
+        p.series.update(bar);
+        p.repaint = setTimeout(() => { p.repaint = 0; if (p.chart && p.key) paint(p, p.candles, p.key); }, 2000);
+      } else p.series.update(bar);
+    }
     function release(p) {
+      p.unfollow?.(); p.unfollow = null; p.feed = ''; p.streaming = '';
+      clearTimeout(p.repaint); p.repaint = 0;
       p.controller?.abort(); ++p.stamp; p.loading = '';
       if (!p.chart) return;
       const range = p.chart.timeScale().getVisibleLogicalRange();
@@ -262,7 +294,12 @@
     return {
       show: lifecycle,
       marketChanged() { quote(); helpers.forEach(p => refresh(p)); },
-      dataUpdated(cached = false) { $('.tw-data-status').textContent = `Hyperliquid · ${cached ? 'zapisany wykres' : 'wykres odświeżony ' + new Date().toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`; },
+      dataUpdated(cached = false) { if (liveState !== 'live') $('.tw-data-status').textContent = `Hyperliquid · ${cached ? 'zapisany wykres' : 'wykres odświeżony ' + new Date().toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`; },
+      liveStatus(next) {
+        liveState = next;
+        const text = { live: 'na żywo', connecting: 'łączenie na żywo…', gap: 'przerwa w połączeniu · ponawiam, dane z ostatniego odświeżenia' }[next];
+        if (text) { $('.tw-data-status').textContent = 'Hyperliquid · ' + text; shell.querySelector('.tw-status').dataset.live = next; }
+      },
       destroy() { destroyed = true; observer.disconnect(); clearInterval(timer); cancelAnimationFrame(frame); helpers.forEach(release); document.removeEventListener('keydown', onKey); document.removeEventListener('visibilitychange', lifecycle); resize.disconnect(); window.removeEventListener('storage', onStorage); },
     };
   }

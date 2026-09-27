@@ -143,6 +143,7 @@ window.HyperTerminal = (() => {
     studies.refresh()
     chartKey = key
     if (changed) fitChart()
+    followLive()
   }
   // Fit all candles but keep some free space to the right of the last one, so the price has room.
   function fitChart() {
@@ -271,8 +272,72 @@ window.HyperTerminal = (() => {
   $('ht-periods').addEventListener('click', e => { const p = e.target.closest('[data-period]')?.dataset.period; if (p && p !== interval) { interval = p; Store.set('hl-interval', p); orderflow.setMarket(selected, interval); studies.setMarket(selected, interval); renderQuote(); loadChart() } })
   window.addEventListener('themechange', theme)
   // autoSize resizes the canvas without replacing the user's zoom or scroll position.
-  setInterval(() => { if (!root.hidden && !document.hidden && initialized) { loadMarkets(); loadBook() } }, 15000)
-  setInterval(() => { if (!root.hidden && !document.hidden && initialized) { loadChart(); loadProfile() } }, 30000)
+  // Live data through the shared Hyperliquid stream (hl-stream.js): the candle of the open interval, the order book and
+  // the market context. REST loads the start and fills the gap after a dropped connection; while the stream is live the
+  // polling below skips the chart and the book.
+  let live = null, liveState = '', liveTimer = 0, bookFrame = 0, pendingBook = null, quoteTimer = 0, studiesTimer = 0
+  function followLive() {
+    if (typeof HLStream === 'undefined' || !initialized || root.hidden || !selected) return
+    const key = selected + ':' + interval
+    if (live?.key === key) return
+    stopLive()
+    const coin = selected, stream = HLStream.shared, offs = []
+    live = { key, offs }
+    const status = next => {
+      const before = liveState; liveState = next
+      workspace?.liveStatus?.(next)
+      if (next === 'live' && before === 'gap') { loadChart(); loadBook() }
+    }
+    offs.push(stream.subscribe({ type: 'candle', coin, interval }, data => liveCandle(key, data), status))
+    offs.push(stream.subscribe({ type: 'l2Book', coin }, book => { if (selected === coin) { pendingBook = book; if (!bookFrame) bookFrame = requestAnimationFrame(paintBook) } }))
+    offs.push(stream.subscribe({ type: 'activeAssetCtx', coin }, data => liveContext(coin, data.ctx)))
+  }
+  function stopLive() {
+    live?.offs.forEach(off => off()); live = null; liveState = ''
+    cancelAnimationFrame(bookFrame); bookFrame = 0; pendingBook = null
+  }
+  function liveCandle(key, data) {
+    if (key !== chartKey || !series || !drawingPanel?.candles?.length) return
+    const bar = HLStream.candleOf(data)
+    if (![bar.time, bar.open, bar.high, bar.low, bar.close].every(Number.isFinite)) return
+    const kind = HLStream.mergeCandle(drawingPanel.candles, bar)
+    if (!kind) return
+    series.update(bar)
+    volumeSeries.update({ time: bar.time, value: Number.isFinite(bar.volume) ? bar.volume : 0, color: bar.close >= bar.open ? '#8dcc9c66' : '#dc8e8966' })
+    // Studies and overlays follow the new bar at once, and the forming bar at most every 2 s.
+    if (kind === 'append') { clearTimeout(studiesTimer); studiesTimer = 0; drawingPanel.drawings.redraw(); orderflow.refresh(); studies.refresh() }
+    else if (!studiesTimer) studiesTimer = setTimeout(() => { studiesTimer = 0; if (chartKey === key) studies.refresh() }, 2000)
+  }
+  function paintBook() {
+    bookFrame = 0
+    const book = pendingBook; pendingBook = null
+    if (!book || book.coin !== selected) return
+    const bids = (book.levels?.[0] || []).slice(0, 12), asks = (book.levels?.[1] || []).slice(0, 12)
+    $('ht-asks').innerHTML = bookSide([...asks].reverse(), 'ask')
+    $('ht-bids').innerHTML = bookSide(bids, 'bid')
+    const ask = Number(asks[0]?.px), bid = Number(bids[0]?.px)
+    $('ht-spread').textContent = Number.isFinite(ask - bid) ? `SPREAD ${fmt(ask - bid)}` : '—'
+    $('ht-book-time').textContent = new Date(book.time).toLocaleTimeString('pl-PL')
+  }
+  function liveContext(coin, ctx) {
+    const m = all.find(x => x.coin === coin)
+    if (!m || !ctx) return
+    const price = Number(ctx.markPx || ctx.midPx), previous = Number(ctx.prevDayPx)
+    if (Number.isFinite(price)) { m.price = price; if (previous > 0) m.change = (price / previous - 1) * 100 }
+    if (Number.isFinite(Number(ctx.dayNtlVlm))) m.volume = Number(ctx.dayNtlVlm)
+    if (Number.isFinite(Number(ctx.openInterest))) m.openInterest = Number(ctx.openInterest)
+    if (Number.isFinite(Number(ctx.funding))) m.funding = Number(ctx.funding)
+    // The header follows every tick; the heavier list and linked panes at most once a second.
+    if (coin === selected) {
+      $('ht-price').textContent = fmt(m.price)
+      if (!quoteTimer) quoteTimer = setTimeout(() => { quoteTimer = 0; renderQuote(); renderList() }, 1000)
+    }
+  }
+  new MutationObserver(() => { if (root.hidden) { clearTimeout(liveTimer); liveTimer = setTimeout(() => { if (root.hidden) stopLive() }, 1000) } else followLive() })
+    .observe(root, { attributes: true, attributeFilter: ['hidden'] })
+  const streaming = () => liveState === 'live'
+  setInterval(() => { if (!root.hidden && !document.hidden && initialized) { loadMarkets(); if (!streaming()) loadBook() } }, 15000)
+  setInterval(() => { if (!root.hidden && !document.hidden && initialized) { if (!streaming()) loadChart(); loadProfile() } }, 30000)
   // Revisiting the page within 15 s reuses the data (the timers keep it fresh while it is on screen).
   let shownAt = Date.now()
   workspace = window.TerminalWorkspace?.attach(root, { theme, market: () => ({ coin: selected, interval, markets: all }), fetchJson: json })

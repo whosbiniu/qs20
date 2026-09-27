@@ -44,8 +44,12 @@ const Home = (() => {
     }
   }
 
+  // The grid is rebuilt only when the layout changed; otherwise the widgets (and their loaded frames) are kept
+  // and only the moved sections are put back, which makes returning to Start instant.
+  let renderedLayout = '';
   function render() {
     const grid = document.getElementById('homeGrid');
+    renderedLayout = JSON.stringify(items);
     grid.replaceChildren();
     items.forEach((item, index) => {
       const def = WIDGETS[item.id], size = SIZES[item.size];
@@ -78,10 +82,19 @@ const Home = (() => {
     if (typeof renderNews === 'function') renderNews();
   }
 
+  function reattach() {
+    for (const item of items) {
+      if (!WIDGETS[item.id].move) continue;
+      const body = document.querySelector(`#homeGrid .widget[data-id="${item.id}"] .wbody`), section = document.getElementById(item.id);
+      if (!body || !section) return false;
+      section.classList.add('in-widget'); section.hidden = false; body.append(section);
+    }
+    if (typeof renderNews === 'function') renderNews();
+    return true;
+  }
   function enter() {
-    render();
-    // The moved sections were laid out at another size: let charts and the map adapt.
-    requestAnimationFrame(() => window.dispatchEvent(new Event('resize')));
+    // Charts, the terminal and the map follow their new size through their own ResizeObservers.
+    if (renderedLayout !== JSON.stringify(items) || !reattach()) render();
   }
 
   function add(id) { if (WIDGETS[id] && !has(id)) { items.push({ id, size: WIDGETS[id].move ? 2 : 1 }); save(); } }

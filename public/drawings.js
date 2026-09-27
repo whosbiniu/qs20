@@ -332,11 +332,17 @@ const Drawings = (() => {
     panel.chart.timeScale().subscribeVisibleLogicalRangeChange(settle);
     panel.chart.subscribeCrosshairMove(() => redraw());
     for (const type of ['wheel', 'pointermove', 'pointerup']) box.addEventListener(type, () => { if (items.length || pending) settle(); }, { passive: true });
-    new ResizeObserver(() => {
-      const r = box.getBoundingClientRect();
-      size = { w: r.width, h: r.height, dpr: window.devicePixelRatio || 1 };
-      canvas.width = size.w * size.dpr; canvas.height = size.h * size.dpr;
-      canvas.style.width = size.w + 'px'; canvas.style.height = size.h + 'px';
+    // Sizes come from the observer entry (no forced layout). A hidden panel (0×0) keeps its bitmap, and an
+    // unchanged size only repaints, so switching pages does not reallocate every drawing canvas.
+    new ResizeObserver(entries => {
+      const b = entries[0].borderBoxSize?.[0], w = b ? b.inlineSize : entries[0].contentRect.width, h = b ? b.blockSize : entries[0].contentRect.height;
+      if (!w || !h) return;
+      const dpr = window.devicePixelRatio || 1;
+      if (w !== size.w || h !== size.h || dpr !== size.dpr) {
+        size = { w, h, dpr };
+        canvas.width = w * dpr; canvas.height = h * dpr;
+        canvas.style.width = w + 'px'; canvas.style.height = h + 'px';
+      }
       settle();
     }).observe(box);
     window.addEventListener('themechange', redraw);

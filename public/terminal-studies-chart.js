@@ -319,12 +319,9 @@ window.TerminalStudies = (() => {
         lines.push(`puls <b>${perMinute}</b> transakcji/min · zebrane <b>${orderflow.trades.length}</b>`);
       }
       if (status) lines.push(status);
-      legend.innerHTML = lines.map(l => `<div>${l}</div>`).join('');
-      // Sit below the row of active-indicator chips, whatever its height.
-      requestAnimationFrame(() => {
-        const chips = document.getElementById('ht-active-indicators');
-        legend.style.top = (chips && !chips.hidden ? Math.max(6, chips.getBoundingClientRect().bottom - panel.el.getBoundingClientRect().top + 4) : 6) + 'px';
-      });
+      // Runs on every crosshair move: touch the DOM only when the text changed.
+      const html = lines.map(l => `<div>${l}</div>`).join('');
+      if (html !== legend.innerHTML) legend.innerHTML = html;
     }
 
     // ---- settings ------------------------------------------------------------------------------
@@ -377,6 +374,12 @@ window.TerminalStudies = (() => {
       bindPanel(next) {
         panel = next;
         legend = document.createElement('div'); legend.className = 'st-legend'; panel.el.append(legend);
+        // Sit below the row of active-indicator chips, whatever its height (measured only when that row changes).
+        const chips = document.getElementById('ht-active-indicators');
+        if (chips) new ResizeObserver(() => {
+          // Inside the observer callback layout is already up to date, so these reads are free.
+          legend.style.top = (!chips.hidden && chips.offsetHeight ? Math.max(6, chips.getBoundingClientRect().bottom - panel.el.getBoundingClientRect().top + 4) : 6) + 'px';
+        }).observe(chips);
         const painters = { paneViews: () => [{ zOrder: () => 'bottom', renderer: () => bottomPaint }, { zOrder: () => 'top', renderer: () => topPaint }],
           attached(p) { requestUpdate = p.requestUpdate; } };
         panel.series.attachPrimitive(painters);

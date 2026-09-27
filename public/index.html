@@ -263,17 +263,11 @@ footer .credit{margin-left:auto;letter-spacing:.08em}
 <script src="terminal-studies-tools.js"></script>
 <script src="terminal-studies-chart.js"></script>
 <script src="hyper-terminal.js"></script>
-<script src="post-creator-icons.js"></script>
-<script src="post-creator.js"></script>
 <script src="home.js"></script>
 <script src="cycle-rules.js"></script>
 <script src="day-highs.js"></script>
 <script src="terminal-data.js"></script>
 <script src="hyperliquid-data.js"></script>
-<script src="world-data.js"></script>
-<script src="world-labels.js"></script>
-<script src="monitor-geo.js"></script>
-<script src="monitor.js"></script>
 <script>
 // Kalendarz przekierowuje do widoku wydarzeń z qs2.0 (Timeline/Wydarzenia).
 const CALENDAR_URL = 'quarters/index.html#events'
@@ -379,28 +373,32 @@ const CYCLES = [
 ]
 const cycleRows = (d, waiting) => CYCLES.map(([k, key, tip]) =>
   `<div class="r cyc"><span title="${tip}">${k}</span><b>${d?.[key] ? d[key].join(' · ') : waiting ? '…' : '—'}</b></div>`).join('')
+// The last good answers stay in the browser: a new visit paints charts, cycles, tape and headlines at once and
+// swaps in fresh data as it arrives (stale-while-revalidate on the client).
+const stash = {
+  get(key) { try { return JSON.parse(localStorage.getItem('stash:' + key)) } catch { return null } },
+  put(key, value) { try { localStorage.setItem('stash:' + key, JSON.stringify(value)) } catch {} },
+}
 const cycleCache = {}
 async function loadCycles(p) {
   const symbol = p.symbol
   const box = p.cell.querySelector('.cycles')
   if (cycleCache[symbol] && Date.now() - cycleCache[symbol].at < 60000) { box.innerHTML = cycleRows(cycleCache[symbol].data); return }
-  if (p.cyclesFor !== symbol) box.innerHTML = cycleRows(null, true)
+  if (p.cyclesFor !== symbol) { const saved = stash.get('highs:' + symbol); box.innerHTML = saved ? cycleRows(saved) : cycleRows(null, true) }
   p.cyclesFor = symbol
   try {
     const r = await fetch('/api/highs?symbol=' + encodeURIComponent(symbol))
     const data = await r.json()
     if (!r.ok) throw new Error(data.error)
     cycleCache[symbol] = { at: Date.now(), data }
+    stash.put('highs:' + symbol, data)
     if (p.symbol === symbol) box.innerHTML = cycleRows(data)
   } catch { if (p.symbol === symbol) box.innerHTML = cycleRows(null) }
 }
 
 // Slowly scrolling tape of the most followed instruments (built once, values refreshed in place).
 const tapeFmt = n => n.toLocaleString('en-US', { minimumFractionDigits: n < 10 ? 4 : 2, maximumFractionDigits: n < 10 ? 4 : 2 })
-async function loadTape() {
-  try {
-    const { quotes } = await (await fetch('/api/tape')).json()
-    if (!quotes.length) return
+function renderTape(quotes) {
     const cell = q => `<span class="q" data-s="${q.symbol}" data-c="${q.chart || ''}" title="Otwórz na wykresie"><b>${q.symbol}</b>${tapeFmt(q.price)}<span>${q.change == null ? '' : (q.change >= 0 ? '+' : '−') + Math.abs(q.change).toFixed(2) + '%'}</span></span>`
     const track = $('tapeTrack')
     if (track.children.length === quotes.length * 2) {
@@ -412,8 +410,16 @@ async function loadTape() {
       // ~5 s per instrument keeps it readable.
       track.style.animationDuration = quotes.length * 5 + 's'
     }
+}
+async function loadTape() {
+  try {
+    const { quotes } = await (await fetch('/api/tape')).json()
+    if (!quotes.length) return
+    stash.put('tape', quotes)
+    renderTape(quotes)
   } catch {}
 }
+if (stash.get('tape')?.length) renderTape(stash.get('tape'))
 loadTape()
 setInterval(() => { if (!document.hidden) loadTape() }, 60000)
 
@@ -423,25 +429,31 @@ function fitPanel(p) {
   if (count > 1) p.chart.timeScale().setVisibleLogicalRange({ from: -0.5, to: count - 1 + Math.max(6, Math.round(count * 0.06)) })
   else p.chart.timeScale().fitContent()
 }
+function showChart(p, d) {
+  if (p.loaded !== frame) { p.series.setData(d.candles); p.candles = d.candles; fitPanel(p) } else p.series.setData(d.candles)
+  p.loaded = frame
+  p.candles = d.candles
+  p.drawings.redraw()
+  const change = d.price - d.previousClose, pct = change / d.previousClose * 100
+  const sign = change >= 0 ? '+' : '−', abs = Math.abs
+  const hi = Math.max(...d.candles.map(c => c.high)), lo = Math.min(...d.candles.map(c => c.low))
+  p.cell.querySelector('.nm').textContent = d.name
+  p.cell.querySelector('.fsym').textContent = p.symbol
+  p.cell.querySelector('.px').textContent = `${fmt(d.price)}  ${sign}${fmt(abs(change))} (${sign}${abs(pct).toFixed(2)}%)`
+  p.cell.querySelector('.tfl').textContent = `timeframe ${frame}`
+  p.cell.querySelector('.rows').innerHTML =
+    row('last', fmt(d.price)) + row('change', `${sign}${abs(pct).toFixed(2)}%`) + row('high', fmt(hi)) + row('low', fmt(lo))
+  p.el.querySelector('.err')?.remove()
+}
 async function load(p) {
+  const key = `chart:${p.symbol}:${frame}`
+  if (p.loaded !== frame) { const saved = stash.get(key); if (saved?.candles?.length) showChart(p, saved) }
   try {
     const r = await fetch(`/api/chart?symbol=${encodeURIComponent(p.symbol)}&interval=${frame}`)
     const d = await r.json()
     if (!r.ok) throw new Error(d.error || r.status)
-    if (p.loaded !== frame) { p.series.setData(d.candles); p.candles = d.candles; fitPanel(p) } else p.series.setData(d.candles)
-    p.loaded = frame
-    p.candles = d.candles
-    p.drawings.redraw()
-    const change = d.price - d.previousClose, pct = change / d.previousClose * 100
-    const sign = change >= 0 ? '+' : '−', abs = Math.abs
-    const hi = Math.max(...d.candles.map(c => c.high)), lo = Math.min(...d.candles.map(c => c.low))
-    p.cell.querySelector('.nm').textContent = d.name
-    p.cell.querySelector('.fsym').textContent = p.symbol
-    p.cell.querySelector('.px').textContent = `${fmt(d.price)}  ${sign}${fmt(abs(change))} (${sign}${abs(pct).toFixed(2)}%)`
-    p.cell.querySelector('.tfl').textContent = `timeframe ${frame}`
-    p.cell.querySelector('.rows').innerHTML =
-      row('last', fmt(d.price)) + row('change', `${sign}${abs(pct).toFixed(2)}%`) + row('high', fmt(hi)) + row('low', fmt(lo))
-    p.el.querySelector('.err')?.remove()
+    showChart(p, d)
+    stash.put(key, d)
     loadCycles(p)
     return true
   } catch (e) {
@@ -485,6 +497,7 @@ $('tapeTrack').addEventListener('click', e => {
 let refreshing = null
 function refresh() {
   return refreshing ||= (async () => {
+    lastRefresh = Date.now()
     const ok = await Promise.all(panels.slice(0, count).map(load))
     $('status').textContent = ok.every(Boolean) ? '● na żywo' : '● błąd danych'
     $('updated').textContent = 'aktualizacja: ' + new Date().toLocaleTimeString('pl-PL')
@@ -501,25 +514,64 @@ $('tf').onclick = e => {
   refresh()
 }
 
-// The qs2.0 pages are loaded lazily, only when their tab is opened.
+// Heavy pages load their code on first use (or ahead of time: hovering a tab, idle time after start),
+// so the first screen parses and runs as little as possible. Files keep their order: each list runs in sequence.
+const LAZY = {
+  monitor: ["world-data.js", "world-labels.js", "monitor-geo.js", "monitor.js"],
+  'post-creator': ["post-creator-icons.js", "post-creator.js"],
+}
+const lazyLoads = {}
+function need(name) {
+  if (!LAZY[name]) return Promise.resolve()
+  return lazyLoads[name] ||= new Promise((resolve, reject) => {
+    LAZY[name].forEach((src, i, files) => {
+      const script = document.createElement('script')
+      script.src = src
+      script.async = false   // download in parallel, execute in list order
+      if (i === files.length - 1) script.onload = resolve
+      script.onerror = () => { delete lazyLoads[name]; reject(new Error('Nie udało się wczytać ' + src)) }
+      document.head.append(script)
+    })
+  })
+}
+const monitorLoaded = () => typeof Monitor !== 'undefined'
+// Framed pages (calendar, quarters, L/H) are created once and then kept, so switching back is instant.
+function ensureFrame(name) {
+  const url = { calendar: CALENDAR_URL, quarters: QUARTERS_URL, highs: HIGHS_URL }[name]
+  if (url && !$(name).firstChild) $(name).innerHTML = `<iframe src="${url}" title="${name}"></iframe>`
+}
+// Warm a page before it is clicked: code and frame start loading on hover (desktop) or touch-down (phones).
+function prefetch(name) { need(name).catch(() => {}); ensureFrame(name) }
+let chartsLaidOut = false, lastRefresh = 0
+const chartsVisible = () => current() === 'charts' || current() === 'home' && Home.has('charts')
+
 function tab(name) {
   document.querySelectorAll('nav .tabs > button').forEach(b => b.classList.toggle('active', b.dataset.tab === name))
   Home.leave()
   for (const id of TABS) $(id).hidden = id !== name
   if (name === 'home') Home.enter()
   if (name === 'hyper-terminal' || name === 'home' && Home.has('hyper-terminal')) HyperTerminal.show()
-  if (name === 'post-creator') PostCreator.show()
+  if (name === 'post-creator') need('post-creator').then(() => { if (current() === 'post-creator') PostCreator.show() })
   // Charts and the map may be shown by their own page or as a widget on the dashboard.
   const chartsShown = name === 'charts' || name === 'home' && Home.has('charts')
   $('tf').hidden = !chartsShown
   $('lay').hidden = !chartsShown
-  name === 'monitor' || name === 'home' && Home.has('monitor') ? Monitor.show() : Monitor.hide()
-  const url = { calendar: CALENDAR_URL, quarters: QUARTERS_URL, highs: HIGHS_URL }[name]
-  if (url && !$(name).firstChild) $(name).innerHTML = `<iframe src="${url}" title="${name}"></iframe>`
-  if (chartsShown) { applyLayout(); refresh() }
+  const wantsMonitor = () => current() === 'monitor' || current() === 'home' && Home.has('monitor')
+  if (wantsMonitor()) need('monitor').then(() => { if (wantsMonitor()) Monitor.show() })
+  else if (monitorLoaded()) Monitor.hide()
+  ensureFrame(name)
+  // Charts keep their zoom and data when revisited; they only reload when the data is older than 20 s.
+  if (chartsShown) {
+    if (!chartsLaidOut) { chartsLaidOut = true; applyLayout() }
+    if (Date.now() - lastRefresh > 20000) refresh()
+  }
   $('side').hidden = name === 'news' || !sideOpen
   history.replaceState(null, '', '#' + name)
 }
+for (const type of ['pointerenter', 'pointerdown', 'focusin']) document.querySelector('nav').addEventListener(type, e => {
+  const t = e.target.closest?.('[data-tab]')
+  if (t) prefetch(t.dataset.tab)
+}, { capture: true, passive: true })
 document.querySelector('nav').addEventListener('click', e => {
   const t = e.target.closest('[data-tab]')
   if (!t) return
@@ -527,7 +579,8 @@ document.querySelector('nav').addEventListener('click', e => {
 })
 addEventListener('keydown', e => { const n = { F1: 'charts', F2: 'hyper-terminal', F3: 'post-creator', F4: 'calendar', F5: 'news', F6: 'quarters', F7: 'highs', F8: 'monitor', F9: 'home' }[e.key]; if (n) { e.preventDefault(); tab(n) } })
 
-setInterval(() => $('clock').textContent = new Date().toLocaleString('pl-PL', { hour12: false }), 1000)
+const clockFormat = new Intl.DateTimeFormat('pl-PL', { dateStyle: 'short', timeStyle: 'medium', hour12: false })
+setInterval(() => { if (!document.hidden) $('clock').textContent = clockFormat.format(new Date()) }, 1000)
 let sideOpen = localStorage.getItem('side') !== 'closed'
 const current = () => TABS.find(id => !$(id).hidden)
 $('sideToggle').onclick = () => {
@@ -545,9 +598,10 @@ document.querySelectorAll('[data-lang]').forEach(b => b.onclick = () => {
   lang = lang === 'pl' ? 'en' : 'pl'
   localStorage.setItem('lang', lang)
   renderNews()
-  Monitor.rerenderLists()
+  if (monitorLoaded()) Monitor.rerenderLists()
 })
-const clock = t => new Date(t).toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' })
+const hourMinute = new Intl.DateTimeFormat('pl-PL', { hour: '2-digit', minute: '2-digit' })
+const clock = t => hourMinute.format(new Date(t))
 const esc = t => t.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]))
 function renderNews(fresh = new Set()) {
   document.querySelectorAll('[data-lang]').forEach(b => b.textContent = lang.toUpperCase())
@@ -566,16 +620,22 @@ async function loadNews() {
     const fresh = new Set(seen.size ? d.items.filter(i => !seen.has(i.id)).map(i => i.id) : [])
     d.items.forEach(i => seen.add(i.id))
     headlines = d.items
+    stash.put('news', d.items.slice(0, 120))
     renderNews(fresh)
   } catch { if (!headlines.length) $('newsSide').innerHTML = '<div class="none">FinancialJuice chwilowo niedostępne, ponawiam…</div>' }
 }
 $('newsFilter').oninput = () => renderNews()
+const savedNews = stash.get('news')
+if (savedNews?.length) { headlines = savedNews; savedNews.forEach(i => seen.add(i.id)); renderNews() }
 loadNews()
 setInterval(() => { if (!document.hidden) loadNews() }, 60000)
 
-applyLayout()
+applyLayout(); chartsLaidOut = true
 tab(TABS.includes(location.hash.slice(1)) ? location.hash.slice(1) : 'home')
-setInterval(() => { if (!document.hidden) refresh() }, 30000)
+// Once the first screen is up, load the Monitor code in idle time (Post Creator draws its icons when it starts,
+// so it is warmed only when its tab is hovered or touched).
+;(window.requestIdleCallback || (fn => setTimeout(fn, 2000)))(() => need('monitor').catch(() => {}), { timeout: 5000 })
+setInterval(() => { if (!document.hidden && chartsVisible()) refresh() }, 30000)
 </script>
 </body>
 </html>

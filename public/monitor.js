@@ -187,6 +187,25 @@ const Monitor = (() => {
   }
   const flat = () => ORDER.flatMap(k => items[k] || [])
 
+  // Land outlines in world units (x = unitX, y = mercY), built once.
+  let landCache = null
+  function landPath() {
+    if (landCache) return landCache
+    landCache = new Path2D()
+    for (const polygon of land) for (const ring of polygon) {
+      // Keep rings continuous across the antimeridian; the three world copies cover the seam.
+      let previous = null
+      for (let i = 0; i < ring.length; i += 2) {
+        let lon = ring[i]
+        if (previous !== null) { while (lon - previous > 180) lon -= 360; while (lon - previous < -180) lon += 360 }
+        previous = lon
+        const x = unitX(lon), y = mercY(ring[i + 1])
+        i ? landCache.lineTo(x, y) : landCache.moveTo(x, y)
+      }
+      landCache.closePath()
+    }
+    return landCache
+  }
   function project(lon, lat, k = 0) {
     return [(unitX(lon) + k - view.cx) * view.scale + size.w / 2, (mercY(lat) - view.cy) * view.scale + size.h / 2]
   }
@@ -254,22 +273,17 @@ const Monitor = (() => {
     ctx.stroke()
     // land
     ctx.fillStyle = Theme.css('--land'); ctx.strokeStyle = Theme.css('--border'); ctx.lineWidth = 0.8
+    // The projection is affine in world units, so the coastlines are one cached path drawn with a transform:
+    // panning and zooming no longer re-project ~10 000 points per frame.
+    const path = landPath()
     for (const k of copies) {
-      ctx.beginPath()
-      for (const polygon of land) for (const ring of polygon) {
-        // Keep rings continuous across the antimeridian; the three world copies cover the seam.
-        let previous = null
-        for (let i = 0; i < ring.length; i += 2) {
-          let lon = ring[i]
-          if (previous !== null) { while (lon - previous > 180) lon -= 360; while (lon - previous < -180) lon += 360 }
-          previous = lon
-          const [x, y] = project(lon, ring[i + 1], k)
-          i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)
-        }
-        ctx.closePath()
-      }
-      ctx.fill('evenodd'); ctx.stroke()
+      const left = (k - view.cx) * view.scale + size.w / 2
+      if (left > size.w || left + view.scale < 0) continue   // this copy of the world is off screen
+      ctx.setTransform(size.dpr * view.scale, 0, 0, size.dpr * view.scale, size.dpr * left, size.dpr * (size.h / 2 - view.cy * view.scale))
+      ctx.lineWidth = 0.8 / view.scale
+      ctx.fill(path, 'evenodd'); ctx.stroke(path)
     }
+    ctx.setTransform(size.dpr, 0, 0, size.dpr, 0, 0)
     drawNames(DIM, inkRgb)
     const zoom = view.scale / size.w
     const on = k => layersOn[k] && items[k]?.length

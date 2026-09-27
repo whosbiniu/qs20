@@ -98,10 +98,17 @@ window.HyperTerminal = (() => {
     $('ht-periods').querySelectorAll('button').forEach(b => b.classList.toggle('active', b.dataset.period === interval))
   }
   async function json(url) { const r = await fetch(url); const value = await r.json(); if (!r.ok) throw new Error(value.error || `HTTP ${r.status}`); return value }
+  // Last good markets and candles are kept in the browser, so the page paints at once on the next visit.
+  const stash = {
+    get(key) { try { return JSON.parse(localStorage.getItem('stash:' + key)) } catch { return null } },
+    put(key, value) { try { localStorage.setItem('stash:' + key, JSON.stringify(value)) } catch {} },
+  }
   async function loadMarkets() {
+    if (!all.length) { const saved = stash.get('hl-markets'); if (saved?.length) { all = saved; renderList(); renderQuote() } }
     try {
       const data = await json('/api/hl/markets')
       all = data.markets
+      stash.put('hl-markets', all)
       studies.observeMarkets(all)
       if (!all.some(m => m.coin === selected)) selected = all.find(m => m.coin === 'xyz:XYZ100')?.coin || all[0]?.coin
       orderflow.setMarket(selected, interval); studies.setMarket(selected, interval)
@@ -113,22 +120,28 @@ window.HyperTerminal = (() => {
     if (!selected) return
     setupChart()
     const stamp = ++request, key = selected + ':' + interval
+    const saved = chartKey !== key ? stash.get('hl-candles') : null
+    if (saved?.key === key && saved.candles?.length) paintChart(saved.candles, key)
     try {
       const { candles } = await json(`/api/hl/candles?coin=${encodeURIComponent(selected)}&interval=${encodeURIComponent(interval)}`)
       if (stamp !== request) return
-      const changed = chartKey !== key
-      series.setData(candles)
-      volumeSeries.setData(candles.map(c => ({ time: c.time, value: Number.isFinite(c.volume) ? c.volume : 0, color: c.close >= c.open ? '#8dcc9c66' : '#dc8e8966' })))
-      drawingPanel.candles = candles
-      if (drawingPanel.symbol !== 'hl:' + selected) { drawingPanel.symbol = 'hl:' + selected; drawingPanel.drawings.reload() }
-      drawingPanel.drawings.redraw()
-      profileOverlay.redraw()
-      orderflow.refresh()
-      studies.refresh()
-      chartKey = key
-      if (changed) fitChart()
+      stash.put('hl-candles', { key, candles })
+      paintChart(candles, key)
       $('ht-message').hidden = true
     } catch (error) { if (stamp === request) { $('ht-message').textContent = error.message; $('ht-message').hidden = false } }
+  }
+  function paintChart(candles, key) {
+    const changed = chartKey !== key
+    series.setData(candles)
+    volumeSeries.setData(candles.map(c => ({ time: c.time, value: Number.isFinite(c.volume) ? c.volume : 0, color: c.close >= c.open ? '#8dcc9c66' : '#dc8e8966' })))
+    drawingPanel.candles = candles
+    if (drawingPanel.symbol !== 'hl:' + selected) { drawingPanel.symbol = 'hl:' + selected; drawingPanel.drawings.reload() }
+    drawingPanel.drawings.redraw()
+    profileOverlay.redraw()
+    orderflow.refresh()
+    studies.refresh()
+    chartKey = key
+    if (changed) fitChart()
   }
   // Fit all candles but keep some free space to the right of the last one, so the price has room.
   function fitChart() {
@@ -212,5 +225,7 @@ window.HyperTerminal = (() => {
   window.addEventListener('resize', () => chart && fitChart())
   setInterval(() => { if (!root.hidden && !document.hidden && initialized) { loadMarkets(); loadBook() } }, 15000)
   setInterval(() => { if (!root.hidden && !document.hidden && initialized) { loadChart(); loadProfile() } }, 30000)
-  return { show() { if (!initialized) { initialized = true; loadMarkets().then(() => { loadChart(); loadBook(); loadProfile() }) } else { loadMarkets(); loadBook(); loadProfile(); requestAnimationFrame(() => chart && fitChart()) } } }
+  // Revisiting the page within 15 s reuses the data (the timers keep it fresh while it is on screen).
+  let shownAt = Date.now()
+  return { show() { if (!initialized) { initialized = true; loadMarkets().then(() => { loadChart(); loadBook(); loadProfile() }) } else { if (Date.now() - shownAt > 15000) { shownAt = Date.now(); loadMarkets(); loadBook(); loadProfile() } requestAnimationFrame(() => chart && fitChart()) } } }
 })()

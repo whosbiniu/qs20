@@ -8,8 +8,9 @@ const Other = (() => {
     ['earnings', 'Wyniki spółek'], ['journal', 'Dziennik'], ['cot', 'COT'], ['ai', 'Asystent AI']]
   let current = localStorage.getItem('other-tool') || 'heatmap'
   if (!TOOLS.some(t => t[0] === current)) current = 'heatmap'
-  let visible = false, timer = null
+  let visible = false, timer = null, widgetTools = []
   const rendered = {}, charts = {}
+  const panes = {}
 
   // ---- helpers ---------------------------------------------------------------------------------------------
   const $ = sel => root.querySelector(sel)
@@ -45,8 +46,10 @@ const Other = (() => {
   // One tooltip for all tools.
   let tip
   function showTip(html, event) {
+    const host = event.target.closest('.widget .wbody') || root.querySelector('.ot')
+    if (tip.parentElement !== host) host.append(tip)
     tip.innerHTML = html; tip.hidden = false
-    const r = root.getBoundingClientRect(), w = tip.offsetWidth, h = tip.offsetHeight
+    const r = host.getBoundingClientRect(), w = tip.offsetWidth, h = tip.offsetHeight
     let x = event.clientX - r.left + 14, y = event.clientY - r.top + 14
     if (x + w > r.width - 6) x = event.clientX - r.left - w - 14
     if (y + h > r.height - 6) y = event.clientY - r.top - h - 14
@@ -77,6 +80,7 @@ const Other = (() => {
       <div class="ot-body">${TOOLS.map(([id]) => `<section class="ot-pane" data-pane="${id}" hidden></section>`).join('')}</div>
       <div class="ot-tip" hidden></div></div>`
     tip = $('.ot-tip')
+    TOOLS.forEach(([id]) => { panes[id] = root.querySelector(`[data-pane="${id}"]`); panes[id].addEventListener('pointerleave', hideTip) })
     $('.ot-nav').onclick = e => { const id = e.target.closest('[data-tool]')?.dataset.tool; if (id) open(id) }
     root.addEventListener('pointerleave', hideTip)
     window.addEventListener('themechange', () => { for (const id of Object.keys(rendered)) repaint[id]?.() })
@@ -86,7 +90,7 @@ const Other = (() => {
     root.querySelectorAll('.ot-nav [data-tool]').forEach(b => { b.classList.toggle('active', b.dataset.tool === id); b.setAttribute('aria-selected', String(b.dataset.tool === id)) })
     root.querySelectorAll('.ot-pane').forEach(p => { p.hidden = p.dataset.pane !== id })
     hideTip()
-    const pane = root.querySelector(`[data-pane="${id}"]`)
+    const pane = panes[id]
     if (!rendered[id]) { rendered[id] = true; tools[id](pane) } else refreshers[id]?.()
   }
   const repaint = {}, refreshers = {}
@@ -628,14 +632,42 @@ const Other = (() => {
     },
   }
 
+  function unmountWidgets() {
+    if (!root.firstChild) return
+    const body = root.querySelector('.ot-body')
+    TOOLS.forEach(([id]) => { if (panes[id].parentElement !== body) body.append(panes[id]); panes[id].hidden = true })
+    root.querySelector('.ot').append(tip)
+    hideTip()
+    widgetTools = []
+  }
+  function startTimer() {
+    clearInterval(timer)
+    timer = setInterval(() => { if (visible && !document.hidden && (current === 'heatmap' && !widgetTools.length || widgetTools.includes('heatmap'))) refreshers.heatmap?.() }, 60000)
+  }
   return {
-    show() {
+    show(tool) {
       visible = true
       if (!root.firstChild) build()
-      open(current)
-      clearInterval(timer)
-      timer = setInterval(() => { if (visible && !document.hidden && current === 'heatmap') refreshers.heatmap?.() }, 60000)
+      unmountWidgets()
+      open(tool || current)
+      startTimer()
     },
+    showWidgets(ids) {
+      visible = true
+      if (!root.firstChild) build()
+      unmountWidgets()
+      widgetTools = ids.filter(id => panes[id])
+      widgetTools.forEach(id => {
+        const host = document.querySelector(`#homeGrid .widget[data-id="other-${id}"] .wbody`)
+        if (!host) return
+        const pane = panes[id]
+        host.append(pane); pane.hidden = false
+        if (!rendered[id]) { rendered[id] = true; tools[id](pane) }
+        else repaint[id]?.()
+      })
+      startTimer()
+    },
+    unmountWidgets,
     hide() { visible = false; clearInterval(timer); hideTip() },
   }
 })()

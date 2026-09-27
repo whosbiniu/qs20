@@ -595,14 +595,15 @@ function prefetch(name) { need(name).catch(() => {}); ensureFrame(name) }
 let chartsLaidOut = false, lastRefresh = 0
 const chartsVisible = () => current() === 'charts' || current() === 'home' && Home.has('charts')
 
-function tab(name) {
+function tab(name, otherTool) {
   document.querySelectorAll('nav .tabs > button').forEach(b => b.classList.toggle('active', b.dataset.tab === name))
   Home.leave()
   for (const id of TABS) $(id).hidden = id !== name
   if (name === 'home') Home.enter()
   if (name === 'hyper-terminal' || name === 'home' && Home.has('hyper-terminal')) HyperTerminal.show()
   if (name === 'post-creator') need('post-creator').then(() => { if (current() === 'post-creator') PostCreator.show() })
-  if (name === 'other') need('other').then(() => { if (current() === 'other') Other.show() })
+  if (name === 'other') need('other').then(() => { if (current() === 'other') Other.show(otherTool) })
+  else if (name === 'home' && Home.otherTools().length) need('other').then(() => { if (current() === 'home') Other.showWidgets(Home.otherTools()) })
   else if (typeof Other !== 'undefined') Other.hide()
   // Charts and the map may be shown by their own page or as a widget on the dashboard.
   const chartsShown = name === 'charts' || name === 'home' && Home.has('charts')

@@ -11,6 +11,14 @@ const Home = (() => {
     quarters: { title: 'Kwartały', url: () => QUARTERS_URL },
     highs: { title: 'Aktualne L/H', url: () => HIGHS_URL },
     monitor: { title: 'Monitor', move: true },
+    'other-heatmap': { title: 'Mapa rynku', otherTool: 'heatmap' },
+    'other-correlation': { title: 'Korelacje', otherTool: 'correlation' },
+    'other-yields': { title: 'Rentowności', otherTool: 'yields' },
+    'other-seasonal': { title: 'Sezonowość', otherTool: 'seasonal' },
+    'other-earnings': { title: 'Wyniki spółek', otherTool: 'earnings' },
+    'other-journal': { title: 'Dziennik', otherTool: 'journal' },
+    'other-cot': { title: 'COT', otherTool: 'cot' },
+    'other-ai': { title: 'Asystent AI', otherTool: 'ai' },
   };
   // size 0: one column, 1: full width, 2: full width and tall
   const SIZES = [{ span: 1, height: 420, icon: '▫' }, { span: 2, height: 420, icon: '▭' }, { span: 2, height: 720, icon: '▣' }];
@@ -38,6 +46,7 @@ const Home = (() => {
 
   // Sections that live in a widget while the dashboard is shown go back to <main> first.
   function leave() {
+    if (typeof Other !== 'undefined') Other.unmountWidgets();
     for (const id of Object.keys(WIDGETS).filter(k => WIDGETS[k].move)) {
       const section = document.getElementById(id);
       if (section.parentElement !== main()) { main().append(section); section.classList.remove('in-widget'); section.hidden = true; }
@@ -49,6 +58,7 @@ const Home = (() => {
   let renderedLayout = '';
   function render() {
     const grid = document.getElementById('homeGrid');
+    if (typeof Other !== 'undefined') Other.unmountWidgets();
     renderedLayout = JSON.stringify(items);
     grid.replaceChildren();
     items.forEach((item, index) => {
@@ -97,7 +107,8 @@ const Home = (() => {
     if (renderedLayout !== JSON.stringify(items) || !reattach()) render();
   }
 
-  function add(id) { if (WIDGETS[id] && !has(id)) { items.push({ id, size: WIDGETS[id].move ? 2 : 1 }); save(); } }
+  function add(id) { if (WIDGETS[id] && !has(id)) { items.push({ id, size: WIDGETS[id].move || WIDGETS[id].otherTool ? 2 : 1 }); save(); } }
+  const otherTools = () => items.map(item => WIDGETS[item.id]?.otherTool).filter(Boolean);
   function remove(id) { leave(); items = items.filter(w => w.id !== id); save(); }
   function onHome() { return !document.getElementById('home').hidden; }
   function refreshHome() { leave(); render(); requestAnimationFrame(() => tab('home')); }
@@ -108,7 +119,7 @@ const Home = (() => {
     const act = event.target.closest('[data-act]')?.dataset.act;
     if (grid && widget && act) {
       const id = widget.dataset.id, index = items.findIndex(w => w.id === id);
-      if (act === 'open') return tab(id);
+      if (act === 'open') return defOpen(id);
       if (act === 'remove') remove(id);
       if (act === 'size') items[index].size = (items[index].size + 1) % SIZES.length;
       if (act === 'up' && index > 0) [items[index - 1], items[index]] = [items[index], items[index - 1]];
@@ -119,6 +130,11 @@ const Home = (() => {
     const addButton = event.target.closest('[data-add]');
     if (addButton) { add(addButton.dataset.add); tab('home'); return; }
   });
+
+  function defOpen(id) {
+    const tool = WIDGETS[id]?.otherTool;
+    tab(tool ? 'other' : id, tool);
+  }
 
   // Drag a panel by its header to reorder. The dragged widget follows the pointer; the others make room live.
   let drag = null;
@@ -175,5 +191,5 @@ const Home = (() => {
   document.addEventListener('pointerup', endDrag);
   document.addEventListener('pointercancel', endDrag);
 
-  return { has, enter, leave, render, onHome };
+  return { has, enter, leave, render, onHome, otherTools };
 })();

@@ -494,7 +494,7 @@ for(const [id,hash] of [['nav-timeline','#timeline'],['nav-events','#events']])d
   renderAppPage();
 });
 window.addEventListener('hashchange',()=>renderAppPage());
-build();paintLtfWindows();setHours(defaultHours);tick();highlightChains();paintHolidays();renderAppPage(false);requestAnimationFrame(jumpNow);registerWebMCP();setInterval(()=>{tick();highlightChains()},1000);
+build();paintLtfWindows();setHours(defaultHours);tick();highlightChains();paintHolidays();renderAppPage(false);requestAnimationFrame(jumpNow);registerWebMCP();window.addEventListener('message',e=>{if(e.source===window.parent&&e.data?.type==='frame-visibility'){const was=window.__frameHidden;window.__frameHidden=!e.data.visible;if(was&&!window.__frameHidden){tick();highlightChains()}}});setInterval(()=>{if(!window.__frameHidden){tick();highlightChains()}},1000);
 </script>
 </body>
 </html>

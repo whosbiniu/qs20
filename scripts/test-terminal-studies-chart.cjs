@@ -33,6 +33,7 @@ const orderflow = { trades: [{ time: (hourly[50].time + 60) * 1000 }, { time: (h
 const sandbox = {
   console, Date, Math, Intl, Promise, Map, Set, setTimeout: noop, clearTimeout: noop, requestAnimationFrame: fn => fn(), fetch: undefined,
   document: { head: { append: noop }, createElement: element, hidden: false, addEventListener: noop, getElementById: () => null },
+  Stash: { get: k => store['stash:' + k] ? JSON.parse(store['stash:' + k]) : null, put: (k, v) => { store['stash:' + k] = JSON.stringify(v); return true } },
   window: { addEventListener: noop }, localStorage: { getItem: k => store[k] ?? null, setItem: (k, v) => { store[k] = v; } },
   Theme: { css: n => n === '--ink-rgb' ? '235 230 211' : '#ebe6d3' },
   LightweightCharts: { HistogramSeries: 'histogram', LineSeries: 'line' }, TerminalOrderflow: { bucket: (ms, interval) => Math.floor(ms / 1000 / 3600) * 3600 },
@@ -83,7 +84,7 @@ const Studies = sandbox.window.TerminalStudies;
 
   // Open interest is sampled from the market list and remembered per market.
   studies.observeMarkets([{ coin: 'xyz:XYZ100', openInterest: 6040 }]);
-  assert.equal(JSON.parse(store['hl-oi:xyz:XYZ100']).at(-1).value, 6040);
+  assert.equal(JSON.parse(store['stash:hl-oi:xyz:XYZ100']).at(-1).value, 6040);
 
   // Painters run without error and draw something.
   paintAll();

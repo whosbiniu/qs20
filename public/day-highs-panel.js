@@ -49,6 +49,9 @@
     }catch{DayHighs.panels.forEach(panel=>{document.getElementById(panel.id+'-status').textContent=sourceText+' · błąd odświeżania, widoczne dane mogą być nieaktualne';});}
     finally{running=false;}
   }
-  refresh();setInterval(refresh,60000);
-  document.addEventListener('visibilitychange',()=>{if(!document.hidden)refresh();});
+  // Inside the terminal this page is a frame: while it is not on screen, skip the 60 s Yahoo polls.
+  let onScreen=true;
+  window.addEventListener('message',e=>{if(e.source!==window.parent||e.data?.type!=='frame-visibility')return;const was=onScreen;onScreen=!!e.data.visible;if(onScreen&&!was)refresh();});
+  refresh();setInterval(()=>{if(onScreen&&!document.hidden)refresh();},60000);
+  document.addEventListener('visibilitychange',()=>{if(!document.hidden&&onScreen)refresh();});
 })();

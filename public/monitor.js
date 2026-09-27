@@ -52,6 +52,10 @@ const Monitor = (() => {
     .mon-bar .ranges{display:flex;gap:6px}.mon-bar .grow{flex:1}
     .mon.compact .mon-bar{flex-wrap:nowrap}.mon.compact .mon-bar>*{flex:none}.mon.compact .mon-bar .layers{flex:1 1 0;order:0;min-width:0;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:thin;scrollbar-color:var(--line) var(--bg)}.mon.compact .mon-bar .grow{display:none}
     .mon-bar button b{font-weight:400;margin-right:4px}
+    /* phones: the 14 layer buttons fold behind the "layers" label so the map keeps the screen */
+    @media(max-width:800px){.mon-bar #monLayers{display:none}.mon.layers-open .mon-bar #monLayers{display:flex}
+      #monLabel{cursor:pointer;border:1px solid var(--line);padding:3px 9px;color:var(--ink)}#monLabel::after{content:' ▾'}.mon.layers-open #monLabel::after{content:' ▴'}
+      .mon-main{height:78vh!important}}
     .mon-bar button{padding:2px 8px;font-size:11px;white-space:nowrap}
     .mon-bar button[data-l]{border-left:3px solid var(--c)}
     .mon-bar button[data-l].active{background:var(--c);border-color:var(--c);color:#050505}
@@ -509,7 +513,7 @@ const Monitor = (() => {
       `<button data-l="${key}" style="--c:${COLORS[key]}" class="${layersOn[key] ? 'active' : ''}"><b>${glyph[key]}</b>${esc(label(key))}${loadedOnce ? ` <i>${(items[key] || []).length}</i>` : ''}</button>`).join('')
     root.querySelector('#monRange').innerHTML = RANGES.map(r => `<button data-r="${r}" class="${r === range ? 'active' : ''}">${r}</button>`).join('')
     root.querySelector('#monLang').textContent = pl() ? 'PL' : 'EN'
-    root.querySelector('#monLabel').textContent = t('layers')
+    root.querySelector('#monLabel').textContent = `${t('layers')} ${ORDER.filter(k => layersOn[k]).length}/${ORDER.length}`
     root.querySelector('#monRangeLabel').textContent = t('range')
     root.querySelector('[data-z="in"]').setAttribute('aria-label', t('zoomIn'))
     root.querySelector('[data-z="out"]').setAttribute('aria-label', t('zoomOut'))
@@ -523,6 +527,7 @@ const Monitor = (() => {
     root.querySelector('#monUpdated').textContent = t('updated') + new Date(data.fetchedAt).toLocaleTimeString(locale())
   }
 
+  let retryTimer = 0, retried = false
   async function load() {
     try {
       const response = await fetch('/api/monitor?range=' + range)
@@ -534,6 +539,9 @@ const Monitor = (() => {
       return
     }
     loadedOnce = true
+    // A cold server answers without its slowest sources (they keep loading there): ask again shortly to fill them in.
+    clearTimeout(retryTimer)
+    if (data.failed?.length && !retried) { retried = true; retryTimer = setTimeout(() => { if (visible) load() }, 6000) } else if (!data.failed?.length) retried = false
     build()
     if (selected && !flat().some(i => i.id === selected.id)) selected = null
     else if (selected) selected = flat().find(i => i.id === selected.id)
@@ -567,7 +575,7 @@ const Monitor = (() => {
     root.innerHTML = `
       <div class="mon">
         <div class="mon-main">
-          <div class="mon-bar"><span id="monLabel"></span><div id="monLayers" class="layers"></div><span class="grow"></span>
+          <div class="mon-bar"><span id="monLabel" role="button" tabindex="0" aria-controls="monLayers"></span><div id="monLayers" class="layers"></div><span class="grow"></span>
             <span id="monRangeLabel"></span><div id="monRange" class="ranges"></div>
             <button data-z="in">+</button><button data-z="out">−</button><button data-z="reset">⌂</button><button id="monLang" class="lang">PL</button></div>
           <div class="mon-map"><canvas id="monCanvas"></canvas><div id="monTip" hidden></div>
@@ -578,6 +586,9 @@ const Monitor = (() => {
           <div class="mon-tabs" id="monTabs"></div><div class="feed" id="monPane"></div></aside>
       </div>`
     canvas = root.querySelector('#monCanvas'); ctx = canvas.getContext('2d'); tip = root.querySelector('#monTip')
+    const toggleLayers = () => root.querySelector('.mon').classList.toggle('layers-open')
+    root.querySelector('#monLabel').onclick = toggleLayers
+    root.querySelector('#monLabel').onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleLayers() } }
     root.querySelector('#monLayers').onclick = e => {
       const key = e.target.closest('[data-l]')?.dataset.l
       if (!key) return

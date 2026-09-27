@@ -99,10 +99,7 @@ window.HyperTerminal = (() => {
   }
   async function json(url) { const r = await fetch(url); const value = await r.json(); if (!r.ok) throw new Error(value.error || `HTTP ${r.status}`); return value }
   // Last good markets and candles are kept in the browser, so the page paints at once on the next visit.
-  const stash = {
-    get(key) { try { return JSON.parse(localStorage.getItem('stash:' + key)) } catch { return null } },
-    put(key, value) { try { localStorage.setItem('stash:' + key, JSON.stringify(value)) } catch {} },
-  }
+  const stash = Stash   // storage.js: size-limited cache of these copies
   async function loadMarkets() {
     if (!all.length) { const saved = stash.get('hl-markets'); if (saved?.length) { all = saved; renderList(); renderQuote() } }
     try {

@@ -1,9 +1,10 @@
 import { NextRequest } from 'next/server'
 import { SESSION_COOKIE, validSession } from './site-auth.mjs'
 import TerminalData from '../public/terminal-data.js'
+import { cachedTransport } from './cached-transport'
 
 // One shared instance per server process, so its caches also protect Yahoo/FinancialJuice from bursts.
-export const terminal = TerminalData.create(TerminalData.nodeTransport())
+export const terminal = TerminalData.create(cachedTransport())
 
 const headers = { 'Cache-Control': 'private, no-store' }
 

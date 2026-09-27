@@ -44,7 +44,7 @@ const Drawings = (() => {
     const ctx = canvas.getContext('2d');
     let tool = 'cursor', items = [], pending = null, cursor = null, hover = null, selected = null, frame = 0, clearArmed = 0, size = { w: 0, h: 0, dpr: 1 };
     const key = () => 'draw:' + panel.symbol;
-    const save = () => { try { localStorage.setItem(key(), JSON.stringify(items)); } catch {} };
+    const save = () => { if (!Store.set(key(), JSON.stringify(items))) console.warn('Rysunki nie zmieściły się w pamięci przeglądarki.'); };
     const reload = () => { try { items = JSON.parse(localStorage.getItem(key()) || '[]'); } catch { items = []; } if (!Array.isArray(items)) items = []; pending = null; hover = null; selected = null; redraw(); };
 
     // ---- time/price <-> screen ----------------------------------------------------------------

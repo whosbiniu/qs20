@@ -386,21 +386,27 @@
     }
 
     // World monitor: each source is fetched, cached and failing independently.
-    const layerCache = {};
-    async function layer(name, ttl, load) {
+    // Stale-while-revalidate per source: a copy we already have is answered at once (and refreshed in the background
+    // when older than `ttl`); a source we have never loaded gets `budget` ms and keeps loading in the background after
+    // that, so one slow feed (GDELT, weather services) no longer holds back the whole map.
+    const layerCache = {}, layerPending = {}, layerFailed = {};
+    function layer(name, ttl, load, budget = 2500) {
       const hit = layerCache[name];
-      if (hit && Date.now() - hit.at < ttl) return hit.data;
-      try {
-        const data = await load();
-        layerCache[name] = { at: Date.now(), data };
-        return data;
-      } catch (error) {
-        if (hit) return hit.data;   // keep serving the last good copy
-        throw error;
+      const start = () => layerPending[name] ||= load()
+        .then(data => { layerCache[name] = { at: Date.now(), data }; delete layerFailed[name]; return data; }, error => { layerFailed[name] = Date.now(); throw error; })
+        .finally(() => { delete layerPending[name]; });
+      if (hit) {
+        if (Date.now() - hit.at >= ttl) start().catch(() => {});
+        return Promise.resolve(hit.data);
       }
+      // A source that just failed (e.g. GDELT's rate limit) is not waited for again for a minute.
+      if (Date.now() - (layerFailed[name] || 0) < 60000) return Promise.reject(new Error('recently failed'));
+      // Only the request that started a slow load waits for it; later ones answer without it until it lands.
+      if (layerPending[name] && Date.now() - layerPending[name].started > budget) return Promise.reject(new Error('still loading'));
+      const pending = start();
+      pending.started ??= Date.now();
+      return Promise.race([pending, new Promise((_, reject) => setTimeout(() => reject(new Error('slow')), budget))]);
     }
-    // Slow optional sources must not hold the map back: give them a moment, keep loading in the background.
-    const withinMs = (ms, load) => Promise.race([load(), new Promise((_, reject) => setTimeout(() => reject(new Error('slow')), ms))]);
     const RANGES = {
       '24h': { ms: 86400000, quakes: '2.5_day', days: 1, gdelt: '24h' }, '48h': { ms: 172800000, quakes: '2.5_week', days: 2, gdelt: '48h' },
       '7d': { ms: 604800000, quakes: '2.5_week', days: 7, gdelt: '7d' }, '30d': { ms: 2592000000, quakes: '2.5_month', days: 30, gdelt: '30d' },
@@ -420,12 +426,12 @@
         layer('events' + key, 600000, async () => { const list = fresh(parseEvents(await getJson(`https://eonet.gsfc.nasa.gov/api/v3/events?status=all&days=${range.days}&limit=300`))).slice(0, 250); polish(list, 'title'); return list; }),
         layer('aircraft', 30000, async () => parseAircraft(await getJson('https://api.adsb.lol/v2/mil'))),
         // GDELT allows one request per five seconds, so headlines are cached for ten minutes.
-        withinMs(4000, () => layer('articles' + key, 600000, async () => {
+        layer('articles' + key, 600000, async () => {
           const query = encodeURIComponent('(war OR attack OR missile OR military OR strike) sourcelang:english');
           const list = parseArticles(await getJson(`https://api.gdeltproject.org/api/v2/doc/doc?query=${query}&mode=artlist&maxrecords=40&format=json&sort=datedesc&timespan=${range.gdelt}`)).slice(0, 25);
           await Promise.all(list.filter(a => !articleTitles.has(a.url)).map(async a => { try { articleTitles.set(a.url, await translate(a.title)); } catch {} }));
           return list;
-        })),
+        }, 1500),
         layer('weather', 300000, async () => { const list = parseWeather(await getJson('https://api.weather.gov/alerts/active?status=actual&severity=Extreme,Severe')).slice(0, 250); polish(list, 'title'); return list; }),
         layer('canada', 300000, async () => { const list = parseCanada(await getJson('https://api.weather.gc.ca/collections/weather-alerts/items?f=json&limit=300')).slice(0, 250); polish(list, 'title'); return list; }),
       ]);

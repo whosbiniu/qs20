@@ -141,13 +141,22 @@ const Other = (() => {
         const rows = [...data.items].sort((a, b) => b.change - a.change)
         pane.querySelector('[data-table-view="heat"]').innerHTML = `<table><thead><tr><th>Spółka</th><th>Sektor</th><th>Cena</th><th>Zmiana</th><th>Kapitalizacja</th></tr></thead><tbody>${rows.map(i => `<tr><td><b>${esc(i.symbol)}</b> ${esc(i.name)}</td><td>${esc(i.sector)}</td><td>${num(i.price)}</td><td>${pct(i.change)}</td><td>${big(i.cap)} $</td></tr>`).join('')}</tbody></table>`
       }
-      map.addEventListener('pointermove', e => {
-        const s = e.target.closest('.ot-cell')?.dataset.s, i = s && data?.items.find(x => x.symbol === s)
+      const cellTip = (s, e, touch) => {
+        const i = s && data?.items.find(x => x.symbol === s)
         if (!i) return hideTip()
-        showTip(`<b>${esc(i.symbol)}</b> · ${esc(i.name)}<br>${esc(i.sector)}<br>cena ${num(i.price)} · <b>${pct(i.change)}</b><br>kapitalizacja ${big(i.cap)} $<br><small>kliknij, aby otworzyć wykres</small>`, e)
+        showTip(`<b>${esc(i.symbol)}</b> · ${esc(i.name)}<br>${esc(i.sector)}<br>cena ${num(i.price)} · <b>${pct(i.change)}</b><br>kapitalizacja ${big(i.cap)} $<br><small>${touch ? 'stuknij ponownie, aby otworzyć wykres' : 'kliknij, aby otworzyć wykres'}</small>`, e)
+      }
+      // Touch has no hover: the first tap on a tile shows its details, a second tap on the same tile opens the chart.
+      let lastPointer = 'mouse', tapped = null
+      map.addEventListener('pointerdown', e => { lastPointer = e.pointerType })
+      map.addEventListener('pointermove', e => { if (e.pointerType === 'mouse') cellTip(e.target.closest('.ot-cell')?.dataset.s, e, false) })
+      map.addEventListener('pointerleave', e => { if (e.pointerType === 'mouse') hideTip() })
+      map.addEventListener('click', e => {
+        const s = e.target.closest('.ot-cell')?.dataset.s
+        if (!s) { tapped = null; return hideTip() }
+        if (lastPointer !== 'mouse' && tapped !== s) { tapped = s; cellTip(s, e, true); return }
+        tapped = null; hideTip(); openOnChart(s)
       })
-      map.addEventListener('pointerleave', hideTip)
-      map.addEventListener('click', e => { const s = e.target.closest('.ot-cell')?.dataset.s; if (s) openOnChart(s) })
       new ResizeObserver(() => draw()).observe(map)
       const load = async () => {
         try { data = await json('/api/extra/heatmap'); store.put('heatmap', data); status(st, 'aktualizacja ' + new Date().toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' })); draw() }
@@ -383,21 +392,49 @@ const Other = (() => {
     // ---- 6. trade journal ------------------------------------------------------------------------------------
     journal(pane) {
       const SESSION = { Q1: 'Azja', Q2: 'Londyn', Q3: 'NY AM', Q4: 'NY PM' }
-      let trades = store.get('journal', []), openId = null
-      const save = () => store.put('journal', trades)
-      // Chart snapshots are large, so they live in IndexedDB, keyed by trade id.
+      let trades = [], openId = null
+      // Trades and chart snapshots live in IndexedDB (not the small localStorage quota shared with cached market data).
       const db = new Promise(resolve => {
-        try { const req = indexedDB.open('unc-journal', 1); req.onupgradeneeded = () => req.result.createObjectStore('shots'); req.onsuccess = () => resolve(req.result); req.onerror = () => resolve(null) } catch { resolve(null) }
+        try {
+          const req = indexedDB.open('unc-journal', 2)
+          req.onupgradeneeded = () => { for (const name of ['shots', 'journal']) if (!req.result.objectStoreNames.contains(name)) req.result.createObjectStore(name) }
+          req.onsuccess = () => resolve(req.result); req.onerror = () => resolve(null)
+        } catch { resolve(null) }
       })
-      const shot = async (mode, id, value) => {
+      const idb = async (store, mode, key, value) => {
         const d = await db
-        if (!d) return null
-        return new Promise(resolve => {
-          const t = d.transaction('shots', mode === 'put' || mode === 'delete' ? 'readwrite' : 'readonly').objectStore('shots')
-          const req = mode === 'put' ? t.put(value, id) : mode === 'delete' ? t.delete(id) : t.get(id)
-          req.onsuccess = () => resolve(req.result ?? null); req.onerror = () => resolve(null)
+        if (!d) throw new Error('no IndexedDB')
+        return new Promise((resolve, reject) => {
+          const t = d.transaction(store, mode === 'get' ? 'readonly' : 'readwrite').objectStore(store)
+          const req = mode === 'put' ? t.put(value, key) : mode === 'delete' ? t.delete(key) : t.get(key)
+          req.onsuccess = () => resolve(req.result ?? null); req.onerror = () => reject(req.error)
         })
       }
+      const warn = text => { const el = pane.querySelector('[data-warn]'); if (el) { el.textContent = text; el.hidden = !text } }
+      async function save() {
+        try { await idb('journal', 'put', 'trades', trades); warn('') }
+        catch { if (!Store.set('other:journal', JSON.stringify(trades))) warn('Nie udało się zapisać dziennika: pamięć przeglądarki jest pełna. Zrób eksport, aby nie stracić danych.') }
+      }
+      // Imported files are untrusted: keep only well-formed fields, with the types the page expects.
+      const QUARTER = /^(Q[0-4](\/Q[14])?( \/ Q[0-4])?)$/
+      function cleanTrade(t) {
+        if (!t || typeof t !== 'object' || typeof t.id !== 'string' || !/^[a-z0-9]{1,20}$/.test(t.id)) return null
+        const n = v => typeof v === 'number' && Number.isFinite(v) ? v : null
+        const symbol = String(t.symbol || '').toUpperCase()
+        if (!/^[A-Z0-9^][A-Z0-9.^=!:-]{0,19}$/.test(symbol) || n(t.entry) === null || n(t.stop) === null || n(t.time) === null) return null
+        const c = t.context && typeof t.context === 'object' ? t.context : {}
+        const q = v => typeof v === 'string' && QUARTER.test(v) ? v : null
+        const labels = v => Array.isArray(v) ? v.slice(0, 3).map(x => String(x).slice(0, 12)) : null
+        return {
+          id: t.id, symbol, side: t.side === 'short' ? 'short' : 'long', entry: n(t.entry), stop: n(t.stop), target: n(t.target), exit: n(t.exit), size: n(t.size), time: n(t.time), closedAt: n(t.closedAt),
+          note: String(t.note || '').slice(0, 2000), shot: t.shot === true,
+          context: { monthly: q(c.monthly), weekly: q(c.weekly), daily: q(c.daily), m90: q(c.m90), micro: q(c.micro),
+            session: ['Azja', 'Londyn', 'NY AM', 'NY PM'].includes(c.session) ? c.session : null, weekday: typeof c.weekday === 'string' ? c.weekday.slice(0, 8) : null,
+            cycles: c.cycles && typeof c.cycles === 'object' ? { hotd: labels(c.cycles.hotd), lotd: labels(c.cycles.lotd), hotw: labels(c.cycles.hotw), lotw: labels(c.cycles.lotw) } : null },
+        }
+      }
+      const cleanShot = s => s && typeof s.image === 'string' && /^data:image\/(jpeg|png);base64,[A-Za-z0-9+/=]+$/.test(s.image) && s.image.length < 3000000 ? { symbol: String(s.symbol || '').slice(0, 20), frame: String(s.frame || '').slice(0, 4), image: s.image } : null
+      const shot = (mode, id, value) => idb('shots', mode, id, value).catch(() => null)
       const rMultiple = t => {
         const risk = Math.abs(t.entry - t.stop), sign = t.side === 'short' ? -1 : 1
         return Number.isFinite(t.exit) && risk > 0 ? sign * (t.exit - t.entry) / risk : null
@@ -406,6 +443,7 @@ const Other = (() => {
       const nowLocal = () => { const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 16) }
       pane.innerHTML = `<header class="ot-head"><b>Dziennik transakcji</b><span>zapisywany w tej przeglądarce · kontekst i zrzut wykresu dodają się automatycznie</span><span class="grow"></span>
         <button class="ot-mini" data-act="export">eksport</button><label class="ot-mini">import<input type="file" accept="application/json" data-act="import" hidden></label></header>
+        <p class="ot-warn" data-warn hidden></p>
         <form class="ot-journal-form">
           <label>Instrument<input name="symbol" required spellcheck="false" placeholder="NQ1!"></label>
           <label>Kierunek<select name="side"><option value="long">long</option><option value="short">short</option></select></label>
@@ -509,13 +547,35 @@ const Other = (() => {
           const file = JSON.parse(await e.target.files[0].text())
           if (!Array.isArray(file.trades)) throw new Error('format')
           const known = new Set(trades.map(t => t.id))
-          for (const t of file.trades) if (t && typeof t.id === 'string' && !known.has(t.id)) { trades.push(t); if (file.shots?.[t.id]) await shot('put', t.id, file.shots[t.id]) }
-          trades.sort((a, b) => b.time - a.time); save(); render()
+          let added = 0, skipped = 0
+          for (const raw of file.trades) {
+            const t = cleanTrade(raw)
+            if (!t || known.has(t.id)) { skipped++; continue }
+            const image = cleanShot(file.shots?.[t.id])
+            t.shot = !!image
+            if (image) await shot('put', t.id, image)
+            trades.push(t); known.add(t.id); added++
+          }
+          trades.sort((a, b) => b.time - a.time); await save(); render()
+          warn(`Zaimportowano ${added} transakcji${skipped ? `, pominięto ${skipped} (duplikaty lub niepoprawne wpisy)` : ''}.`)
         } catch { alert('To nie jest plik dziennika.') }
         e.target.value = ''
       }
       refreshers.journal = fillSymbol
-      render()
+      // Load from IndexedDB; the first time, move the trades that used to live in localStorage.
+      ;(async () => {
+        try {
+          const stored = await idb('journal', 'get', 'trades')
+          if (Array.isArray(stored)) trades = stored.map(cleanTrade).filter(Boolean)
+          else {
+            const legacy = store.get('journal', [])
+            trades = (Array.isArray(legacy) ? legacy : []).map(cleanTrade).filter(Boolean)
+            await idb('journal', 'put', 'trades', trades)
+            localStorage.removeItem('other:journal')
+          }
+        } catch { trades = (store.get('journal', []) || []).map(cleanTrade).filter(Boolean); warn('Ta przeglądarka nie udostępnia IndexedDB: dziennik zapisuje się w mniejszej pamięci lokalnej.') }
+        render()
+      })()
     },
 
     // ---- 7. Commitments of Traders ---------------------------------------------------------------------------

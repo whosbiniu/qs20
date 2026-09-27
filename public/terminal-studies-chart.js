@@ -263,7 +263,8 @@ window.TerminalStudies = (() => {
       syncAux(); renderLegend();
     }
     const oiKey = () => 'hl-oi:' + coin;
-    function loadOi() { try { oiSamples = JSON.parse(localStorage.getItem(oiKey()) || '[]'); } catch { oiSamples = []; } if (!Array.isArray(oiSamples)) oiSamples = []; }
+    // Open interest samples live in the size-limited cache (storage.js): markets not opened for a while make room.
+    function loadOi() { oiSamples = Stash.get(oiKey()) || []; if (!Array.isArray(oiSamples)) oiSamples = []; }
 
     // ---- panes below the chart ----------------------------------------------------------------
     function dropAux(id) {
@@ -406,8 +407,8 @@ window.TerminalStudies = (() => {
         const time = Math.floor(Date.now() / 1000);
         if (oiSamples.at(-1)?.time === time) return;
         oiSamples.push({ time, value: m.openInterest });
-        if (oiSamples.length > 4000) oiSamples.splice(0, oiSamples.length - 4000);
-        try { localStorage.setItem(oiKey(), JSON.stringify(oiSamples)); } catch {}
+        if (oiSamples.length > 2000) oiSamples.splice(0, oiSamples.length - 2000);
+        Stash.put(oiKey(), oiSamples);
         if (enabled('oi')) syncAux();
       },
     };

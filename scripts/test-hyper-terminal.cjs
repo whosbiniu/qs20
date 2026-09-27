@@ -29,6 +29,7 @@ const context = vm.createContext({
   document: { getElementById: node, documentElement: {}, hidden: false },
   window: { addEventListener() {} },
   localStorage: { getItem: k => storage.get(k), setItem: (k, v) => storage.set(k, v) },
+  Stash: { get: k => { const v = storage.get('stash:' + k); return v ? JSON.parse(v) : null }, put: (k, v) => { storage.set('stash:' + k, JSON.stringify(v)); return true } },
   requestAnimationFrame: fn => fn(), setInterval: (fn, ms) => timers.push({ fn, ms }),
   getComputedStyle: () => ({ getPropertyValue: () => '#111111' }),
   LightweightCharts: { createChart: () => chart },

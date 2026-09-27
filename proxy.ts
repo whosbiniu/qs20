@@ -4,6 +4,19 @@ import { authConfigured, SESSION_COOKIE, validSession } from './lib/site-auth.mj
 // Only a signed-in browser may keep anything, and only in its own cache ("private"). Files named with a content
 // hash (?v=..., see next.config.mjs) never change, so they are kept for a year; other static files and the pages
 // are revalidated with their ETag (a tiny 304 when unchanged); API answers and redirects are never stored.
+// Only our own pages may frame the terminal, scripts and styles come from this site (inline ones are part of the
+// pages), live trades use Hyperliquid's WebSocket and the Bloomberg TV pane embeds YouTube.
+const CSP = [
+  "default-src 'self'", "script-src 'self' 'unsafe-inline'", "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data: blob: https:", "font-src 'self' data:", "media-src 'self' blob: https:",
+  "connect-src 'self' wss://api.hyperliquid.xyz", "frame-src 'self' https://www.youtube.com https://www.youtube-nocookie.com",
+  "frame-ancestors 'self'", "object-src 'none'", "base-uri 'self'", "form-action 'self'", "worker-src 'self' blob:",
+].join('; ')
+const SECURITY_HEADERS: [string, string][] = [
+  ['Content-Security-Policy', CSP], ['X-Frame-Options', 'SAMEORIGIN'], ['X-Content-Type-Options', 'nosniff'],
+  ['Referrer-Policy', 'strict-origin-when-cross-origin'], ['Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=()'],
+]
+
 function cacheControl(request: NextRequest, response: NextResponse) {
   const path = request.nextUrl.pathname
   const passed = response.status < 300 && !response.headers.has('Location') && validSession(request.cookies.get(SESSION_COOKIE)?.value)
@@ -28,6 +41,8 @@ export function proxy(request: NextRequest) {
   }
   response.headers.set('Cache-Control', cacheControl(request, response))
   response.headers.set('X-Robots-Tag', 'noindex, nofollow')
+  // The login page sends its own, stricter policy.
+  if (!request.nextUrl.pathname.startsWith('/auth/')) for (const [name, value] of SECURITY_HEADERS) response.headers.set(name, value)
   return response
 }
 

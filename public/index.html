@@ -152,6 +152,7 @@ nav button,.tools button{white-space:nowrap}
 .err{position:absolute;inset:0;display:grid;place-items:center;color:var(--dim);text-align:center;padding:20px}
 iframe{width:100%;height:100%;border:1px solid var(--line);background:var(--bg)}
 footer{display:flex;gap:18px;color:var(--dim)}
+footer .live.bad{text-decoration:underline dotted}
 footer .live{color:var(--ink)}
 footer .credit{margin-left:auto;letter-spacing:.08em}
 
@@ -246,13 +247,14 @@ html[data-color-mode=light] .ot-pane input,html[data-color-mode=light] .ot-pane 
 .ot-lw{flex:1;min-height:260px;position:relative}.ot-lw.small{min-height:120px;flex:none;height:120px}
 .ot-svg{width:100%;height:240px;display:block}.ot-svg text{fill:var(--dim);font:10px ui-monospace,Menlo,monospace}.ot-svg text.lbl{fill:var(--ink);font-size:11px}.ot-svg text.small{font-size:10px}
 .ot-svg .grid{stroke:var(--faint);stroke-width:1}.ot-svg .grid.dashed{stroke:var(--line);stroke-dasharray:4 4}.ot-svg .base{stroke:var(--line);stroke-width:1}.ot-svg .cross{stroke:var(--dim);stroke-dasharray:3 3}
-.ot-table{overflow:auto}.ot-table table{width:100%;border-collapse:collapse;font-size:12px}.ot-table th{color:var(--dim);font-weight:400;text-align:left;padding:5px 8px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--bg)}
+.ot-table{overflow:auto}.ot-matrix,.ot-years{overflow-x:auto;max-width:100%}.ot-table table{width:100%;border-collapse:collapse;font-size:12px}.ot-table th{color:var(--dim);font-weight:400;text-align:left;padding:5px 8px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--bg)}
 .ot-table td{padding:5px 8px;border-bottom:1px solid var(--faint);font-variant-numeric:tabular-nums}
 .ot-corr td{text-align:center;min-width:52px;border:2px solid var(--bg)}.ot-corr th{text-align:center}
 .ot-heat td{text-align:center;border:1px solid var(--bg);font-size:11px;padding:3px 4px}
 .ot-tiles{display:flex;flex-wrap:wrap;gap:8px}.ot-tile{border:1px solid var(--line);padding:6px 12px;display:flex;flex-direction:column;min-width:120px}.ot-tile small{color:var(--dim)}.ot-tile b{font-size:18px;font-weight:600}.ot-tile span{color:var(--dim);font-size:11px}
 .ot-tip{position:absolute;z-index:40;pointer-events:none;background:var(--bg);border:1px solid var(--ink);padding:6px 9px;font-size:11px;line-height:1.5;max-width:320px}
 .ot-empty{color:var(--dim);padding:8px 0}
+.ot-warn{margin:0;padding:6px 10px;border:1px solid var(--ink);color:var(--ink)}
 .ot-bar{display:inline-block;width:70px;height:6px;border:1px solid var(--line);vertical-align:middle;margin-right:6px}.ot-bar span{display:block;height:100%;background:var(--ink)}
 .ot-journal-form{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:6px 10px;align-items:end;border:1px solid var(--line);padding:8px 10px}
 .ot-journal-form label{display:flex;flex-direction:column;gap:3px;color:var(--dim);font-size:11px}.ot-journal-form label.wide{grid-column:span 2}.ot-journal-form label.check{flex-direction:row;align-items:center;gap:6px}
@@ -310,6 +312,7 @@ html[data-color-mode=light] .ot-pane input,html[data-color-mode=light] .ot-pane 
 <aside id="side" aria-label="Wydarzenia na żywo"><h4>wydarzenia <i>financialjuice · <button class="lang" data-lang aria-label="Język nagłówków">PL</button></i></h4><div class="feed" id="newsSide"></div></aside>
 </div>
 <footer><span class="live" id="status">● łączenie…</span><span id="updated"></span><span class="credit">from @biniub3 with love</span></footer>
+<script src="storage.js"></script>
 <script src="theme.js"></script>
 <script src="lightweight-charts.js"></script>
 <script src="drawings.js"></script>
@@ -432,9 +435,16 @@ const cycleRows = (d, waiting) => CYCLES.map(([k, key, tip]) =>
   `<div class="r cyc"><span title="${tip}">${k}</span><b>${d?.[key] ? d[key].join(' · ') : waiting ? '…' : '—'}</b></div>`).join('')
 // The last good answers stay in the browser: a new visit paints charts, cycles, tape and headlines at once and
 // swaps in fresh data as it arrives (stale-while-revalidate on the client).
-const stash = {
-  get(key) { try { return JSON.parse(localStorage.getItem('stash:' + key)) } catch { return null } },
-  put(key, value) { try { localStorage.setItem('stash:' + key, JSON.stringify(value)) } catch {} },
+const stash = Stash   // storage.js: a size-limited, least-recently-used cache of these copies
+
+// Footer status: live when the data feeds answer (charts, tape, headlines), whichever page is open.
+const feeds = {}
+function feedStatus(name, ok) {
+  feeds[name] = ok
+  const states = Object.values(feeds), good = states.filter(Boolean).length
+  $('status').textContent = !good ? '● brak połączenia z danymi' : good < states.length ? '● na żywo · część źródeł niedostępna' : '● na żywo'
+  $('status').classList.toggle('bad', !good)
+  $('updated').textContent = 'aktualizacja: ' + new Date().toLocaleTimeString('pl-PL')
 }
 const cycleCache = {}
 async function loadCycles(p) {
@@ -474,7 +484,8 @@ async function loadTape() {
     if (!quotes.length) return
     stash.put('tape', quotes)
     renderTape(quotes)
-  } catch {}
+    feedStatus('ceny', true)
+  } catch { feedStatus('ceny', false) }
 }
 if (stash.get('tape')?.length) renderTape(stash.get('tape'))
 loadTape()
@@ -556,8 +567,7 @@ function refresh() {
   return refreshing ||= (async () => {
     lastRefresh = Date.now()
     const ok = await Promise.all(panels.slice(0, count).map(load))
-    $('status').textContent = ok.every(Boolean) ? '● na żywo' : '● błąd danych'
-    $('updated').textContent = 'aktualizacja: ' + new Date().toLocaleTimeString('pl-PL')
+    feedStatus('wykresy', ok.every(Boolean))
   })().finally(() => { refreshing = null })
 }
 
@@ -594,19 +604,36 @@ function need(name) {
 }
 const monitorLoaded = () => typeof Monitor !== 'undefined'
 // Framed pages (calendar, quarters, L/H) are created once and then kept, so switching back is instant.
-function ensureFrame(name) {
-  const url = { calendar: CALENDAR_URL, quarters: QUARTERS_URL, highs: HIGHS_URL }[name]
-  if (url && !$(name).firstChild) $(name).innerHTML = `<iframe src="${url}" title="${name}"></iframe>`
+// Kalendarz and Kwartały are two views of one page, so they share one frame in the Kwartały section and switch with
+// its #events / #timeline fragment (no reload). The L/H page has its own frame.
+const FRAME_OF = { calendar: ['quarters', '#events'], quarters: ['quarters', '#timeline'], highs: ['highs', ''] }
+function ensureFrame(name, navigate) {
+  const spec = FRAME_OF[name]
+  if (!spec) return
+  const [host, fragment] = spec, url = (host === 'highs' ? HIGHS_URL : QUARTERS_URL.split('#')[0]) + fragment
+  const frame = $(host).querySelector('iframe')
+  if (!frame) { $(host).innerHTML = `<iframe src="${url}" title="${host === 'highs' ? 'Aktualne L/H' : 'Kwartały'}"></iframe>`; return }
+  if (navigate && frame.getAttribute('src') !== url) frame.src = url
 }
+// Framed pages poll and redraw on timers; tell each whether it is on screen so hidden ones can pause.
+function syncFrames() {
+  requestAnimationFrame(() => document.querySelectorAll('main iframe').forEach(frame => {
+    if ((frame.getAttribute('src') || '').startsWith('quarters/')) frame.contentWindow?.postMessage({ type: 'frame-visibility', visible: !!frame.offsetParent }, '*')
+  }))
+}
+document.querySelector('main').addEventListener('load', e => { if (e.target.tagName === 'IFRAME') syncFrames() }, true)
 // Warm a page before it is clicked: code and frame start loading on hover (desktop) or touch-down (phones).
 function prefetch(name) { need(name).catch(() => {}); ensureFrame(name) }
 let chartsLaidOut = false, lastRefresh = 0
 const chartsVisible = () => current() === 'charts' || current() === 'home' && Home.has('charts')
 
+let activeTab = 'home'
 function tab(name, otherTool) {
+  activeTab = name
   document.querySelectorAll('nav .tabs > button').forEach(b => b.classList.toggle('active', b.dataset.tab === name))
   Home.leave()
-  for (const id of TABS) $(id).hidden = id !== name
+  const section = FRAME_OF[name]?.[0] || name   // Kalendarz is shown in the shared Kwartały frame
+  for (const id of TABS) $(id).hidden = id !== section
   if (name === 'home') Home.enter()
   if (name === 'hyper-terminal' || name === 'home' && Home.has('hyper-terminal')) HyperTerminal.show()
   if (name === 'post-creator') need('post-creator').then(() => { if (current() === 'post-creator') PostCreator.show() })
@@ -620,7 +647,8 @@ function tab(name, otherTool) {
   const wantsMonitor = () => current() === 'monitor' || current() === 'home' && Home.has('monitor')
   if (wantsMonitor()) need('monitor').then(() => { if (wantsMonitor()) Monitor.show() })
   else if (monitorLoaded()) Monitor.hide()
-  ensureFrame(name)
+  ensureFrame(name, true)
+  syncFrames()
   // Charts keep their zoom and data when revisited; they only reload when the data is older than 20 s.
   if (chartsShown) {
     if (!chartsLaidOut) { chartsLaidOut = true; applyLayout() }
@@ -643,7 +671,7 @@ addEventListener('keydown', e => { const n = { F1: 'charts', F2: 'hyper-terminal
 const clockFormat = new Intl.DateTimeFormat('pl-PL', { dateStyle: 'short', timeStyle: 'medium', hour12: false })
 setInterval(() => { if (!document.hidden) $('clock').textContent = clockFormat.format(new Date()) }, 1000)
 let sideOpen = localStorage.getItem('side') !== 'closed'
-const current = () => TABS.find(id => !$(id).hidden)
+const current = () => activeTab
 $('sideToggle').onclick = () => {
   sideOpen = !sideOpen
   localStorage.setItem('side', sideOpen ? 'open' : 'closed')
@@ -683,7 +711,8 @@ async function loadNews() {
     headlines = d.items
     stash.put('news', d.items.slice(0, 120))
     renderNews(fresh)
-  } catch { if (!headlines.length) $('newsSide').innerHTML = '<div class="none">FinancialJuice chwilowo niedostępne, ponawiam…</div>' }
+    feedStatus('wydarzenia', true)
+  } catch { feedStatus('wydarzenia', false); if (!headlines.length) $('newsSide').innerHTML = '<div class="none">FinancialJuice chwilowo niedostępne, ponawiam…</div>' }
 }
 $('newsFilter').oninput = () => renderNews()
 const savedNews = stash.get('news')

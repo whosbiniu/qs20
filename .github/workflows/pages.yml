@@ -38,6 +38,7 @@ jobs:
           node scripts/test-asset-versions.mjs
           node scripts/test-terminal-extra.cjs
           node scripts/test-storage.cjs
+          node scripts/test-terminal-workspace.cjs
       - name: Prepare static site and calendar data
         env:
           SITE_PASSWORD: ${{ secrets.SITE_PASSWORD }}

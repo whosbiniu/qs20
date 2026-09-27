@@ -12,6 +12,7 @@ window.HyperTerminal = (() => {
     </div><aside class="ht-book"><header><strong>ARKUSZ ZLECEŃ</strong><span id="ht-book-time"></span></header><div class="ht-book-title"><span>CENA</span><span>WIELKOŚĆ</span><span>SUMA</span></div><div id="ht-asks"></div><div class="ht-spread" id="ht-spread">—</div><div id="ht-bids"></div></aside>
   </div>`
   const $ = id => document.getElementById(id)
+  let workspace
   const fmt = n => Number.isFinite(n) ? n.toLocaleString('en-US', { maximumFractionDigits: n < 1 ? 6 : n < 100 ? 4 : 2 }) : '—'
   const compact = n => Number.isFinite(n) ? Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 2 }).format(n) : '—'
   const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]))
@@ -23,7 +24,7 @@ window.HyperTerminal = (() => {
   // Extra studies (VWAP, profiles, levels, order book, OI, funding...) are added to the indicator catalog.
   TerminalIndicators.catalog.push(...TerminalStudies.catalog)
   const studies = TerminalStudies.attach({ settingsHost: $('ht-studies-settings'), fetchJson: url => json(url), orderflow })
-  const saveSettings = () => { try { localStorage.setItem('hl-indicators', JSON.stringify(settings)) } catch {} }
+  const saveSettings = () => Store.set('hl-indicators', JSON.stringify(settings))
   $('ht-step').value = settings.step
   $('ht-profile').hidden = !settings.tpo
   $('ht-tpo-mode').value = settings.mode
@@ -36,13 +37,14 @@ window.HyperTerminal = (() => {
 
   function theme() {
     if (!chart) return
-    const css = getComputedStyle(document.documentElement)
+    const css = getComputedStyle(root)
     const color = name => css.getPropertyValue(name).trim()
-    chart.applyOptions({ layout: { background: { color: color('--bg') }, textColor: color('--dim'), fontFamily: 'ui-monospace,Menlo,monospace' },
-      grid: { vertLines: { visible: false }, horzLines: { color: color('--faint') } },
+    chart.applyOptions({ layout: { background: { color: color('--bg') }, textColor: color('--dim'), fontFamily: 'ui-monospace,Menlo,monospace', fontSize: 10 },
+      grid: { vertLines: { visible: false }, horzLines: { visible: false } },
       rightPriceScale: { borderColor: color('--line') }, timeScale: { borderColor: color('--line') },
       crosshair: { vertLine: { color: color('--dim') }, horzLine: { color: color('--dim') } } })
-    series.applyOptions({ upColor: color('--ink'), downColor: color('--bg'), borderUpColor: color('--ink'), borderDownColor: color('--ink'), wickUpColor: color('--ink'), wickDownColor: color('--ink') })
+    const up = color('--tw-up') || color('--ink'), down = color('--tw-down') || color('--bg')
+    series.applyOptions({ upColor: up, downColor: down, borderUpColor: up, borderDownColor: down, wickUpColor: up, wickDownColor: down })
   }
   function setupChart() {
     if (chart) return
@@ -61,7 +63,7 @@ window.HyperTerminal = (() => {
   // Favourites replace the full market list: type a ticker to find it, star it (or press Enter) to keep it.
   let favorites = ['xyz:XYZ100', 'xyz:SP500', 'BTC', 'ETH']
   try { const stored = JSON.parse(localStorage.getItem('hl-favorites') || 'null'); if (Array.isArray(stored)) favorites = stored.filter(c => typeof c === 'string') } catch {}
-  const saveFavorites = () => { try { localStorage.setItem('hl-favorites', JSON.stringify(favorites)) } catch {} }
+  const saveFavorites = () => Store.set('hl-favorites', JSON.stringify(favorites))
   const marketRow = (m, favorite) => `<div class="ht-market-row"><button class="ht-market${m.coin === selected ? ' active' : ''}" data-coin="${esc(m.coin)}"><span><b>${esc(m.name)}</b><small>${esc(m.dex)}</small></span><span class="ht-market-price">${fmt(m.price)}<small class="${m.change >= 0 ? 'positive' : 'negative'}">${m.change == null ? '—' : (m.change >= 0 ? '+' : '') + m.change.toFixed(2) + '%'}</small></span></button><button class="ht-fav${favorite ? ' on' : ''}" data-fav="${esc(m.coin)}" aria-pressed="${favorite}" aria-label="${favorite ? 'Usuń z ulubionych' : 'Dodaj do ulubionych'}: ${esc(m.name)}" title="${favorite ? 'Usuń z ulubionych' : 'Dodaj do ulubionych'}">${favorite ? '★' : '☆'}</button></div>`
   // Best match first: the exact ticker, then shorter names.
   const findMarkets = q => all.filter(m => (m.coin + ' ' + m.name).toUpperCase().includes(q))
@@ -96,8 +98,9 @@ window.HyperTerminal = (() => {
     $('ht-oi').textContent = compact(m.openInterest)
     $('ht-funding').textContent = (m.funding * 100).toFixed(4) + '%'
     $('ht-periods').querySelectorAll('button').forEach(b => b.classList.toggle('active', b.dataset.period === interval))
+    workspace?.marketChanged()
   }
-  async function json(url) { const r = await fetch(url); const value = await r.json(); if (!r.ok) throw new Error(value.error || `HTTP ${r.status}`); return value }
+  async function json(url, options) { const r = await fetch(url, options); const value = await r.json(); if (!r.ok) throw new Error(value.error || `HTTP ${r.status}`); return value }
   // Last good markets and candles are kept in the browser, so the page paints at once on the next visit.
   const stash = Stash   // storage.js: size-limited cache of these copies
   async function loadMarkets() {
@@ -118,17 +121,20 @@ window.HyperTerminal = (() => {
     setupChart()
     const stamp = ++request, key = selected + ':' + interval
     const saved = chartKey !== key ? stash.get('hl-candles') : null
-    if (saved?.key === key && saved.candles?.length) paintChart(saved.candles, key)
+    if (saved?.key === key && saved.candles?.length) { paintChart(saved.candles, key); workspace?.dataUpdated(true) }
     try {
       const { candles } = await json(`/api/hl/candles?coin=${encodeURIComponent(selected)}&interval=${encodeURIComponent(interval)}`)
       if (stamp !== request) return
       stash.put('hl-candles', { key, candles })
       paintChart(candles, key)
+      workspace?.dataUpdated()
       $('ht-message').hidden = true
     } catch (error) { if (stamp === request) { $('ht-message').textContent = error.message; $('ht-message').hidden = false } }
   }
   function paintChart(candles, key) {
     const changed = chartKey !== key
+    const last = candles.at(-1)?.close, precision = last > 100 ? 2 : last > 1 ? 4 : 8   // 30655.00, not 30655.0000
+    series.applyOptions({ priceFormat: { type: 'price', precision, minMove: 10 ** -precision } })
     series.setData(candles)
     volumeSeries.setData(candles.map(c => ({ time: c.time, value: Number.isFinite(c.volume) ? c.volume : 0, color: c.close >= c.open ? '#8dcc9c66' : '#dc8e8966' })))
     drawingPanel.candles = candles
@@ -148,7 +154,8 @@ window.HyperTerminal = (() => {
   }
   function bookSide(rows, side) {
     let total = 0
-    return rows.map(row => { total += Number(row.sz); return `<div class="ht-book-row ${side}"><span>${fmt(Number(row.px))}</span><span>${fmt(Number(row.sz))}</span><span>${fmt(total)}</span></div>` }).join('')
+    const max = Math.max(1e-9, ...rows.map(row => Number(row.sz) || 0))
+    return rows.map(row => { total += Number(row.sz); const depth = Math.max(0, Math.min(100, (Number(row.sz) || 0) / max * 100)); return `<div class="ht-book-row ${side}" style="--depth:${depth.toFixed(1)}%"><span>${fmt(Number(row.px))}</span><span>${fmt(Number(row.sz))}</span><span>${fmt(total)}</span></div>` }).join('')
   }
   async function loadBook() {
     if (!selected) return
@@ -163,7 +170,7 @@ window.HyperTerminal = (() => {
       $('ht-book-time').textContent = new Date(book.time).toLocaleTimeString('pl-PL')
     } catch { $('ht-spread').textContent = 'Brak danych arkusza' }
   }
-  function select(coin) { if (coin === selected) return; selected = coin; orderflow.setMarket(selected, interval); studies.setMarket(selected, interval); profileCandles = []; clearProfileLines(); series?.setData([]); volumeSeries?.setData([]); if (drawingPanel) { drawingPanel.symbol = 'hl:' + coin; drawingPanel.candles = []; drawingPanel.drawings.reload() }; localStorage.setItem('hl-coin', coin); renderList(); renderQuote(); loadChart(); loadBook(); loadProfile() }
+  function select(coin) { if (coin === selected) return; selected = coin; orderflow.setMarket(selected, interval); studies.setMarket(selected, interval); profileCandles = []; clearProfileLines(); series?.setData([]); volumeSeries?.setData([]); if (drawingPanel) { drawingPanel.symbol = 'hl:' + coin; drawingPanel.candles = []; drawingPanel.drawings.reload() }; Store.set('hl-coin', coin); renderList(); renderQuote(); loadChart(); loadBook(); loadProfile() }
   function clearProfileLines() { profileOverlay?.set([]) }
   function renderProfile() {
     clearProfileLines()
@@ -217,12 +224,13 @@ window.HyperTerminal = (() => {
     const coin = e.target.closest('[data-coin]')?.dataset.coin
     if (coin) select(coin)
   })
-  $('ht-periods').addEventListener('click', e => { const p = e.target.closest('[data-period]')?.dataset.period; if (p && p !== interval) { interval = p; localStorage.setItem('hl-interval', p); orderflow.setMarket(selected, interval); studies.setMarket(selected, interval); renderQuote(); loadChart() } })
+  $('ht-periods').addEventListener('click', e => { const p = e.target.closest('[data-period]')?.dataset.period; if (p && p !== interval) { interval = p; Store.set('hl-interval', p); orderflow.setMarket(selected, interval); studies.setMarket(selected, interval); renderQuote(); loadChart() } })
   window.addEventListener('themechange', theme)
-  window.addEventListener('resize', () => chart && fitChart())
+  // autoSize resizes the canvas without replacing the user's zoom or scroll position.
   setInterval(() => { if (!root.hidden && !document.hidden && initialized) { loadMarkets(); loadBook() } }, 15000)
   setInterval(() => { if (!root.hidden && !document.hidden && initialized) { loadChart(); loadProfile() } }, 30000)
   // Revisiting the page within 15 s reuses the data (the timers keep it fresh while it is on screen).
   let shownAt = Date.now()
-  return { show() { if (!initialized) { initialized = true; loadMarkets().then(() => { loadChart(); loadBook(); loadProfile() }) } else { if (Date.now() - shownAt > 15000) { shownAt = Date.now(); loadMarkets(); loadBook(); loadProfile() } requestAnimationFrame(() => chart && fitChart()) } } }
+  workspace = window.TerminalWorkspace?.attach(root, { theme, market: () => ({ coin: selected, interval, markets: all }), fetchJson: json })
+  return { show() { workspace?.show(); if (!initialized) { initialized = true; loadMarkets().then(() => { loadChart(); loadBook(); loadProfile() }) } else if (Date.now() - shownAt > 15000) { shownAt = Date.now(); loadMarkets(); loadBook(); loadProfile() } } }
 })()

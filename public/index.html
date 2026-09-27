@@ -8,6 +8,7 @@
 <link rel="icon" type="image/png" sizes="64x64" href="favicon-64.png">
 <link rel="apple-touch-icon" href="apple-icon.png">
 <link rel="stylesheet" href="hyper-terminal.css">
+<link rel="stylesheet" href="terminal-workspace.css">
 <link rel="stylesheet" href="post-creator.css">
 <style>
 :root{--bg:#050505;--line:#3a3a34;--ink:#ebe6d3;--dim:#8c8a7c;--faint:#1c1c19}
@@ -322,6 +323,7 @@ html[data-color-mode=light] .ot-pane input,html[data-color-mode=light] .ot-pane 
 <script src="terminal-studies.js"></script>
 <script src="terminal-studies-tools.js"></script>
 <script src="terminal-studies-chart.js"></script>
+<script src="terminal-workspace.js"></script>
 <script src="hyper-terminal.js"></script>
 <script src="home.js"></script>
 <script src="cycle-rules.js"></script>
@@ -630,6 +632,7 @@ const chartsVisible = () => current() === 'charts' || current() === 'home' && Ho
 let activeTab = 'home'
 function tab(name, otherTool) {
   activeTab = name
+  document.body.classList.toggle('terminal-open', name === 'hyper-terminal')
   document.querySelectorAll('nav .tabs > button').forEach(b => b.classList.toggle('active', b.dataset.tab === name))
   Home.leave()
   const section = FRAME_OF[name]?.[0] || name   // Kalendarz is shown in the shared Kwartały frame

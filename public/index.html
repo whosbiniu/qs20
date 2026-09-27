@@ -69,8 +69,6 @@ nav button,.tools button{white-space:nowrap}
 .wbody{flex:1;min-height:0;position:relative;overflow:hidden}
 .wbody>.feed{position:absolute;inset:0;padding:0 10px}
 .wbody iframe{border:0}
-.tv-note{display:flex;gap:10px;align-items:center;padding:6px 10px;border:1px solid var(--line);border-bottom:0;color:var(--dim)}.tv-note b{color:var(--ink);letter-spacing:.14em;text-transform:uppercase}.tv-note a{color:var(--ink);text-underline-offset:3px}
-#tv:not([hidden]){display:flex;flex-direction:column}#tv iframe{flex:1;min-height:0}
 .page.in-widget{position:relative!important;inset:auto!important;height:100%}
 .mon{position:absolute;inset:0;display:flex;gap:10px}
 .mon-main{flex:1;min-width:0;display:flex;flex-direction:column;border:1px solid var(--line)}
@@ -219,7 +217,6 @@ footer .live{color:var(--ink)}
   <button data-tab="quarters"><b>F6</b>Kwartały</button>
   <button data-tab="highs"><b>F7</b>Aktualne L/H</button>
   <button data-tab="monitor"><b>F8</b>Monitor</button>
-  <button data-tab="tv"><b>F10</b>Bloomberg</button>
   </div>
   <div class="tools" id="tf"></div>
   <div class="tools" id="lay" style="margin-left:0"><span>wykresy</span>
@@ -246,7 +243,6 @@ footer .live{color:var(--ink)}
   <section class="page" id="quarters" hidden></section>
   <section class="page" id="highs" hidden></section>
   <section class="page" id="monitor" hidden></section>
-  <section class="page" id="tv" hidden></section>
 </main>
 <aside id="side" aria-label="Wydarzenia na żywo"><h4>wydarzenia <i>financialjuice · <button class="lang" data-lang aria-label="Język nagłówków">PL</button></i></h4><div class="feed" id="newsSide"></div></aside>
 </div>
@@ -274,11 +270,7 @@ footer .live{color:var(--ink)}
 const CALENDAR_URL = 'quarters/index.html#events'
 const QUARTERS_URL = 'quarters/index.html'
 const HIGHS_URL = 'quarters/highs.html'
-// Bloomberg Television's live stream on YouTube (channel @markets). live_stream follows whichever broadcast is live now.
-const TV_URL = 'https://www.youtube.com/embed/live_stream?channel=UCIALMKvObZNtJ6AmdCLP7Lg&autoplay=1&mute=1&rel=0'
-const TV_LINK = 'https://www.youtube.com/@markets/live'
-const TV_ALLOW = 'autoplay; encrypted-media; picture-in-picture; fullscreen'
-const TABS = ['home', 'charts', 'hyper-terminal', 'post-creator', 'calendar', 'news', 'quarters', 'highs', 'monitor', 'tv']
+const TABS = ['home', 'charts', 'hyper-terminal', 'post-creator', 'calendar', 'news', 'quarters', 'highs', 'monitor']
 const DEFAULTS = ['NQ1!', 'ES1!', 'YM1!', 'DXY1!']
 const PRESETS = ['NQ1!', 'ES1!', 'XYZ100', 'SP500', 'YM1!', 'RTY1!', 'DXY1!', 'BTC1!', 'ETH1!', 'GC1!', 'SI1!', 'CL1!', 'NG1!', 'ZN1!', '6E1!', 'BTC-USD', 'ETH-USD', 'SOL-USD', 'AAPL', 'NVDA', 'TSLA', 'SPY', 'QQQ']
 let saved = []
@@ -504,12 +496,8 @@ function tab(name) {
   $('tf').hidden = !chartsShown
   $('lay').hidden = !chartsShown
   name === 'monitor' || name === 'home' && Home.has('monitor') ? Monitor.show() : Monitor.hide()
-  const url = { calendar: CALENDAR_URL, quarters: QUARTERS_URL, highs: HIGHS_URL, tv: TV_URL }[name]
-  if (url && !$(name).firstChild) $(name).innerHTML = name === 'tv'
-    ? `<div class="tv-note"><b>Bloomberg TV</b> · YouTube live<span class="grow"></span><a href="${TV_LINK}" target="_blank" rel="noopener noreferrer">otwórz na YouTube ↗</a></div><iframe src="${url}" title="Bloomberg TV" allow="${TV_ALLOW}" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>`
-    : `<iframe src="${url}" title="${name}"></iframe>`
-  // leaving the TV tab stops the stream: the iframe is rebuilt when the tab is opened again
-  if (name !== 'tv' && $('tv').firstChild && !Home.has('tv')) $('tv').replaceChildren()
+  const url = { calendar: CALENDAR_URL, quarters: QUARTERS_URL, highs: HIGHS_URL }[name]
+  if (url && !$(name).firstChild) $(name).innerHTML = `<iframe src="${url}" title="${name}"></iframe>`
   if (chartsShown) { applyLayout(); refresh() }
   $('side').hidden = name === 'news' || !sideOpen
   history.replaceState(null, '', '#' + name)
@@ -519,7 +507,7 @@ document.querySelector('nav').addEventListener('click', e => {
   if (!t) return
   tab(t.dataset.tab)
 })
-addEventListener('keydown', e => { const n = { F1: 'charts', F2: 'hyper-terminal', F3: 'post-creator', F4: 'calendar', F5: 'news', F6: 'quarters', F7: 'highs', F8: 'monitor', F9: 'home', F10: 'tv' }[e.key]; if (n) { e.preventDefault(); tab(n) } })
+addEventListener('keydown', e => { const n = { F1: 'charts', F2: 'hyper-terminal', F3: 'post-creator', F4: 'calendar', F5: 'news', F6: 'quarters', F7: 'highs', F8: 'monitor', F9: 'home' }[e.key]; if (n) { e.preventDefault(); tab(n) } })
 
 setInterval(() => $('clock').textContent = new Date().toLocaleString('pl-PL', { hour12: false }), 1000)
 let sideOpen = localStorage.getItem('side') !== 'closed'

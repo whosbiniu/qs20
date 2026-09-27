@@ -11,7 +11,6 @@ const Home = (() => {
     quarters: { title: 'Kwartały', url: () => QUARTERS_URL },
     highs: { title: 'Aktualne L/H', url: () => HIGHS_URL },
     monitor: { title: 'Monitor', move: true },
-    tv: { title: 'Bloomberg TV', url: () => TV_URL },
   };
   // size 0: one column, 1: full width, 2: full width and tall
   const SIZES = [{ span: 1, height: 420, icon: '▫' }, { span: 2, height: 420, icon: '▭' }, { span: 2, height: 720, icon: '▣' }];

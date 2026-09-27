@@ -13,6 +13,7 @@ const node = id => {
   })
   return nodes.get(id)
 }
+let library;
 let fits = 0, drawingPanel, reloads = 0, profileUpdates = 0
 const seriesList = []
 const chart = { applyOptions() {}, timeScale: () => ({ fitContent() { fits++ } }), addSeries() {
@@ -31,7 +32,8 @@ const context = vm.createContext({
   requestAnimationFrame: fn => fn(), setInterval: (fn, ms) => timers.push({ fn, ms }),
   getComputedStyle: () => ({ getPropertyValue: () => '#111111' }),
   LightweightCharts: { createChart: () => chart },
-  TerminalOrderflow: { attach: () => ({ setMarket() {}, bindSeries() {} }) },
+  TerminalOrderflow: { attach: () => ({ setMarket() {}, bindPanel() {}, refresh() {}, isEnabled() { return false }, setEnabled() {} }) },
+  TerminalIndicators: { attach(options) { library = options } },
   Drawings: { attach(panel) { drawingPanel = panel; return { redraw() {}, reload() { reloads++ } } } },
   fetch: async url => {
     if (delayCandles && url.includes('/candles')) return new Promise(resolve => pending.push(() => resolve({ ok: true, json: async () => ({ candles }) })))
@@ -56,7 +58,7 @@ const flush = () => new Promise(resolve => setImmediate(resolve))
   assert.equal(drawingPanel.symbol, 'hl:BTC')
   assert.equal(drawingPanel.candles.length, 0)
   assert.equal(seriesList[0].lines.size, 0, 'old market levels cleared immediately')
-  node('ht-tpo-toggle').listeners.change({ target: { checked: false } })
+  library.set('tpo', false)
   pending.splice(0).forEach(resolve => resolve()); await flush()
   assert.equal(seriesList[0].lines.size, 0, 'late TPO response cannot restore disabled indicator')
   assert.equal(drawingPanel.candles.length, 2)

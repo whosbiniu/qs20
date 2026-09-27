@@ -64,39 +64,43 @@ sockets[1].message({ channel: 'trades', data: batch })
 assert.equal(received.length, 4, 'stopped socket ignored')
 console.log('Order flow: bid/ask, delta/CVD, volume profile, boundaries, deduplication, limits, reset, reconnect and stale sockets OK')
 // Exercise the actual panel controls and rendering with a minimal DOM adapter.
-const nodes = new Map(), toggles = ['footprint', 'delta', 'profile'].map(key => ({ dataset: { of: key }, addEventListener(type, fn) { this[type] = fn } }))
+const nodes = new Map()
 const element = key => {
   if (!nodes.has(key)) nodes.set(key, { hidden: false, innerHTML: '', textContent: '', addEventListener(type, fn) { this[type] = fn } })
   return nodes.get(key)
 }
-const host = { innerHTML: '', querySelector: element, querySelectorAll: () => toggles }
+const host = { innerHTML: '', querySelector: element }
 globalThis.localStorage = { getItem: () => null, setItem() {} }
 globalThis.window = { addEventListener() {} }
 globalThis.WebSocket = Socket
-globalThis.getComputedStyle = () => ({ getPropertyValue: () => '#111111' })
-globalThis.document = { documentElement: {} }
-const plotted = []
-globalThis.LightweightCharts = { createChart: () => ({ applyOptions() {}, timeScale: () => ({ fitContent() {} }), addSeries() { const series = { setData(data) { this.data = data } }; plotted.push(series); return series } }) }
+const plotted = [], levelLines = new Set(), primitives = []
+globalThis.LightweightCharts = { HistogramSeries: {}, LineSeries: {} }
+const panelData = {
+  candles: [{ time: t / 1000 }, { time: t / 1000 + 60 }],
+  chart: { addSeries() { const series = { setData(data) { this.data = data }, priceScale: () => ({ applyOptions() {} }) }; plotted.push(series); return series }, timeScale: () => ({ getVisibleRange: () => ({ from: t / 1000, to: t / 1000 + 60 }), timeToCoordinate: time => 100 + (time - t / 1000) * 2, options: () => ({ barSpacing: 90 }) }) },
+  series: { priceToCoordinate: p => 1800 - p * 15, attachPrimitive(p) { primitives.push(p); p.attached({ requestUpdate() {} }) }, createPriceLine(line) { levelLines.add(line); return line }, removePriceLine(line) { levelLines.delete(line) } },
+}
 const panel = TerminalOrderflow.attach(host)
+panel.bindPanel(panelData)
 panel.setMarket('BTC', '1m')
-assert.equal(element('.of-body').hidden, true)
-for (const toggle of toggles) { toggle.checked = true; toggle.change() }
+assert.equal(panel.isEnabled('delta'), false)
+for (const key of ['footprint', 'delta', 'profile']) panel.setEnabled(key, true)
 const liveSocket = sockets.at(-1)
-liveSocket.open()
-liveSocket.message({ channel: 'trades', data: batch })
-panel.setMarket('BTC', '1m') // Render without waiting for the throttled callback.
-assert.match(element('.of-table').innerHTML, /<table>/)
-assert.match(element('.of-profile-rows').innerHTML, /POC 100/)
+liveSocket.open(); liveSocket.message({ channel: 'trades', data: batch })
+panel.refresh()
 assert.deepEqual(plotted[0].data.map(d => d.value), [3, 2])
 assert.deepEqual(plotted[1].data.map(d => d.value), [3, 5])
-const levelLines = new Set()
-panel.bindSeries({ createPriceLine(line) { levelLines.add(line); return line }, removePriceLine(line) { levelLines.delete(line) } })
 assert.equal(levelLines.size, 3)
+element('[data-of-step]').change({ target: { value: '1' } })
+let rectangles = 0, texts = 0
+const ctx = new Proxy({}, { get: (_, name) => name === 'fillRect' ? () => rectangles++ : name === 'fillText' ? () => texts++ : () => {} })
+primitives[0].paneViews()[0].renderer().draw({ useMediaCoordinateSpace(fn) { fn({ context: ctx, mediaSize: { width: 800, height: 500 } }) } })
+assert.ok(rectangles > 0 && texts > 0, 'profile and footprint are rendered on the chart')
+assert.ok(!host.innerHTML.includes('<table'), 'no separate footprint table')
 panel.setMarket('ETH', '1m')
 assert.equal(levelLines.size, 0)
-assert.equal(element('.of-table').innerHTML, '')
 assert.equal(plotted[0].data.length, 0)
 assert.match(element('.of-status').textContent, /ETH/)
-for (const toggle of toggles) { toggle.checked = false; toggle.change() }
-assert.equal(element('.of-body').hidden, true)
-console.log('Order flow UI: toggles, footprint table, profile levels, chart data and market reset OK')
+for (const key of ['footprint', 'delta', 'profile']) panel.setEnabled(key, false)
+assert.equal(panel.isEnabled('profile'), false)
+console.log('Order flow overlays: controls, footprint, profile, delta/CVD, chart alignment and market reset OK')

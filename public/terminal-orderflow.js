@@ -117,91 +117,114 @@
     return { stop() { stopped = true; cancel(retry); cancel(heartbeat); socket?.close() } }
   }
   function attach(host) {
-    host.innerHTML = `<div class="ht-indicators"><span>Order flow</span><label><input type="checkbox" data-of="footprint"> Footprint</label><label><input type="checkbox" data-of="delta"> Delta/CVD</label><label><input type="checkbox" data-of="profile"> Volume Profile</label></div>
-      <div class="of-body" hidden><div class="of-controls"><label>Krok ceny <input data-of-step type="number" min="0" step="any" value="0"></label><span>0 = auto · wolumen w jednostkach instrumentu</span><button data-of-reset type="button">Nowy zakres</button></div><p class="of-status" role="status"></p><p class="of-summary"></p>
-      <section class="of-delta" hidden><h4>Delta słupki · CVD linia · czas UTC</h4><div class="of-chart"></div></section>
-      <section class="of-footprint" hidden><h4>Footprint · Bid (sprzedaż) × Ask (kupno) · ostatnie 12 świec · czas UTC</h4><div class="of-table"></div></section>
-      <section class="of-profile" hidden><h4>Volume Profile · cały zebrany zakres · VA 70%</h4><div class="of-profile-rows"></div></section></div>`
+    host.innerHTML = `<div class="of-controls"><label>Krok ceny order flow <input data-of-step type="number" min="0" step="any" value="0"></label><span>0 = auto · jednostki instrumentu</span><button data-of-reset type="button">Nowy zakres</button></div><p class="of-status" role="status"></p><p class="of-summary"></p>`
     const el = selector => host.querySelector(selector)
     let settings = { footprint: false, delta: false, profile: false, step: 0 }
     try { settings = { ...settings, ...JSON.parse(localStorage.getItem('hl-orderflow') || '{}') } } catch {}
-    let coin = '', interval = '1h', store, stream, state = 'connecting', gap = false, timer, mainSeries, lines = [], plot, delta, cvd
+    let coin = '', interval = '1h', store, stream, state = 'connecting', gap = false, timer, panel, delta, cvd, update = () => {}, result = null, lines = []
     const enabled = () => settings.footprint || settings.delta || settings.profile
     const save = () => { try { localStorage.setItem('hl-orderflow', JSON.stringify(settings)) } catch {} }
-    const number = n => Number(n).toLocaleString('en-US', { maximumSignificantDigits: 7 })
+    const number = n => Number(n).toLocaleString('en-US', { maximumSignificantDigits: 5 })
     const utc = t => new Date(t).toISOString().replace('T', ' ').slice(0, 19)
-    const clearLines = () => { if (mainSeries) lines.forEach(l => mainSeries.removePriceLine(l)); lines = [] }
-    function chartTheme() {
-      if (!plot) return
-      const css = getComputedStyle(document.documentElement), color = k => css.getPropertyValue(k).trim()
-      plot.applyOptions({ layout: { background: { color: color('--bg') }, textColor: color('--dim') }, grid: { vertLines: { color: color('--line') }, horzLines: { color: color('--line') } } })
-    }
-    function render() {
-      timer = null
-      clearLines()
-      el('.of-body').hidden = !enabled()
-      for (const key of ['delta', 'footprint', 'profile']) el('.of-' + key).hidden = !settings[key]
-      if (!enabled() || !store) return
-      const trades = store.trades
-      const status = { connecting: 'Łączenie…', live: 'Połączono', gap: 'Przerwa — ponawianie połączenia…', error: 'Błąd strumienia' }[state]
-      el('.of-status').textContent = `${coin} · ${status} · ${trades.length} transakcji${trades.length ? ' · ' + utc(trades[0].time) + ' — ' + utc(trades.at(-1).time) + ' UTC' : ' · oczekiwanie na transakcje'}. Zakres zebrany w tej karcie, nie pełna historia sesji.${gap ? ' Możliwe braki po przerwie w połączeniu.' : ''}${store.trimmed ? ' Limit 50 000 transakcji: starsze dane usunięto; CVD liczone od początku widocznego zakresu.' : ''}`
-      el('.of-summary').textContent = ''
-      el('.of-table').innerHTML = ''; el('.of-profile-rows').innerHTML = ''
-      let result
-      try { result = calculate(trades, interval, Number(settings.step)) } catch (error) { el('.of-summary').textContent = error.message; delta?.setData([]); cvd?.setData([]); return }
-      if (!result) { delta?.setData([]); cvd?.setData([]); return }
-      el('.of-summary').textContent = `Wolumen ${number(result.total)} · Δ ostatniej świecy ${number(result.bars.at(-1).delta)} · CVD ${number(result.cvd)} · krok ${number(result.step)}`
-      if (settings.delta) {
-        if (!plot) {
-          plot = LightweightCharts.createChart(el('.of-chart'), { autoSize: true, timeScale: { timeVisible: true }, leftPriceScale: { visible: true }, localization: { locale: 'pl-PL' } })
-          delta = plot.addSeries(LightweightCharts.HistogramSeries, { priceScaleId: 'right', title: 'Delta', priceFormat: { type: 'volume' }, priceLineVisible: false })
-          cvd = plot.addSeries(LightweightCharts.LineSeries, { priceScaleId: 'left', title: 'CVD', color: '#d6af68', lineWidth: 2, priceFormat: { type: 'volume' }, priceLineVisible: false })
-          chartTheme()
+    const clearLines = () => { if (panel) lines.forEach(l => panel.series.removePriceLine(l)); lines = [] }
+    const renderer = { draw(target) {
+      if (!result || !panel) return
+      target.useMediaCoordinateSpace(({ context: c, mediaSize: size }) => {
+        c.save(); c.beginPath(); c.rect(0, 0, size.width, size.height); c.clip()
+        if (settings.profile) {
+          const max = Math.max(...result.rows.map(r => r.total)), width = Math.min(150, size.width * .18)
+          for (const r of result.rows) {
+            const y = panel.series.priceToCoordinate(r.price), top = panel.series.priceToCoordinate(r.price + result.step)
+            if (y === null || top === null || y < 0 || top > size.height) continue
+            const w = r.total / max * width, sell = r.bid / max * width
+            c.globalAlpha = r.valueArea ? .7 : .3
+            c.fillStyle = '#dc8e89'; c.fillRect(size.width - w, top, sell, Math.max(1, y - top - 1))
+            c.fillStyle = '#8dcc9c'; c.fillRect(size.width - w + sell, top, w - sell, Math.max(1, y - top - 1))
+          }
+          c.globalAlpha = 1
         }
-        delta.setData(result.bars.map(b => ({ time: b.time, value: b.delta, color: b.delta >= 0 ? '#8dcc9c' : '#dc8e89' })))
-        cvd.setData(result.bars.map(b => ({ time: b.time, value: b.cvd })))
-        plot.timeScale().fitContent()
+        if (settings.footprint) {
+          const scale = panel.chart.timeScale(), range = scale.getVisibleRange()
+          c.font = '10px ui-monospace,monospace'; c.textBaseline = 'middle'
+          for (const bar of result.bars) {
+            if (range && (bar.time < range.from || bar.time > range.to)) continue
+            const x = scale.timeToCoordinate(bar.time)
+            if (x === null || x < 0 || x > size.width) continue
+            const spacing = scale.options().barSpacing
+            for (const r of bar.levels.values()) {
+              const y = panel.series.priceToCoordinate(r.price), top = panel.series.priceToCoordinate(r.price + result.step)
+              if (y === null || top === null || y < 0 || top > size.height) continue
+              const h = Math.max(2, y - top), w = Math.max(2, Math.min(45, spacing * .46))
+              c.globalAlpha = .75; c.fillStyle = r.delta >= 0 ? '#256a53' : '#873a49'; c.fillRect(x - w, top, w * 2, h - 1); c.globalAlpha = 1
+              // At low zoom retain the footprint heatmap; show numbers only when they fit.
+              if (spacing >= 75 && h >= 12) {
+                c.textAlign = 'right'; c.fillStyle = '#ffaaa6'; c.fillText(number(r.bid), x - 3, top + h / 2, w - 4)
+                c.textAlign = 'left'; c.fillStyle = '#b1edbb'; c.fillText(number(r.ask), x + 3, top + h / 2, w - 4)
+              }
+            }
+          }
+        }
+        c.restore()
+      })
+    } }
+    function render() {
+      if (timer) clearTimeout(timer)
+      timer = null; clearLines(); result = null
+      delta?.setData([]); cvd?.setData([])
+      if (!enabled() || !store) { update(); return }
+      const trades = store.trades
+      const status = { connecting: 'Łączenie…', live: 'Połączono', gap: 'Przerwa — ponawianie…', error: 'Błąd strumienia' }[state]
+      el('.of-status').textContent = `${coin} · ${status} · ${trades.length} transakcji${trades.length ? ' · ' + utc(trades[0].time) + ' — ' + utc(trades.at(-1).time) + ' UTC' : ''}. Dane zebrane w tej karcie, nie pełna sesja.${gap ? ' Możliwe braki po przerwie.' : ''}${store.trimmed ? ' Zakres ograniczony do 50 000 transakcji.' : ''}`
+      el('.of-summary').textContent = ''
+      try { result = calculate(trades, interval, Number(settings.step)) } catch (error) { el('.of-summary').textContent = error.message }
+      if (result) {
+        el('.of-summary').textContent = `Wolumen ${number(result.total)} · Δ ${number(result.bars.at(-1).delta)} · CVD ${number(result.cvd)} · krok ${number(result.step)}. Footprint: przybliż wykres, aby odczytać Bid × Ask.`
+        // Keep auxiliary series inside the candle time domain so live trades do not stretch the chart.
+        const candles = panel?.candles || [], from = candles[0]?.time, to = candles.at(-1)?.time
+        const bars = result.bars.filter(b => b.time >= from && b.time <= to)
+        if (settings.delta && panel) {
+          if (!delta) {
+            delta = panel.chart.addSeries(LightweightCharts.HistogramSeries, { priceScaleId: 'of-delta', title: 'Delta', priceFormat: { type: 'volume' }, lastValueVisible: false, priceLineVisible: false })
+            cvd = panel.chart.addSeries(LightweightCharts.LineSeries, { priceScaleId: 'of-cvd', title: 'CVD', color: '#d6af68', lineWidth: 2, priceFormat: { type: 'volume' }, lastValueVisible: false, priceLineVisible: false })
+            delta.priceScale().applyOptions({ scaleMargins: { top: .76, bottom: .12 } })
+            cvd.priceScale().applyOptions({ scaleMargins: { top: .76, bottom: .12 } })
+          }
+          delta.setData(bars.map(b => ({ time: b.time, value: b.delta, color: b.delta >= 0 ? '#8dcc9c99' : '#dc8e8999' })))
+          cvd.setData(bars.map(b => ({ time: b.time, value: b.cvd })))
+        }
+        if (settings.profile && panel) for (const [title, price] of [['VP POC', result.poc], ['VP VAH', result.vah], ['VP VAL', result.val]]) lines.push(panel.series.createPriceLine({ title, price, color: '#b797d6', lineWidth: 1, lineStyle: 2, axisLabelVisible: true }))
       }
-      if (settings.footprint) {
-        const bars = result.bars.slice(-12)
-        el('.of-table').innerHTML = `<table><thead><tr><th>Cena</th>${bars.map(b => `<th>${utc(b.time * 1000).slice(5,16)}</th>`).join('')}</tr></thead><tbody>${[...result.rows].reverse().map((row, reversed) => {
-          const index = result.rows.length - 1 - reversed
-          return `<tr><th>${number(row.price)}</th>${bars.map(b => { const r = b.levels.get(index); return `<td>${r ? `<span class="negative">${number(r.bid)}</span> × <span class="positive">${number(r.ask)}</span>` : '—'}</td>` }).join('')}</tr>`
-        }).join('')}</tbody><tfoot><tr><th>Delta</th>${bars.map(b => `<td class="${b.delta >= 0 ? 'positive' : 'negative'}">${number(b.delta)}</td>`).join('')}</tr></tfoot></table>`
-      }
-      if (settings.profile) {
-        const max = Math.max(...result.rows.map(r => r.total))
-        el('.of-profile-rows').innerHTML = `<p>POC ${number(result.poc)} · VAH ${number(result.vah)} · VAL ${number(result.val)}</p>` + [...result.rows].reverse().map(r => `<div class="of-vp-row${r.poc ? ' poc' : ''}${r.valueArea ? ' va' : ''}"><span>${number(r.price)}</span><div class="of-vp-track"><i style="width:${r.bid / max * 100}%"></i><b style="width:${r.ask / max * 100}%"></b></div><span>${number(r.total)}${r.poc ? ' POC' : ''}</span></div>`).join('')
-        if (mainSeries) for (const [title, price] of [['VP POC', result.poc], ['VP VAH', result.vah], ['VP VAL', result.val]]) lines.push(mainSeries.createPriceLine({ title, price, color: '#b797d6', lineWidth: 1, lineStyle: 2, axisLabelVisible: true }))
-      }
+      update()
     }
     function schedule() { if (!timer) timer = setTimeout(render, 500) }
     function start() {
       if (stream || !coin || !enabled()) return
       stream = connect(coin, batch => { if (store.add(batch)) schedule() }, value => { state = value; if (value === 'gap') gap = true; schedule() })
     }
-    host.querySelectorAll('[data-of]').forEach(input => {
-      input.checked = !!settings[input.dataset.of]
-      input.addEventListener('change', () => {
-        settings[input.dataset.of] = input.checked; save()
-        if (!enabled()) { stream?.stop(); stream = null; gap = !!store?.trades.length }
-        else start()
-        render()
-      })
-    })
     el('[data-of-step]').value = settings.step
     el('[data-of-step]').addEventListener('change', e => { settings.step = Math.max(0, Number(e.target.value) || 0); e.target.value = settings.step; save(); render() })
     el('[data-of-reset]').addEventListener('click', () => { store?.reset(); gap = state !== 'live'; render() })
-    window.addEventListener('themechange', chartTheme)
     window.addEventListener('pagehide', () => { stream?.stop(); stream = null; gap = true })
     window.addEventListener('pageshow', start)
     return {
+      isEnabled(key) { return !!settings[key] },
+      setEnabled(key, value) {
+        settings[key] = !!value; save()
+        if (!enabled()) { stream?.stop(); stream = null; gap = !!store?.trades.length } else start()
+        render()
+      },
       setMarket(next, frame) {
         interval = frame
-        if (next !== coin) { stream?.stop(); stream = null; coin = next; store = createStore(coin); gap = false; state = 'connecting'; delta?.setData([]); cvd?.setData([]) }
+        if (next !== coin) { stream?.stop(); stream = null; coin = next; store = createStore(coin); gap = false; state = 'connecting' }
         start(); render()
       },
-      bindSeries(next) { clearLines(); mainSeries = next; render() },
+      refresh: render,
+      bindPanel(next) {
+        panel = next
+        const view = { zOrder: () => 'top', renderer: () => renderer }
+        panel.series.attachPrimitive({ attached(p) { update = p.requestUpdate }, paneViews: () => [view] })
+        render()
+      },
     }
   }
   root.TerminalOrderflow = { createStore, calculate, bucket, connect, attach }

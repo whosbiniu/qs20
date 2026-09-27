@@ -89,7 +89,10 @@ const Drawings = (() => {
       ctx.strokeStyle = ink; ctx.fillStyle = ink; ctx.lineWidth = d === hover || d === selected ? 2 : 1; ctx.setLineDash(ghost ? [4, 4] : []);
       if (d.type === 'brush') {
         ctx.setLineDash([]); ctx.lineWidth = d === hover || d === selected ? 3 : 2; ctx.lineJoin = ctx.lineCap = 'round';
-        ctx.beginPath(); pts.forEach((q, i) => i ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y)); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(pts[0].x, pts[0].y);
+        // Midpoint curves smooth the stroke without shifting its endpoints.
+        for (let i = 1; i < pts.length - 1; i++) ctx.quadraticCurveTo(pts[i].x, pts[i].y, (pts[i].x + pts[i + 1].x) / 2, (pts[i].y + pts[i + 1].y) / 2);
+        const last = pts[pts.length - 1]; ctx.lineTo(last.x, last.y); ctx.stroke();
         ctx.lineJoin = 'miter'; ctx.lineCap = 'butt'; return;
       }
       if (d.type === 'text') {
@@ -147,7 +150,7 @@ const Drawings = (() => {
       ctx.textBaseline = 'alphabetic';
     }
     function redraw() { if (!frame) frame = requestAnimationFrame(draw); }
-    const settle = () => { redraw(); setTimeout(redraw, 60); };   // the price scale rescales a moment after the time scale moves
+    const settle = redraw;   // the price scale rescales a moment after the time scale moves
 
     // ---- hit testing (eraser) -----------------------------------------------------------------
     const segDist = (p, a, b) => {
@@ -228,7 +231,9 @@ const Drawings = (() => {
     const local = e => { const r = canvas.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
     let downAt = null, stroke = null;
     canvas.addEventListener('pointerdown', e => {
+      if (e.button !== 0) return;
       e.preventDefault(); e.stopPropagation();
+      canvas.setPointerCapture(e.pointerId);
       const pos = local(e);
       if (tool === 'erase') { const d = nearest(pos); if (d) { items = items.filter(i => i !== d); if (selected === d) selected = null; hover = null; save(); redraw(); } return; }
       const p = toData(pos.x, pos.y);
@@ -245,23 +250,29 @@ const Drawings = (() => {
       cursor = local(e);
       if (tool === 'erase') { const next = nearest(cursor); if (next !== hover) { hover = next; redraw(); } return; }
       if (tool === 'brush') {
-        // Record a point every few pixels; storing every event would bloat localStorage.
-        if (!stroke || !pending || Math.hypot(cursor.x - stroke.x, cursor.y - stroke.y) < 3) return;
-        const p = toData(cursor.x, cursor.y);
-        if (p && pending.points.length < 2000) { pending.points.push(p); stroke = cursor; redraw(); }
+        if (!stroke || !pending) return;
+        const rect = canvas.getBoundingClientRect();
+        const samples = e.getCoalescedEvents?.();
+        for (const sample of samples?.length ? samples : [e]) {
+          const pos = { x: sample.clientX - rect.left, y: sample.clientY - rect.top };
+          if (Math.hypot(pos.x - stroke.x, pos.y - stroke.y) < 1) continue;
+          const p = toData(pos.x, pos.y);
+          if (p && pending.points.length < 8000) { pending.points.push(p); stroke = pos; }
+        }
+        redraw();
         return;
       }
       if (pending) redraw();
     });
     canvas.addEventListener('pointerup', e => {
-      if (tool === 'brush') { if (pending && pending.points.length > 1) commit(pending.points); else pending = null; stroke = null; redraw(); return; }
+      if (tool === 'brush') { const pos = local(e), last = toData(pos.x, pos.y); if (pending && last && pending.points.length < 8000) pending.points.push(last); if (pending && pending.points.length > 1) commit(pending.points); else pending = null; stroke = null; redraw(); return; }
       // Click-drag also works: releasing far from the press point places the second point.
       if (!downAt || !pending || downAt.had || pending.points.length !== 1 || NEEDS[tool] !== 2) { downAt = null; return; }
       const pos = local(e);
       if (Math.hypot(pos.x - downAt.x, pos.y - downAt.y) > 8) { const p = toData(pos.x, pos.y); if (p) { pending.points.push(p); commit(pending.points); } }
       downAt = null;
     });
-    canvas.addEventListener('pointercancel', () => { if (tool === 'brush') { pending = null; stroke = null; redraw(); } });
+    canvas.addEventListener('pointercancel', () => { pending = null; stroke = null; downAt = null; redraw(); });
     canvas.addEventListener('pointerleave', () => { cursor = null; if (pending) redraw(); });
     bar.addEventListener('click', e => { const t = e.target.closest('[data-tool]')?.dataset.tool; if (t) setTool(t === tool && t !== 'cursor' ? 'cursor' : t); });
     bar.addEventListener('pointerdown', e => e.stopPropagation());
@@ -304,6 +315,8 @@ const Drawings = (() => {
     });
 
     // ---- redraw hooks -------------------------------------------------------------------------
+    // Follow every chart render (including price-axis scaling), without per-event timers.
+    panel.series.attachPrimitive({ updateAllViews: redraw });
     panel.chart.timeScale().subscribeVisibleLogicalRangeChange(settle);
     panel.chart.subscribeCrosshairMove(() => redraw());
     for (const type of ['wheel', 'pointermove', 'pointerup']) box.addEventListener(type, () => { if (items.length || pending) settle(); }, { passive: true });

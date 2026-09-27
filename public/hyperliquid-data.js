@@ -46,7 +46,7 @@
       if (!intervals.has(interval)) throw Object.assign(new Error('Nieprawidłowy interwał'), { status: 400 })
       if (!(await markets()).some(m => m.coin === coin)) throw Object.assign(new Error('Nieznany rynek'), { status: 400 })
       return cached(`candles:${coin}:${interval}`, 15000, async () => {
-        const rows = await query({ type: 'candleSnapshot', req: { coin, interval, startTime: Date.now() - span[interval] * 350, endTime: Date.now() } })
+        const rows = await query({ type: 'candleSnapshot', req: { coin, interval, startTime: Date.now() - span[interval] * (interval === '30m' ? 5000 : 350), endTime: Date.now() } })
         return rows.map(c => ({ time: Math.floor(c.t / 1000), open: Number(c.o), high: Number(c.h), low: Number(c.l), close: Number(c.c), volume: Number(c.v) }))
           .filter(c => [c.time, c.open, c.high, c.low, c.close].every(Number.isFinite))
       })

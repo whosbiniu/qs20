@@ -13,10 +13,10 @@ const node = id => {
   })
   return nodes.get(id)
 }
-let fits = 0, drawingPanel, reloads = 0
+let fits = 0, drawingPanel, reloads = 0, profileUpdates = 0
 const seriesList = []
 const chart = { applyOptions() {}, timeScale: () => ({ fitContent() { fits++ } }), addSeries() {
-  const series = { data: [], lines: new Set(), applyOptions() {}, priceScale: () => ({ applyOptions() {} }), setData(data) { this.data = data }, createPriceLine(line) { this.lines.add(line); return line }, removePriceLine(line) { this.lines.delete(line) } }
+  const series = { attachPrimitive(p) { p.attached?.({ requestUpdate() { profileUpdates++ } }) }, data: [], lines: new Set(), applyOptions() {}, priceScale: () => ({ applyOptions() {} }), setData(data) { this.data = data }, createPriceLine(line) { this.lines.add(line); return line }, removePriceLine(line) { this.lines.delete(line) } }
   seriesList.push(series); return series
 } }
 const base = Date.parse('2026-09-27T00:00:00Z') / 1000
@@ -46,7 +46,8 @@ const flush = () => new Promise(resolve => setImmediate(resolve))
   assert.equal(drawingPanel.symbol, 'hl:xyz:XYZ100')
   assert.equal(drawingPanel.candles.length, 2)
   assert.equal(seriesList[1].data[1].value, 3)
-  assert.equal(seriesList[0].lines.size, 3)
+  assert.equal(seriesList[0].lines.size, 0, 'TPO uses a chart primitive, not full-width price lines')
+  assert.ok(profileUpdates > 0)
   assert.equal(fits, 1)
   timers.find(t => t.ms === 30000).fn(); await flush()
   assert.equal(fits, 1, 'background refresh preserves zoom')

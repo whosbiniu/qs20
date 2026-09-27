@@ -6,7 +6,7 @@ window.HyperTerminal = (() => {
       <div class="ht-stats"><div>WOLUMEN 24H <b id="ht-volume">—</b></div><div>OPEN INTEREST <b id="ht-oi">—</b></div><div>FUNDING / H <b id="ht-funding">—</b></div></div>
       <div class="ht-periods" id="ht-periods"></div>
       <div class="ht-indicators" aria-label="Indykatory"><span>Indykatory</span><label><input type="checkbox" id="ht-volume-toggle"> Wolumen</label><label><input type="checkbox" id="ht-tpo-toggle"> TPO</label><button id="ht-fit" type="button">Dopasuj wykres</button></div>
-      <section class="ht-profile" id="ht-profile" hidden aria-label="Profil TPO"><div class="ht-profile-controls"><label>Sesja UTC <select id="ht-session"></select></label><label>Krok ceny <input id="ht-step" type="number" min="0" step="any" value="0" aria-label="Krok ceny TPO; zero oznacza automatyczny"></label><span>0 = auto · bloki 30m · VA 70%</span></div><div id="ht-profile-info" role="status"></div><div id="ht-profile-rows"></div></section><div class="ht-chart" id="ht-chart"></div><section id="ht-orderflow" aria-label="Order flow"></section><div class="ht-message" id="ht-message" hidden></div>
+      <div class="ht-tpo-controls" id="ht-profile" hidden><label>TPO <select id="ht-tpo-mode"><option value="daily">Dzienne</option><option value="session">Sesyjne</option><option value="weekly">Tygodniowe</option><option value="monthly">Miesięczne</option></select></label><span id="ht-tpo-hours" hidden><label>Od <input id="ht-tpo-from" type="time" step="1800" value="08:00"></label><label>Do <input id="ht-tpo-to" type="time" step="1800" value="16:30"></label> UTC</span><label>Krok ceny <input id="ht-step" type="number" min="0" step="any" value="0"></label><span id="ht-profile-info" role="status"></span></div><div class="ht-chart" id="ht-chart"></div><section id="ht-orderflow" aria-label="Order flow"></section><div class="ht-message" id="ht-message" hidden></div>
     </div><aside class="ht-book"><header><strong>ARKUSZ ZLECEŃ</strong><span id="ht-book-time"></span></header><div class="ht-book-title"><span>CENA</span><span>WIELKOŚĆ</span><span>SUMA</span></div><div id="ht-asks"></div><div class="ht-spread" id="ht-spread">—</div><div id="ht-bids"></div></aside>
   </div>`
   const $ = id => document.getElementById(id)
@@ -14,8 +14,8 @@ window.HyperTerminal = (() => {
   const compact = n => Number.isFinite(n) ? Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 2 }).format(n) : '—'
   const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]))
   let all = [], selected = localStorage.getItem('hl-coin') || 'xyz:XYZ100', interval = localStorage.getItem('hl-interval') || '1h'
-  let chart, series, volumeSeries, drawingPanel, request = 0, profileRequest = 0, initialized = false, chartKey = '', profileCandles = [], profileLines = []
-  let settings = { volume: false, tpo: false, step: 0 }
+  let chart, series, volumeSeries, drawingPanel, request = 0, profileRequest = 0, initialized = false, chartKey = '', profileCandles = [], profileOverlay
+  let settings = { volume: false, tpo: false, step: 0, mode: 'daily', from: '08:00', to: '16:30' }
   try { settings = { ...settings, ...JSON.parse(localStorage.getItem('hl-indicators') || '{}') } } catch {}
   const orderflow = TerminalOrderflow.attach($('ht-orderflow'))
   const saveSettings = () => { try { localStorage.setItem('hl-indicators', JSON.stringify(settings)) } catch {} }
@@ -23,6 +23,10 @@ window.HyperTerminal = (() => {
   $('ht-tpo-toggle').checked = !!settings.tpo
   $('ht-step').value = settings.step
   $('ht-profile').hidden = !settings.tpo
+  $('ht-tpo-mode').value = settings.mode
+  $('ht-tpo-from').value = settings.from
+  $('ht-tpo-to').value = settings.to
+  $('ht-tpo-hours').hidden = settings.mode !== 'session'
   const periods = ['1m', '5m', '15m', '30m', '1h', '4h', '1d', '1w', '1M']
   if (!periods.includes(interval)) interval = '1h'
   $('ht-periods').innerHTML = periods.map(p => `<button data-period="${p}">${p}</button>`).join('')
@@ -45,6 +49,7 @@ window.HyperTerminal = (() => {
     volumeSeries.priceScale().applyOptions({ scaleMargins: { top: .82, bottom: 0 } })
     drawingPanel = { el: $('ht-chart'), chart, series, symbol: 'hl:' + selected, candles: [] }
     drawingPanel.drawings = Drawings.attach(drawingPanel)
+    profileOverlay = TerminalProfile.attach(drawingPanel)
     theme()
     orderflow.bindSeries(series)
   }
@@ -91,6 +96,7 @@ window.HyperTerminal = (() => {
       drawingPanel.candles = candles
       if (drawingPanel.symbol !== 'hl:' + selected) { drawingPanel.symbol = 'hl:' + selected; drawingPanel.drawings.reload() }
       drawingPanel.drawings.redraw()
+      profileOverlay.redraw()
       chartKey = key
       if (changed) chart.timeScale().fitContent()
       $('ht-message').hidden = true
@@ -113,18 +119,15 @@ window.HyperTerminal = (() => {
       $('ht-book-time').textContent = new Date(book.time).toLocaleTimeString('pl-PL')
     } catch { $('ht-spread').textContent = 'Brak danych arkusza' }
   }
-  function select(coin) { if (coin === selected) return; selected = coin; orderflow.setMarket(selected, interval); profileCandles = []; $('ht-profile-rows').replaceChildren(); clearProfileLines(); series?.setData([]); volumeSeries?.setData([]); if (drawingPanel) { drawingPanel.symbol = 'hl:' + coin; drawingPanel.candles = []; drawingPanel.drawings.reload() }; localStorage.setItem('hl-coin', coin); renderList(); renderQuote(); loadChart(); loadBook(); loadProfile() }
-  function clearProfileLines() { if (series) profileLines.forEach(line => series.removePriceLine(line)); profileLines = [] }
+  function select(coin) { if (coin === selected) return; selected = coin; orderflow.setMarket(selected, interval); profileCandles = []; clearProfileLines(); series?.setData([]); volumeSeries?.setData([]); if (drawingPanel) { drawingPanel.symbol = 'hl:' + coin; drawingPanel.candles = []; drawingPanel.drawings.reload() }; localStorage.setItem('hl-coin', coin); renderList(); renderQuote(); loadChart(); loadBook(); loadProfile() }
+  function clearProfileLines() { profileOverlay?.set([]) }
   function renderProfile() {
     clearProfileLines()
-    $('ht-profile-rows').replaceChildren()
     if (!settings.tpo) return
     try {
-      const profile = TerminalProfile.build(profileCandles, $('ht-session').value, Number(settings.step))
-      if (!profile) { $('ht-profile-info').textContent = 'Brak danych TPO dla tej sesji.'; return }
-      $('ht-profile-info').textContent = `POC ${fmt(profile.poc)} · VAH ${fmt(profile.vah)} · VAL ${fmt(profile.val)} · krok ${fmt(profile.step)} · ${profile.blocks}/48 bloków (sesja może być niepełna). TPO z zakresów świec 30m.`
-      $('ht-profile-rows').innerHTML = [...profile.rows].reverse().map(row => `<div class="ht-tpo-row${row.poc ? ' poc' : ''}${row.valueArea ? ' va' : ''}"><span>${fmt(row.price)}</span><b>${row.letters || '·'}</b><small>${row.poc ? 'POC' : row.letters.length}</small></div>`).join('')
-      if (series) for (const [title, price] of [['TPO POC', profile.poc], ['TPO VAH', profile.vah], ['TPO VAL', profile.val]]) profileLines.push(series.createPriceLine({ price, title, color: title === 'TPO POC' ? '#d6af68' : '#739cac', lineWidth: 1, lineStyle: 2, axisLabelVisible: true }))
+      const values = TerminalProfile.profiles(profileCandles, settings)
+      profileOverlay?.set(values)
+      $('ht-profile-info').textContent = values.length ? `${values.length} profili · bloki 30m · VA 70% · UTC · skrajne profile mogą być niepełne` : 'Brak danych TPO dla tego zakresu.'
     } catch (error) { $('ht-profile-info').textContent = error.message }
   }
   async function loadProfile() {
@@ -135,17 +138,16 @@ window.HyperTerminal = (() => {
       const data = await json('/api/hl/candles?coin=' + encodeURIComponent(selected) + '&interval=30m')
       if (stamp !== profileRequest || !settings.tpo) return
       profileCandles = data.candles
-      const dates = [...new Set(profileCandles.map(c => new Date(c.time * 1000).toISOString().slice(0,10)))].sort().reverse()
-      const previous = $('ht-session').value
-      $('ht-session').innerHTML = dates.map(date => `<option value="${date}">${date}</option>`).join('')
-      if (dates.includes(previous)) $('ht-session').value = previous
       renderProfile()
-    } catch (error) { if (stamp === profileRequest) { profileCandles = []; clearProfileLines(); $('ht-profile-rows').replaceChildren(); $('ht-profile-info').textContent = 'TPO: ' + error.message } }
+    } catch (error) { if (stamp === profileRequest) { profileCandles = []; clearProfileLines(); $('ht-profile-info').textContent = 'TPO: ' + error.message } }
   }
   $('ht-volume-toggle').addEventListener('change', e => { settings.volume = e.target.checked; saveSettings(); volumeSeries?.applyOptions({ visible: settings.volume }) })
   $('ht-tpo-toggle').addEventListener('change', e => { settings.tpo = e.target.checked; saveSettings(); $('ht-profile').hidden = !settings.tpo; if (settings.tpo) loadProfile(); else { ++profileRequest; clearProfileLines() } })
   $('ht-step').addEventListener('change', e => { settings.step = Math.max(0, Number(e.target.value) || 0); e.target.value = settings.step; saveSettings(); renderProfile() })
-  $('ht-session').addEventListener('change', renderProfile)
+  for (const [id, key] of [['ht-tpo-mode', 'mode'], ['ht-tpo-from', 'from'], ['ht-tpo-to', 'to']]) $(id).addEventListener('change', e => {
+    if (key !== 'mode' && (!e.target.value || Number(e.target.value.slice(3)) % 30 !== 0)) { e.target.value = settings[key]; return }
+    settings[key] = e.target.value; $('ht-tpo-hours').hidden = settings.mode !== 'session'; saveSettings(); renderProfile()
+  })
   $('ht-fit').addEventListener('click', () => chart?.timeScale().fitContent())
   $('ht-search').addEventListener('input', renderList)
   $('ht-list').addEventListener('click', e => { const coin = e.target.closest('[data-coin]')?.dataset.coin; if (coin) select(coin) })

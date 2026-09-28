@@ -9,6 +9,7 @@
 <link rel="apple-touch-icon" href="apple-icon.png">
 <link rel="stylesheet" href="hyper-terminal.css">
 <link rel="stylesheet" href="terminal-workspace.css">
+<link rel="stylesheet" href="glass.css">
 <link rel="stylesheet" href="post-creator.css">
 <style>
 :root{--bg:#050505;--line:#3a3a34;--ink:#ebe6d3;--dim:#8c8a7c;--faint:#1c1c19}
@@ -61,7 +62,7 @@ main{flex:1;min-width:0;position:relative}
 nav button,.tools button{white-space:nowrap}
 .home-bar{display:flex;align-items:center;gap:10px;color:var(--dim);padding-bottom:8px;position:absolute;top:0;left:0;right:0;height:32px}
 .home-bar b{color:var(--ink);letter-spacing:.16em;text-transform:uppercase}
-#homeAdd{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+#homeAdd{display:flex;gap:6px;align-items:center;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;min-width:0}#homeAdd::-webkit-scrollbar{display:none}#homeAdd button{flex:none}.home-bar b{flex:none}
 #homeAdd button{background:transparent;border:1px solid var(--line);color:var(--dim);font:inherit;padding:2px 8px;cursor:pointer}
 #homeAdd button:hover{color:var(--ink);border-color:var(--ink)}
 .home-grid{position:absolute;top:36px;left:0;right:0;bottom:0;overflow-y:auto;display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:10px;align-content:start;scrollbar-width:thin;scrollbar-color:var(--line) var(--bg)}
@@ -267,9 +268,10 @@ html[data-color-mode=light] .ot-pane input,html[data-color-mode=light] .ot-pane 
 .ot-ask{display:flex;gap:6px}.ot-ask textarea{flex:1;resize:vertical;min-height:44px;font-size:14px}
 @media(max-width:800px){.ot-nav{flex-wrap:nowrap;overflow-x:auto}.ot-nav button{white-space:nowrap}.ot-form input{min-width:0;width:100%}.ot-map{min-height:520px}.ot-journal-form label.wide{grid-column:auto}}
 </style>
+<link rel="stylesheet" href="liquid-glass.css">
 </head>
 <body>
-<div class="bar"><span class="brand"><img src="logo.png" alt="">UNC ~ · TERMINAL</span><span class="modes" id="modes" role="group" aria-label="Tryb strony"><button type="button" data-mode="dark" title="Tryb ciemny" aria-label="Tryb ciemny"><svg viewBox="0 0 16 16"><path d="M13.5 9.6A5.8 5.8 0 0 1 6.4 2.5a5.8 5.8 0 1 0 7.1 7.1z"/></svg></button><button type="button" data-mode="light" title="Tryb jasny" aria-label="Tryb jasny"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="3"/><path d="M8 1.2v1.6M8 13.2v1.6M1.2 8h1.6M13.2 8h1.6M3.2 3.2l1.1 1.1M11.7 11.7l1.1 1.1M3.2 12.8l1.1-1.1M11.7 4.3l1.1-1.1"/></svg></button></span><span class="swatches" id="swatches" role="group" aria-label="Kolor strony"></span><span class="clock" id="clock"></span></div>
+<div class="bar"><span class="brand"><img src="logo.png" alt="">UNC ~ · TERMINAL</span><span class="modes" id="modes" role="group" aria-label="Tryb strony"><button type="button" data-mode="dark" title="Tryb ciemny" aria-label="Tryb ciemny"><svg viewBox="0 0 16 16"><path d="M13.5 9.6A5.8 5.8 0 0 1 6.4 2.5a5.8 5.8 0 1 0 7.1 7.1z"/></svg></button><button type="button" data-mode="light" title="Tryb jasny" aria-label="Tryb jasny"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="3"/><path d="M8 1.2v1.6M8 13.2v1.6M1.2 8h1.6M13.2 8h1.6M3.2 3.2l1.1 1.1M11.7 11.7l1.1 1.1M3.2 12.8l1.1-1.1M11.7 4.3l1.1-1.1"/></svg></button><button type="button" data-mode="glass" title="Szkło (frosted liquid glass)" aria-label="Tryb szkła"><svg viewBox="0 0 16 16"><rect x="2" y="2.5" width="12" height="11" rx="3"/><path d="M4.6 5.2c1-.9 2.4-1.2 3.6-.9M4.4 7.3l1.5-1.4"/></svg></button></span><span class="glass-tools" id="glassTools"><label for="glassClear">przezroczystość</label><input type="range" id="glassClear" min="0" max="100" step="1" aria-label="Przezroczystość szkła"><output id="glassOut" for="glassClear"></output><button type="button" data-wall id="glassWall" title="Własne tło pod szkłem (obraz z dysku)">tło</button><button type="button" data-wall id="glassWallReset" title="Przywróć domyślne tło" aria-label="Przywróć domyślne tło" hidden>×</button><input type="file" id="glassFile" accept="image/*" hidden></span><span class="swatches" id="swatches" role="group" aria-label="Kolor strony"></span><span class="clock" id="clock"></span></div>
 <nav>
   <div class="tabs">
   <button data-tab="home" class="active"><b>⌂</b>Start</button>
@@ -405,6 +407,32 @@ const markTheme = () => {
 $('modes').onclick = e => { const m = e.target.closest('[data-mode]')?.dataset.mode; if (m) Theme.setMode(m) }
 window.addEventListener('themechange', markTheme)
 markTheme()
+// Glass: transparency (live while dragging, saved on release) and, in the browser, a wallpaper of your own.
+const glassShow = () => { const v = Math.round(Theme.getGlass() * 100); $('glassClear').value = v; $('glassOut').textContent = v + ' %' }
+$('glassClear').addEventListener('input', e => { Theme.setGlass(e.target.value / 100, false); glassShow() })
+$('glassClear').addEventListener('change', e => { Theme.setGlass(e.target.value / 100, true); glassShow() })
+window.addEventListener('themechange', glassShow)
+glassShow()
+function glassWall(url) {
+  document.documentElement.style[url ? 'setProperty' : 'removeProperty']('--glass-wall', url ? `url("${url}")` : '')
+  $('glassWallReset').hidden = !url
+}
+try { glassWall(localStorage.getItem('glass-wall')) } catch {}
+$('glassWall').onclick = () => $('glassFile').click()
+$('glassWallReset').onclick = () => { try { localStorage.removeItem('glass-wall') } catch {} glassWall(null) }
+// The picture is scaled to at most 1920 px and stored as JPEG (a few hundred kB), not as the original file.
+$('glassFile').addEventListener('change', async e => {
+  const file = e.target.files?.[0]; e.target.value = ''
+  if (!file || !file.type.startsWith('image/')) return
+  try {
+    const image = await createImageBitmap(file), scale = Math.min(1, 1920 / image.width)
+    const canvas = document.createElement('canvas'); canvas.width = Math.round(image.width * scale); canvas.height = Math.round(image.height * scale)
+    canvas.getContext('2d').drawImage(image, 0, 0, canvas.width, canvas.height)
+    const url = canvas.toDataURL('image/jpeg', .82)
+    if (!Store.set('glass-wall', url)) { alert('Obraz nie zmieścił się w pamięci przeglądarki. Wybierz mniejszy.'); return }
+    glassWall(url)
+  } catch { alert('Nie udało się wczytać tego obrazu.') }
+})
 document.body.insertAdjacentHTML('beforeend', `<datalist id="presets">${PRESETS.map(p => `<option value="${p}">`).join('')}</datalist>`)
 
 async function setSymbol(p, raw) {
@@ -634,7 +662,6 @@ const chartsVisible = () => current() === 'charts' || current() === 'home' && Ho
 let activeTab = 'home'
 function tab(name, otherTool) {
   activeTab = name
-  document.body.classList.toggle('terminal-open', name === 'hyper-terminal')
   document.querySelectorAll('nav .tabs > button').forEach(b => b.classList.toggle('active', b.dataset.tab === name))
   Home.leave()
   const section = FRAME_OF[name]?.[0] || name   // Kalendarz is shown in the shared Kwartały frame

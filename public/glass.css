@@ -1,0 +1,58 @@
+/* Frosted liquid glass (Theme mode "glass"). Pages, bars and the side panel become frosted panes; what shows through
+   is a wallpaper in the browser, or the desktop itself in the Mac app (html[data-native]). --glass, --glass-blur and
+   the translucent --bg come from theme.js and follow the transparency slider. */
+html[data-color-mode=glass] {
+  background: transparent;
+  --glass-edge: rgb(255 255 255 / .18);
+  --glass-shine: rgb(255 255 255 / .24);
+  --glass-pop: rgb(14 17 26 / .84);
+}
+html[data-color-mode=glass] body {
+  background: var(--glass-wall,
+    radial-gradient(60% 50% at 16% 10%, rgb(70 120 190 / .8), transparent 70%),
+    radial-gradient(50% 45% at 86% 16%, rgb(150 90 185 / .65), transparent 70%),
+    radial-gradient(55% 50% at 62% 92%, rgb(40 150 135 / .6), transparent 70%),
+    linear-gradient(160deg, #0b1322, #161c30 55%, #0a0f16)) center / cover no-repeat fixed;
+}
+html[data-color-mode=glass][data-native] body { background: transparent }
+
+/* The panes: translucent tint, blur of what is behind, a light rim and a soft highlight along the top edge. */
+html[data-color-mode=glass] :is(body > .bar, body > nav, body > #tape, #side, body > footer, main > .page) {
+  background: linear-gradient(180deg, rgb(255 255 255 / .07), transparent 38%), var(--glass);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.7);
+  backdrop-filter: blur(var(--glass-blur)) saturate(1.7);
+  border: 1px solid var(--glass-edge);
+  border-radius: 14px;
+  box-shadow: inset 0 1px 0 var(--glass-shine), inset 0 -1px 0 rgb(0 0 0 / .18), 0 18px 50px rgb(0 0 0 / .22);
+}
+html[data-color-mode=glass] body > .bar { padding: 6px 12px }
+html[data-color-mode=glass] body > footer { padding: 5px 12px }
+html[data-color-mode=glass] :is(body > nav, main > .page) { overflow: hidden }
+html[data-color-mode=glass] body > #tape { mask-image: none }
+/* The desktop (Mac app) is not part of the page, so CSS blur has nothing to blur there: the window does it. */
+html[data-color-mode=glass][data-native] :is(body > .bar, body > nav, body > #tape, #side, body > footer, main > .page) {
+  -webkit-backdrop-filter: none; backdrop-filter: none;
+}
+
+/* Menus, pop-ups and tooltips sit over charts: more tint so they stay readable. */
+html[data-color-mode=glass] :is(.ht-ind-pop, .ht-indicator-panel, .ht-jump, .tw-jump, .draw-edit, .draw-text, .ot-tip) {
+  background: var(--glass-pop) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(1.5); backdrop-filter: blur(24px) saturate(1.5);
+  border-color: var(--glass-edge) !important;
+}
+/* Text on an ink-coloured (active) button stays solid, whatever the transparency. */
+html[data-color-mode=glass] :is(button.active, nav button.active, .modes button.active, .mon-tabs button.active, .mon-side .go,
+  .tv-btn.active, .draw-bar button.active, .ot-nav button.active, .ot-mini[aria-pressed=true], .pc button.active, .mon-bar button.active) {
+  color: var(--on-ink) !important;
+}
+
+/* Transparency slider and wallpaper, shown in the top bar in glass mode only. */
+.glass-tools { display: none; align-items: center; gap: 8px; color: var(--dim) }
+html[data-color-mode=glass] .glass-tools { display: inline-flex }
+.glass-tools input[type=range] { width: 110px; accent-color: var(--ink) }
+.glass-tools output { min-width: 3.2em; color: var(--ink) }
+.glass-tools button { font: inherit; font-size: 11px; background: transparent; color: var(--dim); border: 1px solid var(--line); border-radius: 6px; padding: 1px 7px; cursor: pointer }
+.glass-tools button:hover { color: var(--ink); border-color: var(--ink) }
+html[data-native] .glass-tools [data-wall] { display: none }
+/* The logo is drawn on black: on glass the black should disappear, not show as a dark disc. */
+html[data-color-mode=glass] .bar .brand img { mix-blend-mode: screen }

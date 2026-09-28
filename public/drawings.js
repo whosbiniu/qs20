@@ -127,7 +127,7 @@ const Drawings = (() => {
       ctx.font = '11px ui-monospace,Menlo,monospace';
       const w = ctx.measureText(text).width + 8;
       const left = align === 'right' ? x - w : x;
-      ctx.fillStyle = Theme.css('--bg') || '#050505'; ctx.fillRect(left, y - 8, w, 16);
+      ctx.fillStyle = Theme.css('--on-ink') || Theme.css('--bg') || '#050505'; ctx.fillRect(left, y - 8, w, 16);
       ctx.strokeStyle = ink; ctx.lineWidth = 1; ctx.strokeRect(left + .5, y - 7.5, w - 1, 15);
       ctx.fillStyle = ink; ctx.textBaseline = 'middle'; ctx.fillText(text, left + 4, y + 1);
     }
@@ -188,7 +188,7 @@ const Drawings = (() => {
       ink = d.color || ink;
       const pts = handlesOf(d).map(toScreen).filter(Boolean);
       ctx.setLineDash([]); ctx.lineWidth = 1;
-      for (const q of pts) { ctx.fillStyle = Theme.css('--bg') || '#050505'; ctx.fillRect(q.x - 4, q.y - 4, 8, 8); ctx.strokeStyle = ink; ctx.strokeRect(q.x - 3.5, q.y - 3.5, 7, 7); }
+      for (const q of pts) { ctx.fillStyle = Theme.css('--on-ink') || Theme.css('--bg') || '#050505'; ctx.fillRect(q.x - 4, q.y - 4, 8, 8); ctx.strokeStyle = ink; ctx.strokeRect(q.x - 3.5, q.y - 3.5, 7, 7); }
     }
     function draw() {
       frame = 0;

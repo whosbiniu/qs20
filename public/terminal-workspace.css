@@ -1,12 +1,14 @@
-/* Workspace chrome is scoped to the terminal; the rest of UNC keeps its theme. BBB and UNC share one palette. */
+/* The terminal takes its colours from the page theme (dark or light): only the chrome shade, the accent and the
+   candle colours are derived here. BBB and UNC share this palette. */
 #hyper-terminal[data-workspace] {
-  --bg:#202126; --ink:#e4e5e9; --ink-rgb:228 229 233; --dim:#8b8d99;
-  --line:#34353d; --faint:#292a31; --tw-chrome:#191a1f; --tw-accent:#da9c7c;
-  --tw-up:#e4e5e9; --tw-down:#55565f;
+  --tw-chrome:color-mix(in srgb, var(--ink) 4%, var(--bg)); --tw-accent:#da9c7c;
+  --tw-up:var(--ink); --tw-down:var(--dim);
+  --tw-ask:#c798aa; --tw-bid:#8fcabc; --tw-ask-depth:#a5749420; --tw-bid-depth:#69bda420;
   background:var(--bg); color:var(--ink); container-type:inline-size;
   font:11px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
-  font-variant-numeric:tabular-nums; color-scheme:dark;
+  font-variant-numeric:tabular-nums;
 }
+html[data-color-mode=light] #hyper-terminal[data-workspace] {--tw-accent:#b0582f; --tw-ask:#a3354f; --tw-bid:#1d7a5f; --tw-ask-depth:#a3354f18; --tw-bid-depth:#1d7a5f18}
 .tw {height:100%; min-height:0; display:flex; flex-direction:column; overflow:hidden; border:1px solid var(--line)}
 .tw *, .tw *::before, .tw *::after {box-sizing:border-box}
 .tw button,.tw select {font:inherit; color:var(--dim); background:transparent; border:1px solid transparent; border-radius:4px; cursor:pointer}
@@ -49,10 +51,10 @@
 .tw .ht-book-title,.tw .ht-book-row {font:10px/1.4 ui-monospace,Menlo,monospace;padding:5px 10px;border:0}
 .tw .ht-book-title {font-size:9px;padding-top:8px;padding-bottom:8px;color:var(--dim)}
 .tw .ht-book-row {position:relative;background:linear-gradient(to left,var(--depth-color) var(--depth,0%),transparent var(--depth,0%));}
-.tw .ht-book-row.ask {--depth-color:#a5749420}
-.tw .ht-book-row.bid {--depth-color:#69bda420}
-.tw .ht-book-row.ask span:first-child {color:#c798aa}
-.tw .ht-book-row.bid span:first-child {color:#8fcabc}
+.tw .ht-book-row.ask {--depth-color:var(--tw-ask-depth)}
+.tw .ht-book-row.bid {--depth-color:var(--tw-bid-depth)}
+.tw .ht-book-row.ask span:first-child {color:var(--tw-ask)}
+.tw .ht-book-row.bid span:first-child {color:var(--tw-bid)}
 .tw .ht-spread {border-top:1px solid var(--line);border-bottom:1px solid var(--line);font:11px ui-monospace,Menlo,monospace;padding:12px 6px;margin:6px 0;color:var(--ink)}
 .tw-grid {grid-column:2;min-width:0;min-height:0;position:relative;display:grid;gap:4px;background:var(--line);--tw-split:58%;--tw-row:56%}
 .tw-grid[data-count="1"] {grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr)}
@@ -144,14 +146,6 @@
 .tw-grid[data-count="4"] .ht-indicator-panel,.tw-grid[data-count="2"] .ht-indicator-panel {top:68px}
 .tw-grid[data-count="4"] .ht-periods button,.tw-grid[data-count="2"] .ht-periods button {padding:3px 5px}
 .tw-grid[data-count="4"] .ht-chart .draw-bar button {height:25px}
-body.terminal-open {padding:0;gap:0;background:#191a1f}
-body.terminal-open>.bar,body.terminal-open>#tape,body.terminal-open>footer,body.terminal-open .shell>#side {display:none}
-body.terminal-open>nav {height:33px;min-height:33px;border:0;border-bottom:1px solid #34353d;background:#191a1f}
-body.terminal-open>nav button {font:10px/1 -apple-system,BlinkMacSystemFont,sans-serif;letter-spacing:.1px;text-transform:none;padding:0 14px;border:0;color:#8b8d99}
-body.terminal-open>nav button.active {background:#292a31;color:#e4e5e9;box-shadow:inset 0 -2px #da9c7c}
-body.terminal-open>nav button b {font-size:9px;margin-right:5px}
-body.terminal-open #sideToggle {display:none}
-body.terminal-open .shell {gap:0}
 @container (max-width:1200px) {
   .tw-saved {display:none}
   .tw .ht[data-markets=true] {grid-template-columns:155px minmax(0,1fr) 0}

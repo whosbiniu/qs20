@@ -277,25 +277,6 @@ final class CalendarExportBridge: NSObject, WKScriptMessageHandlerWithReply {
     }
 }
 
-// Glass mode of the page (theme.js): the window turns see-through and the system blurs the desktop behind it.
-// `clear` (0…1) fades the blur out, so at high transparency the desktop is seen sharply.
-final class GlassBridge: NSObject, WKScriptMessageHandler {
-    weak var window: NSWindow?
-    weak var blur: NSVisualEffectView?
-
-    func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
-        guard isBundledPage(message.frameInfo), message.frameInfo.isMainFrame, let window, let blur,
-              let body = message.body as? [String: Any], let on = body["on"] as? Bool else { return }
-        let clear = min(1, max(0, (body["clear"] as? Double) ?? 0.45))
-        blur.isHidden = !on
-        blur.alphaValue = CGFloat(max(0, 1 - clear * 1.05))
-        window.isOpaque = !on
-        window.backgroundColor = on ? .clear : .black
-        window.hasShadow = true
-        window.invalidateShadow()
-    }
-}
-
 final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUIDelegate {
     var window: NSWindow!
     var webView: WKWebView!
@@ -304,7 +285,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
     let marketHighs = MarketHighsBridge()
     let proxy = ProxyBridge()
     let tv = TVBridge()
-    let glass = GlassBridge()
     let postCreatorFile = PostCreatorFileBridge()
     var selfTestStarted = false
     var benchStage = 0
@@ -326,7 +306,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
         config.userContentController.addScriptMessageHandler(marketHighs, contentWorld: .page, name: "marketHighs")
         config.userContentController.addScriptMessageHandler(proxy, contentWorld: .page, name: "proxy")
         config.userContentController.add(tv, name: "tv")
-        config.userContentController.add(glass, name: "glass")
         config.userContentController.addScriptMessageHandler(postCreatorFile, contentWorld: .page, name: "postCreatorFile")
         config.userContentController.addUserScript(WKUserScript(source: """
         (() => {
@@ -424,15 +403,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
                           styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
         window.title = "UNC Terminal"
         window.minSize = NSSize(width: 850, height: 600)
-        // The page draws its own background; in glass mode it is transparent and the blur view behind it shows.
-        webView.setValue(false, forKey: "drawsBackground")
-        let blur = NSVisualEffectView()
-        blur.material = .hudWindow; blur.blendingMode = .behindWindow; blur.state = .active; blur.isHidden = true
-        let content = NSView()
-        for view in [blur, webView!] as [NSView] { view.frame = content.bounds; view.autoresizingMask = [.width, .height]; content.addSubview(view) }
-        window.contentView = content
-        window.backgroundColor = .black
-        glass.window = window; glass.blur = blur
+        window.contentView = webView
         window.setFrameAutosaveName("QuarterlyTimeline")
         window.center()
         if bench != nil { window.setContentSize(NSSize(width: 1600, height: 950)); window.center() }
@@ -446,7 +417,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
         NSApp.activate(ignoringOtherApps: true)
         if CommandLine.arguments.contains("--self-test") || CommandLine.arguments.contains("--self-test-highs") ||
            CommandLine.arguments.contains("--self-test-terminal") || CommandLine.arguments.contains("--self-test-integrations") ||
-           CommandLine.arguments.contains("--self-test-tv") || CommandLine.arguments.contains("--self-test-glass") {
+           CommandLine.arguments.contains("--self-test-tv") {
             DispatchQueue.main.asyncAfter(deadline: .now() + 40) { fputs("Self-test timeout\n", stderr); exit(1) }
         }
         if bench != nil { DispatchQueue.main.asyncAfter(deadline: .now() + 900) { fputs("Benchmark timeout\n", stderr); exit(1) } }
@@ -574,25 +545,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
                     webView.takeSnapshot(with: nil) { image, _ in
                         save(image, "/tmp/qs-tv-preview.png")
                         DispatchQueue.main.asyncAfter(deadline: .now() + 6) { exit(0) }
-                    }
-                }
-            }
-            return
-        }
-        if CommandLine.arguments.contains("--self-test-glass"), !selfTestStarted {
-            // Glass mode from the page reaches the window: see-through, blur on (fading with transparency), and back.
-            selfTestStarted = true
-            DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
-                webView.evaluateJavaScript("Theme.setMode('glass'); Theme.setGlass(0.5, false); document.documentElement.hasAttribute('data-native')") { native, _ in
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                        let on = (native as? Bool == true) && !self.window.isOpaque && self.glass.blur?.isHidden == false && abs((self.glass.blur?.alphaValue ?? 0) - 0.475) < 0.01
-                        webView.evaluateJavaScript("Theme.setMode('dark'); 0") { _, _ in
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                                let off = self.window.isOpaque && self.glass.blur?.isHidden == true
-                                print("{\"native\":\(native as? Bool == true),\"glassOn\":\(on),\"glassOff\":\(off),\"ok\":\(on && off)}")
-                                exit(on && off ? 0 : 1)
-                            }
-                        }
                     }
                 }
             }

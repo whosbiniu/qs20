@@ -9,7 +9,6 @@ import datetime
 
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--install', action='store_true', help='Install in ~/Applications, keeping the previous bundle as a backup')
-parser.add_argument('--output', type=pathlib.Path, help='Build bundle path (defaults to dist/UNCsWay.app)')
 args = parser.parse_args()
 
 def sign_bundle(path):
@@ -37,7 +36,7 @@ def sign_bundle(path):
             return
 
 root = pathlib.Path(__file__).resolve().parents[1]
-output = args.output or root / "dist" / "UNCsWay.app"
+output = root / "dist" / "UNCsWay.app"
 with tempfile.TemporaryDirectory(prefix="qs-macos-") as work:
     app = pathlib.Path(work) / "UNCsWay.app"
     contents = app / "Contents"
@@ -60,7 +59,7 @@ with tempfile.TemporaryDirectory(prefix="qs-macos-") as work:
     with (contents / "Info.plist").open("wb") as handle:
         plistlib.dump(info, handle)
     sign_bundle(app)
-    output.parent.mkdir(parents=True, exist_ok=True)
+    output.parent.mkdir(exist_ok=True)
     if output.exists():
         # Replace only the generated bundle owned by this build script.
         with (output / "Contents/Info.plist").open("rb") as handle:

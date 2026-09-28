@@ -16,61 +16,34 @@ const Theme = (() => {
   };
   const isTop = window.parent === window;
   let current = 'cream', mode = 'dark';
-  // Frosted glass: `clear` 0..1 is how much shows through (0 = almost solid, 1 = almost clear glass).
-  let glass = { clear: .42 };
   const rgb = hex => [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16)).join(' ');
-  // Black smoked glass: neutral tint, no colour cast; text keeps the accent colour of the theme.
-  // Comma rgba() syntax, because the chart library parses these colours too.
-  const TINT = '8, 8, 10';
-  function glassPalette(id) {
-    const surface = +(.9 - .82 * glass.clear).toFixed(3);
-    return { ...THEMES[id], bg: `rgba(${TINT}, ${(surface * .25).toFixed(3)})`, surface: `rgba(${TINT}, ${surface})`,
-      line: 'rgba(255, 255, 255, 0.13)', faint: 'rgba(255, 255, 255, 0.06)', land: 'rgba(255, 255, 255, 0.045)', border: 'rgba(255, 255, 255, 0.22)' };
-  }
-  const paletteOf = (id, m) => m === 'light' ? THEMES[id].light : m === 'glass' ? glassPalette(id) : { bg: DARK_BG, ...THEMES[id] };
-  // In the Mac app the window itself turns into glass over the desktop (see desktop/macos/main.swift).
-  const native = (isTop && window.webkit?.messageHandlers?.glass) || null;
-  if (native) document.documentElement.dataset.native = '';
+  const paletteOf = (id, m) => m === 'light' ? THEMES[id].light : { bg: DARK_BG, ...THEMES[id] };
 
   function apply(id, nextMode) {
     current = THEMES[id] ? id : 'cream';
-    mode = ['light', 'glass'].includes(nextMode) ? nextMode : 'dark';
+    mode = nextMode === 'light' ? 'light' : 'dark';
     const theme = paletteOf(current, mode);
     const root = document.documentElement, style = root.style;
     for (const key of ['bg', 'ink', 'dim', 'line', 'faint', 'land', 'border']) style.setProperty('--' + key, theme[key]);
     style.setProperty('--panel', theme.bg);
-    // Text on an ink-coloured background (active buttons): always solid, also on glass.
-    style.setProperty('--on-ink', mode === 'light' ? theme.bg : DARK_BG);
-    style.setProperty('--glass', theme.surface || theme.bg);
-    style.setProperty('--glass-blur', (8 + 28 * (1 - glass.clear)).toFixed(1) + 'px');
     style.setProperty('--ink-rgb', rgb(theme.ink));
     // Variables of the framed Kwartały pages that carry text and accent colours.
     style.setProperty('--text', theme.ink); style.setProperty('--muted', theme.dim);
     for (const key of ['green', 'blue', 'hot']) style.setProperty('--' + key, theme.ink);
-    root.dataset.colorMode = mode; style.colorScheme = mode === 'light' ? 'light' : 'dark';
-    native?.postMessage({ on: mode === 'glass', clear: glass.clear });
+    root.dataset.colorMode = mode; style.colorScheme = mode;
     window.dispatchEvent(new CustomEvent('themechange', { detail: current }));
   }
-  const persist = () => { try { localStorage.setItem('theme', current); localStorage.setItem('mode', mode); localStorage.setItem('glass', JSON.stringify(glass)); } catch {} };
-  const message = () => ({ type: 'theme', id: current, mode, glass });
-  const broadcast = () => { if (isTop) for (const frame of document.querySelectorAll('iframe')) frame.contentWindow?.postMessage(message(), '*'); };
-  const cleanGlass = g => ({ clear: Number.isFinite(+g?.clear) ? Math.min(1, Math.max(0, +g.clear)) : .42 });
+  const persist = () => { try { localStorage.setItem('theme', current); localStorage.setItem('mode', mode); } catch {} };
+  const broadcast = () => { if (isTop) for (const frame of document.querySelectorAll('iframe')) frame.contentWindow?.postMessage({ type: 'theme', id: current, mode }, '*'); };
   function set(id) { apply(id, mode); persist(); broadcast(); }
   function setMode(next) { apply(current, next); persist(); broadcast(); }
-  // Live while dragging the slider; saved when the drag ends (save = true).
-  function setGlass(clear, save) { glass = cleanGlass({ clear }); apply(current, mode); broadcast(); if (save) persist(); }
   window.addEventListener('message', event => {
-    if (event.data?.type === 'theme' && event.source === window.parent && !isTop) { glass = cleanGlass(event.data.glass); apply(event.data.id, event.data.mode); }
-    if (event.data?.type === 'theme-request' && isTop) event.source?.postMessage(message(), '*');
+    if (event.data?.type === 'theme' && event.source === window.parent && !isTop) apply(event.data.id, event.data.mode);
+    if (event.data?.type === 'theme-request' && isTop) event.source?.postMessage({ type: 'theme', id: current, mode }, '*');
   });
   let saved = null, savedMode = null;
-  // Dark by default; light and glass are chosen in the top bar and remembered.
-  try {
-    saved = localStorage.getItem('theme'); savedMode = localStorage.getItem('mode');
-    glass = cleanGlass(JSON.parse(localStorage.getItem('glass') || 'null'));
-  } catch {}
+  try { saved = localStorage.getItem('theme'); savedMode = localStorage.getItem('mode'); } catch {}
   apply(saved, savedMode);
   if (!isTop) window.parent.postMessage({ type: 'theme-request' }, '*');
-  return { THEMES, set, setMode, setGlass, native: !!native, get: () => current, getMode: () => mode, getGlass: () => glass.clear,
-    swatch: id => paletteOf(id, mode === 'glass' ? 'dark' : mode).ink, css: name => getComputedStyle(document.documentElement).getPropertyValue(name).trim() };
+  return { THEMES, set, setMode, get: () => current, getMode: () => mode, swatch: id => paletteOf(id, mode).ink, css: name => getComputedStyle(document.documentElement).getPropertyValue(name).trim() };
 })();

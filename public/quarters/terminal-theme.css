@@ -77,10 +77,3 @@ html[data-color-mode=light] .tiprow b.q2{color:#c81e3f}html[data-color-mode=ligh
 .impact-filters{display:flex;align-items:center;gap:8px;color:var(--dim)}
 .grow{flex:1}
 @media(max-width:800px){.economic-scroll{overflow-x:auto!important}.economic table{min-width:600px}.economic{padding:16px 12px}}
-
-/* Glass mode (set by the shell): the frame is see-through, the shell's frosted pane behind it gives the tint. */
-html[data-color-mode=glass],
-html[data-color-mode=glass] :is(body,.app,.topbar,.stage,.labels,.timeline,.footer,.economic,.session-panel,.datebar,.economic th){background:transparent!important}
-/* Glass: active buttons are light glass pills (the translucent --bg would make inverted text fade out). */
-html[data-color-mode=glass] body :is(.nav button.active,[aria-pressed="true"],.ssmt-option.is-active){background:rgba(255,255,255,.15)!important;color:var(--ink)!important;border-color:rgba(255,255,255,.26)!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.3)}
-html[data-color-mode=glass] body .impact.high{color:#050505!important}

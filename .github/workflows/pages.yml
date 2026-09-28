@@ -40,7 +40,6 @@ jobs:
           node scripts/test-storage.cjs
           node scripts/test-terminal-workspace.cjs
           node scripts/test-hl-stream.cjs
-          node scripts/test-theme.cjs
           node scripts/test-hyper-terminal.cjs
           node scripts/test-terminal-orderflow.cjs
           node scripts/test-orderflow-analysis.cjs

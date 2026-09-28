@@ -112,6 +112,8 @@ const flush = () => new Promise(resolve => setImmediate(resolve))
   const now = Date.now()
   push('trades:BTC', [{ coin: 'BTC', side: 'B', px: '105.5', sz: '0.4', time: now, tid: 1 }, { coin: 'BTC', side: 'B', px: '105.5', sz: '0.6', time: now, tid: 2 },
     { coin: 'BTC', side: 'A', px: '104.5', sz: '3', time: now + 5, tid: 3 }])
+  // The same trades again (as after a reconnect) are not counted twice.
+  push('trades:BTC', [{ coin: 'BTC', side: 'B', px: '105.5', sz: '0.4', time: now, tid: 1 }, { coin: 'BTC', side: 'A', px: '104.5', sz: '3', time: now + 5, tid: 3 }])
   push('l2Book:BTC', { coin: 'BTC', time: Date.now(), levels: [[{ px: '104.5', sz: '2', n: 1 }, { px: '104', sz: '20', n: 1 }], [{ px: '105.5', sz: '1', n: 1 }]] })
   assert.match(node('ht-asks').html, /class="traded">1</, 'one lot traded at 105.5')
   assert.match(node('ht-bids').html, /class="traded">3</)

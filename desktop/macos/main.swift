@@ -287,6 +287,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
     let tv = TVBridge()
     let postCreatorFile = PostCreatorFileBridge()
     var selfTestStarted = false
+    var benchStage = 0
+    // --bench-terminal <scenarios/terminal-bench.js> <scenario>: the load benchmark of scripts/bench-terminal.mjs in WebKit.
+    lazy var bench: (script: String, scenario: String)? = {
+        let args = CommandLine.arguments
+        guard let i = args.firstIndex(of: "--bench-terminal"), i + 2 < args.count,
+              args[i + 2].allSatisfy({ $0.isLetter || $0.isNumber }),
+              let source = try? String(contentsOfFile: args[i + 1], encoding: .utf8) else { return nil }
+        return (source, args[i + 2])
+    }()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         let config = WKWebViewConfiguration()
@@ -381,6 +390,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
             })();
             """, injectionTime: .atDocumentStart, forMainFrameOnly: false))
         }
+        if let bench {
+            // After the fetch shim above, so the fake market feed can read real prices through the native proxy.
+            config.websiteDataStore = .nonPersistent()
+            config.userContentController.addUserScript(WKUserScript(source: bench.script, injectionTime: .atDocumentStart, forMainFrameOnly: true))
+        }
         webView = WKWebView(frame: .zero, configuration: config)
         tv.host = webView
         webView.navigationDelegate = self
@@ -392,6 +406,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
         window.contentView = webView
         window.setFrameAutosaveName("QuarterlyTimeline")
         window.center()
+        if bench != nil { window.setContentSize(NSSize(width: 1600, height: 950)); window.center() }
         makeMenu()
         let root = Bundle.main.resourceURL!.appendingPathComponent("public")
         // The self-tests exercise the Kwartały page / the L/H page directly, not the terminal shell.
@@ -405,6 +420,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
            CommandLine.arguments.contains("--self-test-tv") {
             DispatchQueue.main.asyncAfter(deadline: .now() + 40) { fputs("Self-test timeout\n", stderr); exit(1) }
         }
+        if bench != nil { DispatchQueue.main.asyncAfter(deadline: .now() + 900) { fputs("Benchmark timeout\n", stderr); exit(1) } }
     }
 
     func makeMenu() {
@@ -448,6 +464,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
     }
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        if let bench {
+            benchStage += 1
+            if benchStage == 1 {
+                // Prepares the scenario's layout and reloads the page.
+                webView.evaluateJavaScript("__bench.begin('\(bench.scenario)')") { _, _ in }
+            } else if benchStage == 2 {
+                webView.callAsyncJavaScript("await __bench.resume('warm'); return JSON.stringify(await __bench.resume('run'))",
+                                            arguments: [:], in: nil, in: .page) { result in
+                    switch result {
+                    case .success(let value): print(value as? String ?? "null"); exit(0)
+                    case .failure(let error): print("FAIL", error); exit(1)
+                    }
+                }
+            }
+            return
+        }
         if CommandLine.arguments.contains("--self-test-integrations"), !selfTestStarted {
             selfTestStarted = true
             DispatchQueue.main.asyncAfter(deadline: .now() + 2) {

@@ -7,7 +7,8 @@
   const SPAN = { '1m': 60, '5m': 300, '15m': 900, '30m': 1800, '1h': 3600, '4h': 14400, '1d': 86400, '1w': 604800, '1M': 2592000 };
   const ORDERFLOW = ['footprint', 'delta', 'profile', 'tradebubbles'];
   const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  const fmt = n => Number.isFinite(n) ? n.toLocaleString('en-US', { maximumFractionDigits: n < 1 ? 6 : n < 100 ? 4 : 2 }) : '—';
+  const formats = [2, 4, 6].map(d => new Intl.NumberFormat('en-US', { maximumFractionDigits: d }));
+  const fmt = n => Number.isFinite(n) ? formats[n < 1 ? 2 : n < 100 ? 1 : 0].format(n) : '—';
   const LINK = '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="m8 12 4-4M7 13l-1 1a3 3 0 0 1-4-4l4-4a3 3 0 0 1 4 0M13 7l1-1a3 3 0 0 1 4 4l-4 4a3 3 0 0 1-4 0"/></svg>';
   const EXPAND = '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 3H3v4M13 3h4v4M3 13v4h4M17 13v4h-4"/></svg>';
 

@@ -263,7 +263,7 @@
     let coin = '', interval = '1h', store, stream, state = 'connecting', gap = false, timer, panel, delta, cvd, update = () => {}, result = null, lines = [], suspended = false
     const enabled = () => FLAGS.some(key => settings[key])
     const save = () => { try { (root.Store?.set || ((k, v) => localStorage.setItem(k, v)))(storageKey, JSON.stringify(settings)) } catch {} }
-    const number = n => Number(n).toLocaleString('en-US', { maximumSignificantDigits: 5 })
+    const five = new Intl.NumberFormat('en-US', { maximumSignificantDigits: 5 }), number = n => five.format(Number(n))
     const utc = t => new Date(t).toISOString().replace('T', ' ').slice(0, 19)
     const clearLines = () => { if (panel) lines.forEach(l => panel.series.removePriceLine(l)); lines = [] }
     const GREEN = '141,204,156', RED = '220,142,137'
@@ -464,7 +464,7 @@
     const onHide = () => { stop(); }, onShow = () => start()
     window.addEventListener('pagehide', onHide)
     window.addEventListener('pageshow', onShow)
-    return {
+    const api = {
       isEnabled(key) { return !!settings[key] },
       setEnabled(key, value) {
         if (!FLAGS.includes(key)) return
@@ -481,8 +481,9 @@
       },
       refresh: render,
       suspend() { suspended = true; clearTimeout(timer); timer = null },
-      resume() { if (!suspended) return; suspended = false; render() },
-      destroy() { stop(); clearTimeout(timer); clearLines(); window.removeEventListener('pagehide', onHide); window.removeEventListener('pageshow', onShow); listeners.length = 0 },
+      // Recalculated in its own task, so several charts coming back at once do not stack into one long frame.
+      resume() { if (!suspended) return; suspended = false; clearTimeout(timer); timer = setTimeout(render, 0) },
+      destroy() { stop(); clearTimeout(timer); clearLines(); window.removeEventListener('pagehide', onHide); window.removeEventListener('pageshow', onShow); listeners.length = 0; instances.delete(api) },
       // Executed trades collected in this tab, and a hook for studies built on them (trade counter / pulse).
       get trades() { return store ? store.trades : [] },
       get interval() { return interval },
@@ -494,6 +495,10 @@
         render()
       },
     }
+    instances.add(api)
+    return api
   }
-  root.TerminalOrderflow = { createStore, calculate, bucket, connect, attach, valueArea, imbalances, barDetail, sessionKey, bigTrades, ZONES }
+  // Live instances (main chart first), for diagnostics and the benchmark's double-count check.
+  const instances = new Set()
+  root.TerminalOrderflow = { instances, createStore, calculate, bucket, connect, attach, valueArea, imbalances, barDetail, sessionKey, bigTrades, ZONES }
 })(globalThis)

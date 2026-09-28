@@ -12,8 +12,10 @@ window.HyperTerminal = (() => {
   </div>`
   const $ = id => document.getElementById(id)
   let workspace
-  const fmt = n => Number.isFinite(n) ? n.toLocaleString('en-US', { maximumFractionDigits: n < 1 ? 6 : n < 100 ? 4 : 2 }) : '—'
-  const compact = n => Number.isFinite(n) ? Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 2 }).format(n) : '—'
+  // Number formatters are built once: toLocaleString creates a new one per call, which dominated the tape and book.
+  const formats = {}, format = (key, options) => formats[key] ||= new Intl.NumberFormat('en-US', options)
+  const fmt = n => { if (!Number.isFinite(n)) return '—'; const digits = n < 1 ? 6 : n < 100 ? 4 : 2; return format('f' + digits, { maximumFractionDigits: digits }).format(n) }
+  const compact = n => Number.isFinite(n) ? format('compact', { notation: 'compact', maximumFractionDigits: 2 }).format(n) : '—'
   const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]))
   let all = [], selected = localStorage.getItem('hl-coin') || 'xyz:XYZ100', interval = localStorage.getItem('hl-interval') || '1h'
   let chart, series, volumeSeries, drawingPanel, request = 0, profileRequest = 0, initialized = false, chartKey = '', profileCandles = [], profileOverlay
@@ -155,9 +157,9 @@ window.HyperTerminal = (() => {
   let dom = { big: 0, tapeMin: 0, merge: true, tab: 'dom' }
   try { dom = { ...dom, ...JSON.parse(localStorage.getItem('hl-dom') || '{}') } } catch {}
   const saveDom = () => Store.set('hl-dom', JSON.stringify(dom))
-  let tape = [], traded = new Map(), bigLimit = Infinity, tapeFrame = 0
+  let tape = [], traded = new Map(), bigLimit = Infinity, tapeFrame = 0, tapeIds = new Set()
   // Four significant digits keep the narrow DOM and tape columns readable (0.0932, 16.52, 1.2K).
-  const short = n => !Number.isFinite(n) ? '—' : n >= 10000 ? compact(n) : n.toLocaleString('en-US', { maximumSignificantDigits: 4 })
+  const short = n => !Number.isFinite(n) ? '—' : n >= 10000 ? compact(n) : format('s4', { maximumSignificantDigits: 4 }).format(n)
   function bookSide(rows, side) {
     let total = 0
     const max = Math.max(1e-9, ...rows.map(row => Number(row.sz) || 0))
@@ -179,11 +181,15 @@ window.HyperTerminal = (() => {
     for (const t of list) {
       const price = Number(t.px), size = Number(t.sz), time = Number(t.time)
       if (!Number.isFinite(price) || !Number.isFinite(size) || !Number.isFinite(time)) continue
+      // After a reconnect the feed repeats recent trades: count each trade id once.
+      if (t.tid !== undefined) { if (tapeIds.has(t.tid)) continue; tapeIds.add(t.tid) }
       tape.push({ time, price, size, buy: t.side === 'B' })
       traded.set(price, (traded.get(price) || 0) + size)
     }
     if (tape.length > 3000) tape = tape.slice(-2000)
-    if (!$('ht-tape').hidden && !tapeFrame) tapeFrame = requestAnimationFrame(paintTape)
+    if (tapeIds.size > 6000) tapeIds = new Set([...tapeIds].slice(-3000))
+    // At most about 8 repaints a second: readable, and the tape does not rebuild on every batch of trades.
+    if (!$('ht-tape').hidden && !tapeFrame) tapeFrame = setTimeout(() => requestAnimationFrame(paintTape), 120)
   }
   function paintTape() {
     tapeFrame = 0
@@ -218,7 +224,7 @@ window.HyperTerminal = (() => {
       $('ht-book-time').textContent = new Date(book.time).toLocaleTimeString('pl-PL')
     } catch { $('ht-spread').textContent = 'Brak danych arkusza' }
   }
-  function select(coin) { if (coin === selected) return; selected = coin; tape = []; traded = new Map(); orderflow.setMarket(selected, interval); studies.setMarket(selected, interval); profileCandles = []; clearProfileLines(); series?.setData([]); volumeSeries?.setData([]); if (drawingPanel) { drawingPanel.symbol = 'hl:' + coin; drawingPanel.candles = []; drawingPanel.drawings.reload() }; Store.set('hl-coin', coin); renderList(); renderQuote(); loadChart(); loadBook(); loadProfile() }
+  function select(coin) { if (coin === selected) return; selected = coin; tape = []; traded = new Map(); tapeIds = new Set(); orderflow.setMarket(selected, interval); studies.setMarket(selected, interval); profileCandles = []; clearProfileLines(); series?.setData([]); volumeSeries?.setData([]); if (drawingPanel) { drawingPanel.symbol = 'hl:' + coin; drawingPanel.candles = []; drawingPanel.drawings.reload() }; Store.set('hl-coin', coin); renderList(); renderQuote(); loadChart(); loadBook(); loadProfile() }
   function clearProfileLines() { profileOverlay?.set([]) }
   function renderProfile() {
     clearProfileLines()

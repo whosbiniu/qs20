@@ -99,18 +99,22 @@ assert.equal(new Date(articles[0].time).toISOString(),'2026-09-27T10:15:00.000Z'
   assert.equal(news.items[0].pl,'Przetłumaczone');
   assert.equal(news.items[0].title,"Fed's Powell & co: rates");
   // Calendar: next week falls back to TradingView when Forex Factory has no file; beyond its horizon the answer is empty.
-  const tv={status:'ok',result:[{title:'ISM',date:'2026-10-01T14:00:00.000Z',importance:1,forecast:54.8,previous:54.6},{title:'Late',date:'2026-10-02T14:00:00.000Z',importance:-1}]};
+  // Wednesday and Thursday of next week (New York calendar), whatever day the test runs.
+  const [yy,mm,dd]=new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York'}).format(Date.now()).split('-').map(Number);
+  const nextMonday=new Date(Date.UTC(yy,mm-1,dd));nextMonday.setUTCDate(dd-(nextMonday.getUTCDay()+6)%7+7);
+  const day=n=>{const x=new Date(nextMonday);x.setUTCDate(nextMonday.getUTCDate()+n);return x.toISOString().slice(0,10)};
+  const tv={status:'ok',result:[{title:'ISM',date:day(2)+'T14:00:00.000Z',importance:1,forecast:54.8,previous:54.6},{title:'Late',date:day(3)+'T14:00:00.000Z',importance:-1}]};
   const cal=Terminal.create(async url=>url.includes('nextweek')?{status:404,text:''}:url.includes('tradingview')?{status:200,text:JSON.stringify(tv)}:transport(url));
   const week=await cal.calendar('next-week');
   assert.equal(week.source,'TradingView');
   assert.equal(week.events.length,2);
-  assert.equal(week.availableTo,'2026-10-02');
+  assert.equal(week.availableTo,day(3));
   assert.equal(week.partial,false);
   const empty=Terminal.create(async url=>url.includes('tradingview')?{status:200,text:JSON.stringify({status:'ok'})}:{status:404,text:''});
   const none=await empty.calendar('quarter');
   assert.deepEqual([none.events.length,none.availableTo,none.partial],[0,null,true]);
   await assert.rejects(empty.calendar('year'),/bad range/);
-  const ff=Terminal.create(async url=>url.includes('nextweek')?{status:200,text:JSON.stringify([{title:'CPI',country:'USD',date:'2026-09-30T08:30:00-04:00',impact:'High',forecast:'0.3%',previous:'0.2%'},{title:'Other',country:'EUR',date:'2026-09-30T08:30:00-04:00',impact:'High'}])}:{status:500,text:''});
+  const ff=Terminal.create(async url=>url.includes('nextweek')?{status:200,text:JSON.stringify([{title:'CPI',country:'USD',date:day(2)+'T08:30:00-04:00',impact:'High',forecast:'0.3%',previous:'0.2%'},{title:'Other',country:'EUR',date:day(2)+'T08:30:00-04:00',impact:'High'}])}:{status:500,text:''});
   const ffWeek=await ff.calendar('next-week');
   assert.deepEqual([ffWeek.source,ffWeek.events.length,ffWeek.events[0].title],['Forex Factory',1,'CPI']);
   // Monitor: one failing source does not break the others; all failing is an error.

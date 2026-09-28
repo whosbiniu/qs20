@@ -5,6 +5,8 @@
     const t = Math.floor(ms / 1000)
     if (interval === '1M') { const date = new Date(ms); return Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1) / 1000 }
     if (interval === '1w') return Math.floor((t - 345600) / 604800) * 604800 + 345600
+    // The user's own timeframes (6h, 90m...) use the same buckets as their candles.
+    if (!spans[interval] && root.TerminalTimeframes?.parse(interval)) return root.TerminalTimeframes.bucket(t, interval)
     const span = spans[interval] || 60
     return Math.floor(t / span) * span
   }

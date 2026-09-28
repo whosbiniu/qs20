@@ -198,3 +198,6 @@ html[data-color-mode=light] #hyper-terminal[data-workspace] {--tw-accent:#b0582f
 .tw .ht-ind-pop .st-settings select,.tw .ht-ind-pop .st-settings input[type=number] {border-radius:3px;background:var(--bg)}
 .tw .ht-active-indicators>span.open {outline:1px solid var(--tw-accent)}
 .tw .ht-indicator-gear {border-color:transparent!important}
+.tw .ht-snap {background:var(--tw-chrome);top:84px}
+.tw .ht-chart-tools .ht-snapshot {width:25px;padding:0}
+.tw-grid[data-count="4"] .ht-snap,.tw-grid[data-count="2"] .ht-snap {top:70px}

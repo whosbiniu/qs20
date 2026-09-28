@@ -52,6 +52,7 @@ const context = vm.createContext({
   },
 })
 vm.runInContext(fs.readFileSync(require.resolve('../public/terminal-profile.js'), 'utf8'), context)
+vm.runInContext(fs.readFileSync(require.resolve('../public/terminal-timeframes.js'), 'utf8'), context)
 vm.runInContext(fs.readFileSync(require.resolve('../public/hyper-terminal.js'), 'utf8'), context)
 const flush = () => new Promise(resolve => setImmediate(resolve))
 ;(async () => {

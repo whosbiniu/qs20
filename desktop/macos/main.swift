@@ -228,7 +228,7 @@ final class PostCreatorFileBridge: NSObject, WKScriptMessageHandlerWithReply {
             return
         }
         guard let filename = fields["filename"],
-              filename.range(of: "^PostCreator-[A-Za-z0-9._-]+\\.png$|^[A-Za-z0-9!._-]+\\.postcreator$", options: .regularExpression) != nil else {
+              filename.range(of: "^PostCreator-[A-Za-z0-9._-]+\\.png$|^[A-Za-z0-9!._-]+\\.postcreator$|^UNC-Terminal-[0-9-]+\\.png$", options: .regularExpression) != nil else {
             replyHandler(nil, "Nieprawidłowa nazwa pliku."); return
         }
         let panel = NSSavePanel()
@@ -359,7 +359,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
                   return new Response('{"error":"not found"}', {status: 404, headers: {'Content-Type': 'application/json'}});
                 }
                 if (url.pathname === '/api/hl/markets') return json({markets: await hyper.markets()});
-                if (url.pathname === '/api/hl/candles') return json({candles: await hyper.candles(q.get('coin'), q.get('interval') || '1h')});
+                if (url.pathname === '/api/hl/candles') return json({candles: await hyper.candles(q.get('coin'), q.get('interval') || '1h', q.get('bars'))});
                 if (url.pathname === '/api/hl/book') return json(await hyper.orderBook(q.get('coin')));
                 if (url.pathname === '/api/hl/depth') return json(await hyper.deepBook(q.get('coin'), q.get('sig') || 0));
                 if (url.pathname === '/api/hl/funding') return json({rates: await hyper.fundingHistory(q.get('coin'))});

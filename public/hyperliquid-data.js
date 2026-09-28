@@ -1,8 +1,8 @@
 // Hyperliquid data for the bundled macOS app. The native proxy supplies the transport.
 (function (root) {
   'use strict'
-  const intervals = new Set(['1m', '5m', '15m', '30m', '1h', '4h', '1d', '1w', '1M'])
-  const span = { '1m': 60000, '5m': 300000, '15m': 900000, '30m': 1800000, '1h': 3600000, '4h': 14400000, '1d': 86400000, '1w': 604800000, '1M': 2592000000 }
+  const intervals = new Set(['1m', '3m', '5m', '15m', '30m', '1h', '2h', '4h', '8h', '12h', '1d', '3d', '1w', '1M'])
+  const span = { '1m': 60000, '3m': 180000, '5m': 300000, '15m': 900000, '30m': 1800000, '1h': 3600000, '2h': 7200000, '4h': 14400000, '8h': 28800000, '12h': 43200000, '1d': 86400000, '3d': 259200000, '1w': 604800000, '1M': 2592000000 }
   const hyperCoin = symbol => {
     if (typeof symbol !== 'string') return null
     if (['XYZ100', 'SP500'].includes(symbol.trim().toUpperCase())) return 'xyz:' + symbol.trim().toUpperCase()
@@ -42,11 +42,12 @@
         return all
       })
     }
-    async function candles(coin, interval = '1h') {
+    async function candles(coin, interval = '1h', bars = null) {
       if (!intervals.has(interval)) throw Object.assign(new Error('Nieprawidłowy interwał'), { status: 400 })
       if (!(await markets()).some(m => m.coin === coin)) throw Object.assign(new Error('Nieznany rynek'), { status: 400 })
-      return cached(`candles:${coin}:${interval}`, 15000, async () => {
-        const rows = await query({ type: 'candleSnapshot', req: { coin, interval, startTime: Date.now() - span[interval] * (interval === '30m' ? 5000 : 350), endTime: Date.now() } })
+      const count = Number.isFinite(Number(bars)) && Number(bars) > 0 ? Math.min(5000, Math.max(50, Math.round(Number(bars)))) : interval === '30m' ? 5000 : 350
+      return cached(`candles:${coin}:${interval}:${count}`, 15000, async () => {
+        const rows = await query({ type: 'candleSnapshot', req: { coin, interval, startTime: Date.now() - span[interval] * count, endTime: Date.now() } })
         return rows.map(c => ({ time: Math.floor(c.t / 1000), open: Number(c.o), high: Number(c.h), low: Number(c.l), close: Number(c.c), volume: Number(c.v) }))
           .filter(c => [c.time, c.open, c.high, c.low, c.close].every(Number.isFinite))
       })

@@ -18,7 +18,8 @@
         sync: typeof saved?.sync === 'boolean' ? saved.sync : d.sync,
         panels: d.panels.map((panel, i) => {
           const p = saved?.panels?.[i];
-          return { interval: FRAMES.includes(p?.interval) ? p.interval : panel.interval,
+          const known = f => root.TerminalTimeframes ? !!root.TerminalTimeframes.parse(f) : FRAMES.includes(f);
+          return { interval: typeof p?.interval === 'string' && known(p.interval) ? p.interval : panel.interval,
             mode: ['volume', 'tpo', 'vwap'].includes(p?.mode) ? p.mode : panel.mode,
             coin: typeof p?.coin === 'string' && COIN.test(p.coin) ? p.coin : '',
             linked: typeof p?.linked === 'boolean' ? p.linked : true };
@@ -275,6 +276,9 @@
     return {
       show: lifecycle,
       marketChanged() { panes.forEach(p => p.mainChanged()); },
+      // Charts to capture for a screenshot: the visible panes and the grid they sit in.
+      snapshotPanes() { return visiblePanes().map(p => p.snapshot?.()).filter(Boolean); },
+      snapshotArea: grid,
       dataUpdated(cached = false) { if (liveState !== 'live') $('.tw-data-status').textContent = `Hyperliquid · ${cached ? 'zapisany wykres' : 'wykres odświeżony ' + new Date().toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`; },
       liveStatus(next) {
         liveState = next;

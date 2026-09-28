@@ -6,7 +6,7 @@ window.HyperTerminal = (() => {
       <div class="ht-jump" id="ht-jump" hidden><input id="ht-jump-input" type="search" placeholder="Szukaj tickera…" aria-label="Szukaj innego tickera" aria-controls="ht-jump-list" autocomplete="off" spellcheck="false"><div class="ht-jump-list" id="ht-jump-list" role="listbox" aria-label="Wyniki wyszukiwania tickera"></div></div>
       <div class="ht-stats"><div>WOLUMEN 24H <b id="ht-volume">—</b></div><div>OPEN INTEREST <b id="ht-oi">—</b></div><div>FUNDING / H <b id="ht-funding">—</b></div></div>
       <div class="ht-periods" id="ht-periods"></div>
-      <div class="ht-chart-tools"><button type="button" id="ht-indicators-open" aria-expanded="false" aria-controls="ht-indicator-panel">ƒx Indykatory</button><button id="ht-fit" type="button">Dopasuj wykres</button></div>
+      <div class="ht-chart-tools"><button type="button" id="ht-indicators-open" aria-expanded="false" aria-controls="ht-indicator-panel">ƒx Indykatory</button><button id="ht-fit" type="button">Dopasuj wykres</button><button type="button" id="ht-snapshot" class="ht-snapshot" title="Zrzut wykresów (PNG)" aria-label="Zrzut wykresów" aria-expanded="false"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 7.500A1.500 1.500 0 0 1 4.500 6h2l1.200-1.800h4.600L13.500 6h2A1.500 1.500 0 0 1 17 7.500v7A1.500 1.500 0 0 1 15.500 16h-11A1.500 1.500 0 0 1 3 14.500z"/><circle cx="10" cy="11" r="3"/></svg></button></div>
       <aside class="ht-indicator-panel" id="ht-indicator-panel" hidden aria-label="Biblioteka indykatorów"><div class="ht-library-head"><strong>Indykatory</strong><button type="button" id="ht-indicators-close" aria-label="Zamknij panel indykatorów">×</button></div><input type="search" id="ht-indicator-search" placeholder="Szukaj indykatora…" aria-label="Szukaj indykatora"><div id="ht-indicator-list"></div></aside><div class="ht-ind-pop" id="ht-ind-pop" hidden role="dialog" aria-labelledby="ht-ind-pop-title"><div class="ht-ind-pop-head"><strong id="ht-ind-pop-title"></strong><button type="button" id="ht-ind-pop-remove" title="Usuń indykator z wykresu">Usuń</button><button type="button" id="ht-ind-pop-close" data-pop-close aria-label="Zamknij ustawienia">×</button></div><div class="st-settings" id="ht-studies-settings" hidden></div><div class="ht-tpo-controls" id="ht-profile" hidden><label>TPO <select id="ht-tpo-mode"><option value="daily">Dzienne</option><option value="session">Sesyjne</option><option value="weekly">Tygodniowe</option><option value="monthly">Miesięczne</option></select></label><span id="ht-tpo-hours" hidden><label>Od <input id="ht-tpo-from" type="time" step="1800" value="08:00"></label><label>Do <input id="ht-tpo-to" type="time" step="1800" value="16:30"></label> UTC</span><label>Krok ceny <input id="ht-step" type="number" min="0" step="any" value="0"></label><span id="ht-profile-info" role="status"></span></div><section id="ht-orderflow" aria-label="Ustawienia order flow" hidden></section><p class="ht-ind-pop-empty" id="ht-ind-pop-empty">Ten indykator nie ma ustawień.</p></div><div class="ht-chart" id="ht-chart"><div class="ht-active-indicators" id="ht-active-indicators" aria-label="Aktywne indykatory"></div></div><div class="ht-message" id="ht-message" hidden></div>
     </div><aside class="ht-book"><header><div class="ht-book-tabs" id="ht-book-tabs" role="tablist" aria-label="Arkusz i taśma"><button type="button" role="tab" data-book-tab="dom" aria-selected="true" aria-controls="ht-dom">ARKUSZ</button><button type="button" role="tab" data-book-tab="tape" aria-selected="false" aria-controls="ht-tape">TAŚMA</button></div><span id="ht-book-time"></span></header><div id="ht-dom" role="tabpanel"><div class="ht-book-title ht-dom-cols"><span>CENA</span><span>WIELKOŚĆ</span><span>SUMA</span><span title="Wolumen transakcji na tej cenie od otwarcia rynku w terminalu">HANDEL</span></div><div id="ht-asks"></div><div class="ht-spread" id="ht-spread">—</div><div id="ht-bids"></div><label class="ht-book-filter">Wyróżnij zlecenia od <input id="ht-dom-big" type="number" min="0" step="any" placeholder="auto"></label></div><div id="ht-tape" role="tabpanel" hidden><div class="ht-book-filter"><label>Min. <input id="ht-tape-min" type="number" min="0" step="any" placeholder="0"></label><label><input id="ht-tape-merge" type="checkbox"> łącz zlecenia</label></div><div class="ht-book-title"><span>CZAS</span><span>CENA</span><span>WIELKOŚĆ</span></div><div id="ht-tape-rows"><p class="ht-empty">Czekam na transakcje…</p></div></div></aside>
   </div>`
@@ -17,6 +17,7 @@ window.HyperTerminal = (() => {
   const fmt = n => { if (!Number.isFinite(n)) return '—'; const digits = n < 1 ? 6 : n < 100 ? 4 : 2; return format('f' + digits, { maximumFractionDigits: digits }).format(n) }
   const compact = n => Number.isFinite(n) ? format('compact', { notation: 'compact', maximumFractionDigits: 2 }).format(n) : '—'
   const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]))
+  let baseCandles = []   // candles the chart's timeframe is built from (the same candles for native intervals)
   let all = [], selected = localStorage.getItem('hl-coin') || 'xyz:XYZ100', interval = localStorage.getItem('hl-interval') || '1h'
   let chart, series, volumeSeries, drawingPanel, request = 0, profileRequest = 0, initialized = false, chartKey = '', profileCandles = [], profileOverlay
   let settings = { volume: false, tpo: false, step: 0, mode: 'daily', from: '08:00', to: '16:30' }
@@ -31,9 +32,18 @@ window.HyperTerminal = (() => {
   $('ht-tpo-from').value = settings.from
   $('ht-tpo-to').value = settings.to
   $('ht-tpo-hours').hidden = settings.mode !== 'session'
-  const periods = ['1m', '5m', '15m', '30m', '1h', '4h', '1d', '1w', '1M']
-  if (!periods.includes(interval)) interval = '1h'
-  $('ht-periods').innerHTML = periods.map(p => `<button data-period="${p}">${p}</button>`).join('')
+  // Timeframes: the built-in ones plus the user's own (terminal-timeframes.js builds e.g. 6h or 90m from smaller candles).
+  const TF = TerminalTimeframes
+  if (!TF.parse(interval)) interval = '1h'
+  function renderPeriods() {
+    const custom = TF.custom()
+    $('ht-periods').innerHTML = TF.all().map(p => custom.includes(p)
+      ? `<span class="ht-period-custom"><button type="button" data-period="${p}" title="Własny interwał ${p}">${p}</button><button type="button" class="ht-period-del" data-remove-period="${p}" title="Usuń interwał ${p}" aria-label="Usuń interwał ${p}">×</button></span>`
+      : `<button type="button" data-period="${p}">${p}</button>`).join('')
+      + `<button type="button" class="ht-period-add" data-add-period title="Dodaj własny interwał, np. 6h, 90m, 2d" aria-label="Dodaj własny interwał">+</button><input id="ht-period-input" class="ht-period-input" hidden placeholder="np. 6h, 90m" aria-label="Własny interwał, np. 6h, 90m, 2d" autocomplete="off" spellcheck="false" maxlength="8">`
+    $('ht-periods').querySelectorAll('[data-period]').forEach(b => b.classList.toggle('active', b.dataset.period === interval))
+  }
+  renderPeriods()
 
   function theme() {
     if (!chart) return
@@ -123,8 +133,9 @@ window.HyperTerminal = (() => {
     const saved = chartKey !== key ? stash.get('hl-candles') : null
     if (saved?.key === key && saved.candles?.length) { paintChart(saved.candles, key); workspace?.dataUpdated(true) }
     try {
-      const { candles } = await json(`/api/hl/candles?coin=${encodeURIComponent(selected)}&interval=${encodeURIComponent(interval)}`)
+      const { candles, base } = await TF.load(json, selected, interval)
       if (stamp !== request) return
+      baseCandles = base
       stash.put('hl-candles', { key, candles })
       paintChart(candles, key)
       workspace?.dataUpdated()
@@ -331,7 +342,28 @@ window.HyperTerminal = (() => {
     const coin = e.target.closest('[data-jump]')?.dataset.jump
     if (coin) { closeJump(true); select(coin) }
   })
-  $('ht-periods').addEventListener('click', e => { const p = e.target.closest('[data-period]')?.dataset.period; if (p && p !== interval) { interval = p; Store.set('hl-interval', p); orderflow.setMarket(selected, interval); studies.setMarket(selected, interval); renderQuote(); loadChart() } })
+  function setPeriod(p) { if (!p || p === interval) return; interval = p; Store.set('hl-interval', p); baseCandles = []; orderflow.setMarket(selected, interval); studies.setMarket(selected, interval); renderQuote(); loadChart(); followLive() }
+  const periodInput = () => $('ht-periods').querySelector('#ht-period-input')
+  function closePeriodInput() { const input = periodInput(); if (input && !input.hidden) { input.hidden = true; input.value = ''; input.classList.remove('invalid') } }
+  $('ht-periods').addEventListener('click', e => {
+    const remove = e.target.closest('[data-remove-period]')?.dataset.removePeriod
+    if (remove) { TF.remove(remove); if (remove === interval) setPeriod('1h'); return }
+    if (e.target.closest('[data-add-period]')) { const input = periodInput(); input.hidden = !input.hidden; if (!input.hidden) input.focus(); return }
+    setPeriod(e.target.closest('[data-period]')?.dataset.period)
+  })
+  // "6h", "h6", "90m", "m90", "2d": Enter adds the frame and switches to it.
+  $('ht-periods').addEventListener('keydown', e => {
+    if (e.target.id !== 'ht-period-input') return
+    e.stopPropagation()
+    if (e.key === 'Escape') { closePeriodInput(); return }
+    if (e.key !== 'Enter') { e.target.classList.remove('invalid'); return }
+    const label = TF.add(e.target.value)
+    if (!label) { e.target.classList.add('invalid'); e.target.title = 'Nieprawidłowy interwał. Przykłady: 6h, 90m, 2d, 2w (od 1m do 4w).'; return }
+    closePeriodInput(); setPeriod(label); renderPeriods()
+  })
+  // Leaving the field closes it, unless focus came back in the meantime (e.g. "+" pressed again right away).
+  $('ht-periods').addEventListener('focusout', e => { if (e.target.id === 'ht-period-input') setTimeout(() => { if (document.activeElement !== periodInput()) closePeriodInput() }, 150) })
+  window.addEventListener('timeframeschange', renderPeriods)
   window.addEventListener('themechange', theme)
   // autoSize resizes the canvas without replacing the user's zoom or scroll position.
   // Live data through the shared Hyperliquid stream (hl-stream.js): the candle of the open interval, the order book and
@@ -350,7 +382,7 @@ window.HyperTerminal = (() => {
       workspace?.liveStatus?.(next)
       if (next === 'live' && before === 'gap') { loadChart(); loadBook() }
     }
-    offs.push(stream.subscribe({ type: 'candle', coin, interval }, data => liveCandle(key, data), status))
+    offs.push(stream.subscribe({ type: 'candle', coin, interval: TF.parse(interval).base }, data => liveCandle(key, data), status))
     offs.push(stream.subscribe({ type: 'l2Book', coin }, book => { if (selected === coin) { pendingBook = book; if (!bookFrame) bookFrame = requestAnimationFrame(paintBook) } }))
     offs.push(stream.subscribe({ type: 'activeAssetCtx', coin }, data => liveContext(coin, data.ctx)))
     offs.push(stream.subscribe({ type: 'trades', coin }, list => onTrades(coin, list)))
@@ -361,8 +393,16 @@ window.HyperTerminal = (() => {
   }
   function liveCandle(key, data) {
     if (key !== chartKey || !series || !drawingPanel?.candles?.length) return
-    const bar = HLStream.candleOf(data)
+    let bar = HLStream.candleOf(data)
     if (![bar.time, bar.open, bar.high, bar.low, bar.close].every(Number.isFinite)) return
+    // A built timeframe (6h from 2h...): merge the streamed base candle, then rebuild the forming bar from its bucket.
+    const frame = TF.parse(interval)
+    if (!frame.native) {
+      if (!baseCandles.length || !HLStream.mergeCandle(baseCandles, bar)) return
+      const start = TF.bucket(bar.time, frame), tail = []
+      for (let i = baseCandles.length - 1; i >= 0 && baseCandles[i].time >= start; i--) tail.unshift(baseCandles[i])
+      bar = TF.aggregate(tail, frame)[0]
+    }
     const kind = HLStream.mergeCandle(drawingPanel.candles, bar)
     if (!kind) return
     series.update(bar)
@@ -410,5 +450,12 @@ window.HyperTerminal = (() => {
   let shownAt = Date.now()
   workspace = window.TerminalWorkspace?.attach(root, { theme, market: () => ({ coin: selected, interval, markets: all }), fetchJson: json,
     chartRef: () => chart ? { chart, series, candles: drawingPanel?.candles || [] } : null })
+  // Camera: all charts on screen (main chart and the visible layout panes) with their drawings, as one PNG.
+  if (window.TerminalSnapshot) TerminalSnapshot.attach({ button: $('ht-snapshot'), host: root.querySelector('.ht-main'), collect: () => {
+    const panes = [], el = $('ht-chart')
+    if (chart && el.getBoundingClientRect().width > 0 && !el.closest('[hidden]')) panes.push({ el, chart, title: `${all.find(m => m.coin === selected)?.name || selected} · ${interval}` })
+    panes.push(...(workspace?.snapshotPanes?.() || []))
+    return { area: workspace?.snapshotArea || el, panes }
+  } })
   return { show() { workspace?.show(); if (!initialized) { initialized = true; loadMarkets().then(() => { loadChart(); loadBook(); loadProfile() }) } else if (Date.now() - shownAt > 15000) { shownAt = Date.now(); loadMarkets(); loadBook(); loadProfile() } } }
 })()

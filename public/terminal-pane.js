@@ -3,7 +3,9 @@
 // each pane in each layout remembers what it shows. The main terminal chart (hyper-terminal.js) stays separate.
 (function (root) {
   'use strict';
-  const FRAMES = ['1m', '5m', '15m', '30m', '1h', '4h', '1d', '1w', '1M'];
+  // Built-in and user timeframes (terminal-timeframes.js); a built timeframe (6h, 90m...) comes from smaller candles.
+  const TF = () => root.TerminalTimeframes;
+  const frameOptions = current => [...new Set([...TF().all(), current].filter(Boolean))].map(f => `<option value="${f}">${f}</option>`).join('');
   const SPAN = { '1m': 60, '5m': 300, '15m': 900, '30m': 1800, '1h': 3600, '4h': 14400, '1d': 86400, '1w': 604800, '1M': 2592000 };
   const ORDERFLOW = ['footprint', 'delta', 'profile', 'tradebubbles'];
   const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -35,7 +37,7 @@
         <div class="tw-sym"><button type="button" class="tw-symbol-btn" aria-haspopup="listbox" aria-expanded="false" title="Zmień instrument"><strong class="tw-symbol">—</strong><span aria-hidden="true">▾</span></button>
           <div class="tw-jump" hidden><input type="search" placeholder="Szukaj tickera…" aria-label="Instrument wykresu ${n}" autocomplete="off" spellcheck="false"><div class="tw-jump-list" role="listbox"></div></div></div>
         <span class="tw-last"></span><span class="tw-grow"></span>
-        <select data-frame aria-label="Interwał wykresu ${n}">${FRAMES.map(f => `<option value="${f}">${f}</option>`).join('')}</select>
+        <select data-frame aria-label="Interwał wykresu ${n}">${frameOptions()}</select>
         <button type="button" class="tw-ind-btn" aria-expanded="false" title="Indykatory wykresu ${n}">ƒx</button>
         <button type="button" data-fit title="Dopasuj wykres" aria-label="Dopasuj wykres ${n}">↔</button>
         <button type="button" data-focus="${o.slot}" title="Powiększ wykres" aria-label="Powiększ wykres ${n}">${EXPAND}</button>
@@ -54,6 +56,7 @@
     const firstUse = read(o.key + ':ind') === null, mode = o.config().mode;
     if (firstUse) { flags.volume = mode === 'volume'; flags.tpo = mode === 'tpo'; saveFlags(); }
 
+    let base = [];   // candles the pane's timeframe is built from
     let chart = null, series, volume, panel, drawings, profile, orderflow, studies, candles = [], key = '', coin = '', interval = '', shown = false;
     let stamp = 0, loadedAt = 0, controller = null, unfollow = null, feed = '', streaming = '', studiesTimer = 0, tpoCandles = [], tpoStamp = 0, tpoAt = 0;
     const views = {};   // zoom per market and interval, restored when the pane comes back to it
@@ -130,9 +133,9 @@
       controller?.abort(); const mine = controller = new AbortController(), id = ++stamp;
       if (key !== next) { series.setData([]); volume.setData([]); candles = []; panel.candles = []; message('Ładowanie wykresu…'); }
       try {
-        const data = await o.fetchJson(`/api/hl/candles?coin=${encodeURIComponent(coin)}&interval=${interval}`, { signal: mine.signal });
+        const data = await TF().load(o.fetchJson, coin, interval, { signal: mine.signal });
         if (id !== stamp || !chart) return;
-        loadedAt = Date.now(); paint(data.candles, next);
+        base = data.base; loadedAt = Date.now(); paint(data.candles, next);
       } catch (e) { if (id === stamp && e.name !== 'AbortError') message(key === next ? 'Nie odświeżono · poprzednie dane' : 'Dane niedostępne · ponowię automatycznie'); }
     }
     // TPO uses 30-minute candles of the same market, whatever the chart interval.
@@ -158,7 +161,7 @@
       const next = coin + ':' + interval;
       if (!root.HLStream || feed === next) return;
       unfollow?.(); feed = next; streaming = '';
-      unfollow = root.HLStream.shared.subscribe({ type: 'candle', coin, interval }, data => onBar(next, data), status => {
+      unfollow = root.HLStream.shared.subscribe({ type: 'candle', coin, interval: TF().parse(interval).base }, data => onBar(next, data), status => {
         const before = streaming; streaming = status;
         if (status === 'live' && before === 'gap') load(true);
       });
@@ -166,8 +169,15 @@
     function stopFollow() { unfollow?.(); unfollow = null; feed = ''; streaming = ''; clearTimeout(studiesTimer); studiesTimer = 0; }
     function onBar(next, data) {
       if (feed !== next || key !== next || !candles.length) return;
-      const bar = root.HLStream.candleOf(data);
+      let bar = root.HLStream.candleOf(data);
       if (![bar.time, bar.open, bar.high, bar.low, bar.close].every(Number.isFinite)) return;
+      const frame = TF().parse(interval);
+      if (!frame.native) {
+        if (!base.length || !root.HLStream.mergeCandle(base, bar)) return;
+        const start = TF().bucket(bar.time, frame), tail = [];
+        for (let i = base.length - 1; i >= 0 && base[i].time >= start; i--) tail.unshift(base[i]);
+        bar = TF().aggregate(tail, frame)[0];
+      }
       const kind = root.HLStream.mergeCandle(candles, bar);
       if (!kind) return;
       const c = o.palette();
@@ -180,7 +190,8 @@
     // ---- market and interval ------------------------------------------------------------------------------------
     function name(market) { return o.markets().find(m => m.coin === market)?.name || market || '—'; }
     function apply() {
-      const cfg = o.config(), nextCoin = (cfg.linked || !cfg.coin ? o.mainCoin() : cfg.coin) || '', nextInterval = FRAMES.includes(cfg.interval) ? cfg.interval : '1h';
+      const cfg = o.config(), nextCoin = (cfg.linked || !cfg.coin ? o.mainCoin() : cfg.coin) || '', nextInterval = TF().parse(cfg.interval) ? cfg.interval : '1h';
+      $('[data-frame]').innerHTML = frameOptions(nextInterval);
       $('[data-frame]').value = nextInterval;
       $('[data-link]').setAttribute('aria-pressed', String(!!cfg.linked));
       $('[data-link]').title = cfg.linked ? 'Połączony z głównym wykresem · kliknij, aby odłączyć' : 'Połącz z instrumentem głównego wykresu';
@@ -188,7 +199,7 @@
       if (!chart) return;
       if (nextCoin === coin && nextInterval === interval) return;
       const coinChanged = nextCoin !== coin;
-      coin = nextCoin; interval = nextInterval;
+      coin = nextCoin; interval = nextInterval; base = [];
       if (coinChanged) {
         panel.symbol = 'hl:' + coin; drawings.reload(); tpoCandles = []; tpoAt = 0; profile.set([]);
       }
@@ -225,13 +236,15 @@
       o.change(cfg.linked ? { linked: false, coin: coin || o.mainCoin() } : { linked: true }); apply();
     });
     $('[data-frame]').addEventListener('change', e => { o.change({ interval: e.target.value }); apply(); });
+    // The user added or removed a timeframe: refresh the list (the pane keeps its interval).
+    root.addEventListener?.('timeframeschange', () => { const sel = $('[data-frame]'), value = sel.value; sel.innerHTML = frameOptions(value); sel.value = value; });
     $('[data-fit]').addEventListener('click', fit);
 
     // Crosshair from another chart: the bar of this pane that contains that moment.
     function crosshair(time) {
       if (!chart || !shown) return;
       if (time === null || !candles.length) { chart.clearCrosshairPosition(); return; }
-      const span = SPAN[interval] || 60;
+      const span = SPAN[interval] || TF().parse(interval)?.seconds || 60;
       let lo = 0, hi = candles.length - 1;
       if (time < candles[0].time || time >= candles[hi].time + span) { chart.clearCrosshairPosition(); return; }
       while (lo < hi) { const mid = (lo + hi + 1) >> 1; candles[mid].time <= time ? lo = mid : hi = mid - 1; }
@@ -255,6 +268,8 @@
       mainChanged() { if (o.config().linked) apply(); else $('.tw-symbol').textContent = name(coin); },
       marketsLoaded() { $('.tw-symbol').textContent = name(coin || o.mainCoin()); },
       theme, fit, crosshair,
+      // For the terminal screenshot (terminal-snapshot.js).
+      snapshot() { return chart && shown ? { el: panel.el, chart, title: `${name(coin)} · ${interval}` } : null; },
       configChanged() { apply(); },
       refresh() { if (shown) { load(); loadTpo(); } },
       destroy() { api.hide(); if (chart) { orderflow.destroy?.(); chart.remove(); chart = null; } el.remove(); },

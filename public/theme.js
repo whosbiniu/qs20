@@ -19,13 +19,13 @@ const Theme = (() => {
   // Frosted glass: `clear` 0..1 is how much shows through (0 = almost solid, 1 = almost clear glass).
   let glass = { clear: .42 };
   const rgb = hex => [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16)).join(' ');
-  // Dark smoked glass; text keeps the accent colour of the theme. Comma rgba() syntax: the chart library parses these too.
-  const TINT = '13, 21, 36';
+  // Black smoked glass: neutral tint, no colour cast; text keeps the accent colour of the theme.
+  // Comma rgba() syntax, because the chart library parses these colours too.
+  const TINT = '8, 8, 10';
   function glassPalette(id) {
-    const surface = +(.82 - .34 * glass.clear).toFixed(3);
-    return { ...THEMES[id], bg: `rgba(${TINT}, 0.48)`, surface: `rgba(${TINT}, ${surface})`,
-      dim: '#aab8ca', line: 'rgba(221, 237, 255, 0.20)', faint: 'rgba(221, 237, 255, 0.09)',
-      land: 'rgba(221, 237, 255, 0.06)', border: 'rgba(238, 248, 255, 0.34)' };
+    const surface = +(.9 - .82 * glass.clear).toFixed(3);
+    return { ...THEMES[id], bg: `rgba(${TINT}, ${(surface * .25).toFixed(3)})`, surface: `rgba(${TINT}, ${surface})`,
+      line: 'rgba(255, 255, 255, 0.13)', faint: 'rgba(255, 255, 255, 0.06)', land: 'rgba(255, 255, 255, 0.045)', border: 'rgba(255, 255, 255, 0.22)' };
   }
   const paletteOf = (id, m) => m === 'light' ? THEMES[id].light : m === 'glass' ? glassPalette(id) : { bg: DARK_BG, ...THEMES[id] };
   // In the Mac app the window itself turns into glass over the desktop (see desktop/macos/main.swift).
@@ -42,7 +42,7 @@ const Theme = (() => {
     // Text on an ink-coloured background (active buttons): always solid, also on glass.
     style.setProperty('--on-ink', mode === 'light' ? theme.bg : DARK_BG);
     style.setProperty('--glass', theme.surface || theme.bg);
-    style.setProperty('--glass-blur', (16 + 24 * (1 - glass.clear)).toFixed(1) + 'px');
+    style.setProperty('--glass-blur', (8 + 28 * (1 - glass.clear)).toFixed(1) + 'px');
     style.setProperty('--ink-rgb', rgb(theme.ink));
     // Variables of the framed Kwartały pages that carry text and accent colours.
     style.setProperty('--text', theme.ink); style.setProperty('--muted', theme.dim);

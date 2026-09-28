@@ -1,58 +1,95 @@
-/* Frosted liquid glass (Theme mode "glass"). Pages, bars and the side panel become frosted panes; what shows through
-   is a wallpaper in the browser, or the desktop itself in the Mac app (html[data-native]). --glass, --glass-blur and
-   the translucent --bg come from theme.js and follow the transparency slider. */
+/* Black frosted liquid glass (Theme mode "glass").
+   Neutral black smoked panes with a strong blur, a bright rim along the top edge, a soft sheen and deep shadows; active
+   controls become lighter glass pills instead of solid blocks. Under the glass: a black wallpaper with soft light in
+   the browser, or the desktop itself in the Mac app (html[data-native]). theme.js sets --glass, --glass-blur and the
+   translucent --bg from the transparency slider. The site font and layout stay as they are. */
 html[data-color-mode=glass] {
-  background: transparent;
-  --glass-edge: rgb(255 255 255 / .18);
-  --glass-shine: rgb(255 255 255 / .24);
-  --glass-pop: rgb(14 17 26 / .84);
+  background: #000;
+  --glass-edge: rgba(255, 255, 255, .13);
+  --glass-rim: rgba(255, 255, 255, .34);
+  --glass-pill: rgba(255, 255, 255, .15);
+  --glass-pop: rgba(10, 10, 12, .86);
+  /* Layered pane: diagonal sheen, top gloss, then the smoked tint. */
+  --glass-pane: linear-gradient(118deg, rgba(255, 255, 255, .055), transparent 28%),
+    linear-gradient(180deg, rgba(255, 255, 255, .07), rgba(255, 255, 255, .015) 24%, transparent 55%), var(--glass);
+  --glass-shadow: inset 0 1px 0 var(--glass-rim), inset 1px 0 0 rgba(255, 255, 255, .05), inset -1px 0 0 rgba(255, 255, 255, .03),
+    inset 0 -1px 0 rgba(0, 0, 0, .4), 0 26px 70px rgba(0, 0, 0, .6);
 }
 html[data-color-mode=glass] body {
   background: var(--glass-wall,
-    radial-gradient(60% 50% at 16% 10%, rgb(70 120 190 / .8), transparent 70%),
-    radial-gradient(50% 45% at 86% 16%, rgb(150 90 185 / .65), transparent 70%),
-    radial-gradient(55% 50% at 62% 92%, rgb(40 150 135 / .6), transparent 70%),
-    linear-gradient(160deg, #0b1322, #161c30 55%, #0a0f16)) center / cover no-repeat fixed;
+    radial-gradient(42% 38% at 16% 10%, rgba(255, 255, 255, .12), transparent 70%),
+    radial-gradient(36% 42% at 88% 82%, rgba(255, 255, 255, .08), transparent 70%),
+    radial-gradient(26% 26% at 58% 34%, rgba(170, 170, 180, .06), transparent 70%),
+    linear-gradient(160deg, #0b0b0c, #020202 60%, #080809)) center / cover no-repeat fixed;
 }
-html[data-color-mode=glass][data-native] body { background: transparent }
+html[data-color-mode=glass][data-native], html[data-color-mode=glass][data-native] body { background: transparent }
 
-/* The panes: translucent tint, blur of what is behind, a light rim and a soft highlight along the top edge. */
+/* ---- panes ------------------------------------------------------------------------------------------------------ */
 html[data-color-mode=glass] :is(body > .bar, body > nav, body > #tape, #side, body > footer, main > .page) {
-  background: linear-gradient(180deg, rgb(255 255 255 / .07), transparent 38%), var(--glass);
-  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.7);
-  backdrop-filter: blur(var(--glass-blur)) saturate(1.7);
+  background: var(--glass-pane);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.35);
+  backdrop-filter: blur(var(--glass-blur)) saturate(1.35);
   border: 1px solid var(--glass-edge);
-  border-radius: 14px;
-  box-shadow: inset 0 1px 0 var(--glass-shine), inset 0 -1px 0 rgb(0 0 0 / .18), 0 18px 50px rgb(0 0 0 / .22);
+  border-radius: 18px;
+  box-shadow: var(--glass-shadow);
 }
-html[data-color-mode=glass] body > .bar { padding: 6px 12px }
-html[data-color-mode=glass] body > footer { padding: 5px 12px }
+html[data-color-mode=glass] body > .bar { padding: 7px 14px }
+html[data-color-mode=glass] body > footer { padding: 6px 14px }
+html[data-color-mode=glass] body > #tape { mask-image: none; padding: 6px 0 }
 html[data-color-mode=glass] :is(body > nav, main > .page) { overflow: hidden }
-html[data-color-mode=glass] body > #tape { mask-image: none }
-/* The desktop (Mac app) is not part of the page, so CSS blur has nothing to blur there: the window does it. */
+/* Content keeps clear of the rounded edge. The Start page positions its bar and grid absolutely, so they move in too. */
+html[data-color-mode=glass] main > .page { padding: 10px }
+html[data-color-mode=glass] #home .home-bar { top: 8px; left: 14px; right: 14px }
+html[data-color-mode=glass] #home .home-grid { top: 46px; left: 10px; right: 10px; bottom: 10px }
+/* The desktop is not part of the page: in the Mac app the window blurs it, CSS has nothing to blur. */
 html[data-color-mode=glass][data-native] :is(body > .bar, body > nav, body > #tape, #side, body > footer, main > .page) {
   -webkit-backdrop-filter: none; backdrop-filter: none;
 }
 
-/* Menus, pop-ups and tooltips sit over charts: more tint so they stay readable. */
-html[data-color-mode=glass] :is(.ht-ind-pop, .ht-indicator-panel, .ht-jump, .tw-jump, .draw-edit, .draw-text, .ot-tip) {
-  background: var(--glass-pop) !important;
-  -webkit-backdrop-filter: blur(24px) saturate(1.5); backdrop-filter: blur(24px) saturate(1.5);
-  border-color: var(--glass-edge) !important;
-}
-/* Text on an ink-coloured (active) button stays solid, whatever the transparency. */
-html[data-color-mode=glass] :is(button.active, nav button.active, .modes button.active, .mon-tabs button.active, .mon-side .go,
-  .tv-btn.active, .draw-bar button.active, .ot-nav button.active, .ot-mini[aria-pressed=true], .pc button.active, .mon-bar button.active) {
-  color: var(--on-ink) !important;
+/* Boxes inside a pane: a thinner layer of the same glass. */
+html[data-color-mode=glass] :is(.cell, .widget, .ot-card, .ot-tile) {
+  border-radius: 14px; border-color: var(--glass-edge);
+  background: linear-gradient(180deg, rgba(255, 255, 255, .045), rgba(255, 255, 255, .012) 40%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .1);
 }
 
-/* Transparency slider and wallpaper, shown in the top bar in glass mode only. */
+/* ---- navigation: tabs are pills on the glass ------------------------------------------------------------------ */
+html[data-color-mode=glass] body > nav { padding: 4px; gap: 2px; border-color: var(--glass-edge) }
+html[data-color-mode=glass] body > nav button { border-right: 0; border-radius: 13px }
+html[data-color-mode=glass] body > nav button:hover { background: rgba(255, 255, 255, .06) }
+
+/* ---- controls ----------------------------------------------------------------------------------------------------- */
+html[data-color-mode=glass] :is(button, select, input:not([type=range]):not([type=checkbox]):not([type=color]), textarea) { border-radius: 9px }
+html[data-color-mode=glass] :is(select, input:not([type=range]):not([type=checkbox]):not([type=color]), textarea) {
+  background-color: rgba(255, 255, 255, .05); border-color: var(--glass-edge);
+}
+html[data-color-mode=glass] .swatches button { border-radius: 50% }
+/* Active state: a lighter glass pill with its own rim, never a solid ink block. */
+html[data-color-mode=glass] :is(button.active, nav button.active, .modes button.active, .mon-tabs button.active, .tv-btn.active,
+  .draw-bar button.active, .ot-nav button.active, .ot-mini[aria-pressed=true], .pc button.active, .mon-bar button.active, .tools button.active) {
+  background: var(--glass-pill) !important;
+  color: var(--ink) !important;
+  border-color: rgba(255, 255, 255, .26) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .32), 0 6px 18px rgba(0, 0, 0, .45);
+}
+html[data-color-mode=glass] .mon-side .go { color: var(--on-ink) !important }
+html[data-color-mode=glass] * { scrollbar-color: rgba(255, 255, 255, .18) transparent }
+
+/* ---- menus, pop-ups and tooltips over charts: darker glass so they stay readable -------------------------------- */
+html[data-color-mode=glass] :is(.ht-ind-pop, .ht-indicator-panel, .ht-jump, .tw-jump, .draw-edit, .draw-text, .ot-tip) {
+  background: linear-gradient(180deg, rgba(255, 255, 255, .06), transparent 40%), var(--glass-pop) !important;
+  -webkit-backdrop-filter: blur(28px) saturate(1.4); backdrop-filter: blur(28px) saturate(1.4);
+  border: 1px solid var(--glass-edge) !important; border-radius: 14px !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .22), 0 20px 50px rgba(0, 0, 0, .6) !important;
+}
+
+/* ---- transparency slider and wallpaper, in the top bar in glass mode only ---------------------------------------- */
 .glass-tools { display: none; align-items: center; gap: 8px; color: var(--dim) }
 html[data-color-mode=glass] .glass-tools { display: inline-flex }
 .glass-tools input[type=range] { width: 110px; accent-color: var(--ink) }
 .glass-tools output { min-width: 3.2em; color: var(--ink) }
-.glass-tools button { font: inherit; font-size: 11px; background: transparent; color: var(--dim); border: 1px solid var(--line); border-radius: 6px; padding: 1px 7px; cursor: pointer }
+.glass-tools button { font: inherit; font-size: 11px; background: transparent; color: var(--dim); border: 1px solid var(--line); padding: 1px 8px; cursor: pointer }
 .glass-tools button:hover { color: var(--ink); border-color: var(--ink) }
 html[data-native] .glass-tools [data-wall] { display: none }
-/* The logo is drawn on black: on glass the black should disappear, not show as a dark disc. */
+/* The logo is drawn on black: on glass the black disappears instead of showing as a dark disc. */
 html[data-color-mode=glass] .bar .brand img { mix-blend-mode: screen }

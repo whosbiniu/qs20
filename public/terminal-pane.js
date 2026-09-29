@@ -61,14 +61,17 @@
     let stamp = 0, loadedAt = 0, controller = null, unfollow = null, feed = '', streaming = '', studiesTimer = 0, tpoCandles = [], tpoStamp = 0, tpoAt = 0;
     const views = {};   // zoom per market and interval, restored when the pane comes back to it
 
+    // Chart settings of this pane's layout (terminal-appearance.js); "auto" colours follow the theme.
+    const A = root.TerminalAppearance, layout = () => o.layout || 'BBB';
     function theme() {
       if (!chart) return;
       const c = o.palette();
-      chart.applyOptions({ layout: { background: { color: c.bg }, textColor: c.dim, fontFamily: 'ui-monospace, Menlo, monospace', fontSize: 10 },
-        grid: { vertLines: { visible: false }, horzLines: { visible: false } }, rightPriceScale: { borderColor: c.line }, timeScale: { borderColor: c.line },
-        crosshair: { mode: LightweightCharts.CrosshairMode.Normal, vertLine: { color: c.dim }, horzLine: { color: c.dim } } });
-      series.applyOptions({ upColor: c.up, downColor: c.down, borderUpColor: c.up, borderDownColor: c.down, wickUpColor: c.up, wickDownColor: c.down });
+      chart.applyOptions(A.chartOptions(layout(), c));
+      series.applyOptions(A.seriesOptions(layout(), c));
+      A.watermark(chart, layout(), c, { symbol: name(coin), interval });
     }
+    const volumeBar = (b, c) => ({ time: b.time, value: Math.max(0, Number(b.volume) || 0), color: A.volumeColor(layout(), c, b.close >= b.open) });
+    root.addEventListener?.('terminalappearance', () => { if (!chart) return; theme(); if (candles.length) { const c = o.palette(); series.setData(A.colorBars(candles, layout(), c)); volume.setData(candles.map(b => volumeBar(b, c))); series.applyOptions({ priceFormat: A.priceFormat(layout(), candles.at(-1)?.close) }); } });
     function build() {
       if (chart) return;
       chart = LightweightCharts.createChart(chartEl, { autoSize: true, localization: { locale: 'pl-PL' }, timeScale: { timeVisible: true, secondsVisible: false, rightOffset: 8 }, rightPriceScale: { minimumWidth: 64 } });
@@ -116,11 +119,12 @@
       const changed = next !== key;
       if (changed && key && chart) { const r = chart.timeScale().getVisibleLogicalRange(); if (r) views[key] = r; }
       key = next; candles = list; panel.candles = list;
-      const last = list.at(-1)?.close, precision = last > 100 ? 2 : last > 1 ? 4 : 8;
-      series.applyOptions({ priceFormat: { type: 'price', precision, minMove: 10 ** -precision } });
-      series.setData(list);
+      const last = list.at(-1)?.close;
+      series.applyOptions({ priceFormat: A.priceFormat(layout(), last) });
       const c = o.palette();
-      volume.setData(list.map(b => ({ time: b.time, value: Math.max(0, Number(b.volume) || 0), color: b.close >= b.open ? c.up + '40' : c.down + '40' })));
+      series.setData(A.colorBars(list, layout(), c));
+      volume.setData(list.map(b => volumeBar(b, c)));
+      A.watermark(chart, layout(), c, { symbol: name(coin), interval });
       drawings.redraw(); orderflow.refresh(); studies.refresh();
       message(list.length ? '' : 'Brak świec dla tego zakresu');
       $('.tw-last').textContent = fmt(last);
@@ -181,8 +185,8 @@
       const kind = root.HLStream.mergeCandle(candles, bar);
       if (!kind) return;
       const c = o.palette();
-      series.update(bar);
-      volume.update({ time: bar.time, value: Math.max(0, bar.volume || 0), color: bar.close >= bar.open ? c.up + '40' : c.down + '40' });
+      series.update(A.colorBar(bar, candles[candles.length - 2], layout(), c));
+      volume.update(volumeBar(bar, c));
       $('.tw-last').textContent = fmt(bar.close);
       if (kind === 'append') { clearTimeout(studiesTimer); studiesTimer = 0; drawings.redraw(); orderflow.refresh(); studies.refresh(); }
       else if (!studiesTimer) studiesTimer = setTimeout(() => { studiesTimer = 0; if (key === next) studies.refresh(); }, 2000);

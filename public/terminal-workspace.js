@@ -35,6 +35,7 @@
     book: '<path d="M4 4h12M4 8h8M4 12h12M4 16h8M14 7v10"/>',
     expand: '<path d="M7 3H3v4M13 3h4v4M3 13v4h4M17 13v4h-4"/>',
     reset: '<path d="M4 7a7 7 0 1 1-.2 5M4 3v4h4"/>',
+    gear: '<circle cx="10" cy="10" r="2.6"/><path d="M10 2.5v2M10 15.5v2M2.5 10h2M15.5 10h2M4.7 4.7l1.4 1.4M13.9 13.9l1.4 1.4M4.7 15.3l1.4-1.4M13.9 6.1l1.4-1.4"/>',
     link: '<path d="m8 12 4-4M7 13l-1 1a3 3 0 0 1-4-4l4-4a3 3 0 0 1 4 0M13 7l1-1a3 3 0 0 1 4 4l-4 4a3 3 0 0 1-4 0"/>',
     sync: '<path d="M10 2v16M2 10h16"/><circle cx="10" cy="10" r="3"/>',
     save: '<path d="M10 3v10M6 9l4 4 4-4M4 16h12"/>',
@@ -63,6 +64,7 @@
       <button type="button" class="tw-tool" data-action="sync" title="Wspólny kursor na wszystkich wykresach" aria-label="Wspólny kursor">${icon('sync')}</button>
       <button type="button" class="tw-tool" data-action="export" title="Zapisz układ i ustawienia wykresów do pliku" aria-label="Eksportuj układ">${icon('save')}</button>
       <button type="button" class="tw-tool" data-action="import" title="Wczytaj układ z pliku" aria-label="Importuj układ">${icon('open')}</button><input type="file" accept="application/json,.json" data-import hidden>
+      <button type="button" class="tw-reset" data-action="appearance" title="Ustawienia wykresu: kolory świec, tło, siatka, skale, kursor" aria-label="Ustawienia wykresu">${icon('gear')}</button>
       <button type="button" class="tw-reset" data-action="reset" title="Przywróć domyślne ustawienia tego layoutu" aria-label="Przywróć domyślny layout">${icon('reset')}</button>
     </div>
     <div class="tw-status"><span class="tw-data-status">Hyperliquid · oczekiwanie na dane</span><span class="tw-grow"></span><span class="tw-shortcut">⌘ / Ctrl + Enter · powiększ wykres</span><span class="tw-zone">UTC</span></div>`;
@@ -82,7 +84,7 @@
       if (!panes.has(id)) {
         const p = TerminalPane.create({ slot, key: id, fetchJson: api.fetchJson, markets: () => api.market().markets, mainCoin: () => api.market().coin,
           config: () => state.layouts[preset].panels[slot - 1], change: patch => { Object.assign(state.layouts[preset].panels[slot - 1], patch); save(); },
-          palette, onCrosshair });
+          palette, onCrosshair, layout: preset });
         p.preset = preset; grid.append(p.el); panes.set(id, p);
       }
       return panes.get(id);
@@ -175,6 +177,7 @@
       else if (button.dataset.action === 'sync') { layout().sync = !layout().sync; if (!layout().sync) { visiblePanes().forEach(p => p.crosshair(null)); mainCrosshair(null); } render(); save(); }
       else if (button.dataset.action === 'export') exportLayout();
       else if (button.dataset.action === 'import') shell.querySelector('[data-import]').click();
+      else if (button.dataset.action === 'appearance') root.TerminalAppearance?.open({ scope: state.active, palette });
       else if (button.dataset.action === 'reset') {
         // Back to the defaults of this layout, including what each of its charts shows.
         dropPanes(state.active, true);

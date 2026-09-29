@@ -6,7 +6,7 @@ window.HyperTerminal = (() => {
       <div class="ht-jump" id="ht-jump" hidden><input id="ht-jump-input" type="search" placeholder="Szukaj tickera…" aria-label="Szukaj innego tickera" aria-controls="ht-jump-list" autocomplete="off" spellcheck="false"><div class="ht-jump-list" id="ht-jump-list" role="listbox" aria-label="Wyniki wyszukiwania tickera"></div></div>
       <div class="ht-stats"><div>WOLUMEN 24H <b id="ht-volume">—</b></div><div>OPEN INTEREST <b id="ht-oi">—</b></div><div>FUNDING / H <b id="ht-funding">—</b></div></div>
       <div class="ht-periods" id="ht-periods"></div>
-      <div class="ht-chart-tools"><button type="button" id="ht-indicators-open" aria-expanded="false" aria-controls="ht-indicator-panel">ƒx Indykatory</button><button id="ht-fit" type="button">Dopasuj wykres</button><button type="button" id="ht-snapshot" class="ht-snapshot" title="Zrzut wykresów (PNG)" aria-label="Zrzut wykresów" aria-expanded="false"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 7.500A1.500 1.500 0 0 1 4.500 6h2l1.200-1.800h4.600L13.500 6h2A1.500 1.500 0 0 1 17 7.500v7A1.500 1.500 0 0 1 15.500 16h-11A1.500 1.500 0 0 1 3 14.500z"/><circle cx="10" cy="11" r="3"/></svg></button></div>
+      <div class="ht-chart-tools"><button type="button" id="ht-indicators-open" aria-expanded="false" aria-controls="ht-indicator-panel">ƒx Indykatory</button><button id="ht-fit" type="button">Dopasuj wykres</button><button type="button" id="ht-appearance" class="ht-snapshot" title="Ustawienia wykresu: kolory świec, tło, siatka, skale, kursor" aria-label="Ustawienia wykresu"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="2.6"/><path d="M10 2.5v2M10 15.5v2M2.5 10h2M15.5 10h2M4.7 4.7l1.4 1.4M13.9 13.9l1.4 1.4M4.7 15.3l1.4-1.4M13.9 6.1l1.4-1.4"/></svg></button><button type="button" id="ht-snapshot" class="ht-snapshot" title="Zrzut wykresów (PNG)" aria-label="Zrzut wykresów" aria-expanded="false"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 7.500A1.500 1.500 0 0 1 4.500 6h2l1.200-1.800h4.600L13.500 6h2A1.500 1.500 0 0 1 17 7.500v7A1.500 1.500 0 0 1 15.500 16h-11A1.500 1.500 0 0 1 3 14.500z"/><circle cx="10" cy="11" r="3"/></svg></button></div>
       <aside class="ht-indicator-panel" id="ht-indicator-panel" hidden aria-label="Biblioteka indykatorów"><div class="ht-library-head"><strong>Indykatory</strong><button type="button" id="ht-indicators-close" aria-label="Zamknij panel indykatorów">×</button></div><input type="search" id="ht-indicator-search" placeholder="Szukaj indykatora…" aria-label="Szukaj indykatora"><div id="ht-indicator-list"></div></aside><div class="ht-ind-pop" id="ht-ind-pop" hidden role="dialog" aria-labelledby="ht-ind-pop-title"><div class="ht-ind-pop-head"><strong id="ht-ind-pop-title"></strong><button type="button" id="ht-ind-pop-remove" title="Usuń indykator z wykresu">Usuń</button><button type="button" id="ht-ind-pop-close" data-pop-close aria-label="Zamknij ustawienia">×</button></div><div class="st-settings" id="ht-studies-settings" hidden></div><div class="ht-tpo-controls" id="ht-profile" hidden><label>TPO <select id="ht-tpo-mode"><option value="daily">Dzienne</option><option value="session">Sesyjne</option><option value="weekly">Tygodniowe</option><option value="monthly">Miesięczne</option></select></label><span id="ht-tpo-hours" hidden><label>Od <input id="ht-tpo-from" type="time" step="1800" value="08:00"></label><label>Do <input id="ht-tpo-to" type="time" step="1800" value="16:30"></label> UTC</span><label>Krok ceny <input id="ht-step" type="number" min="0" step="any" value="0"></label><span id="ht-profile-info" role="status"></span></div><section id="ht-orderflow" aria-label="Ustawienia order flow" hidden></section><p class="ht-ind-pop-empty" id="ht-ind-pop-empty">Ten indykator nie ma ustawień.</p></div><div class="ht-chart" id="ht-chart"><div class="ht-active-indicators" id="ht-active-indicators" aria-label="Aktywne indykatory"></div></div><div class="ht-message" id="ht-message" hidden></div>
     </div><aside class="ht-book"><header><div class="ht-book-tabs" id="ht-book-tabs" role="tablist" aria-label="Arkusz i taśma"><button type="button" role="tab" data-book-tab="dom" aria-selected="true" aria-controls="ht-dom">ARKUSZ</button><button type="button" role="tab" data-book-tab="tape" aria-selected="false" aria-controls="ht-tape">TAŚMA</button></div><span id="ht-book-time"></span></header><div id="ht-dom" role="tabpanel"><div class="ht-book-title ht-dom-cols"><span>CENA</span><span>WIELKOŚĆ</span><span>SUMA</span><span title="Wolumen transakcji na tej cenie od otwarcia rynku w terminalu">HANDEL</span></div><div id="ht-asks"></div><div class="ht-spread" id="ht-spread">—</div><div id="ht-bids"></div><label class="ht-book-filter">Wyróżnij zlecenia od <input id="ht-dom-big" type="number" min="0" step="any" placeholder="auto"></label></div><div id="ht-tape" role="tabpanel" hidden><div class="ht-book-filter"><label>Min. <input id="ht-tape-min" type="number" min="0" step="any" placeholder="0"></label><label><input id="ht-tape-merge" type="checkbox"> łącz zlecenia</label></div><div class="ht-book-title"><span>CZAS</span><span>CENA</span><span>WIELKOŚĆ</span></div><div id="ht-tape-rows"><p class="ht-empty">Czekam na transakcje…</p></div></div></aside>
   </div>`
@@ -45,17 +45,22 @@ window.HyperTerminal = (() => {
   }
   renderPeriods()
 
+  // Colours and chart options come from the chart settings (terminal-appearance.js) of the active layout;
+  // colours left on "auto" follow the site theme.
+  const A = TerminalAppearance, layout = () => root.dataset?.workspace || 'BBB'
+  function palette() {
+    const css = getComputedStyle(root), color = name => css.getPropertyValue(name).trim()
+    return { bg: color('--bg'), ink: color('--ink'), dim: color('--dim'), line: color('--line'), up: color('--tw-up') || color('--ink'), down: color('--tw-down') || color('--bg') }
+  }
+  const marketName = () => all.find(m => m.coin === selected)?.name || selected
   function theme() {
     if (!chart) return
-    const css = getComputedStyle(root)
-    const color = name => css.getPropertyValue(name).trim()
-    chart.applyOptions({ layout: { background: { color: color('--bg') }, textColor: color('--dim'), fontFamily: 'ui-monospace,Menlo,monospace', fontSize: 10 },
-      grid: { vertLines: { visible: false }, horzLines: { visible: false } },
-      rightPriceScale: { borderColor: color('--line') }, timeScale: { borderColor: color('--line') },
-      crosshair: { mode: LightweightCharts.CrosshairMode.Normal, vertLine: { color: color('--dim') }, horzLine: { color: color('--dim') } } })
-    const up = color('--tw-up') || color('--ink'), down = color('--tw-down') || color('--bg')
-    series.applyOptions({ upColor: up, downColor: down, borderUpColor: up, borderDownColor: down, wickUpColor: up, wickDownColor: down })
+    const p = palette()
+    chart.applyOptions(A.chartOptions(layout(), p))
+    series.applyOptions(A.seriesOptions(layout(), p))
+    A.watermark(chart, layout(), p, { symbol: marketName(), interval })
   }
+  const volumeBar = (c, p) => ({ time: c.time, value: Number.isFinite(c.volume) ? c.volume : 0, color: A.volumeColor(layout(), p, c.close >= c.open) })
   function setupChart() {
     if (chart) return
     chart = LightweightCharts.createChart($('ht-chart'), { autoSize: true, localization: { locale: 'pl-PL' }, timeScale: { timeVisible: true, secondsVisible: false, rightOffset: 10 } })
@@ -144,10 +149,11 @@ window.HyperTerminal = (() => {
   }
   function paintChart(candles, key) {
     const changed = chartKey !== key
-    const last = candles.at(-1)?.close, precision = last > 100 ? 2 : last > 1 ? 4 : 8   // 30655.00, not 30655.0000
-    series.applyOptions({ priceFormat: { type: 'price', precision, minMove: 10 ** -precision } })
-    series.setData(candles)
-    volumeSeries.setData(candles.map(c => ({ time: c.time, value: Number.isFinite(c.volume) ? c.volume : 0, color: c.close >= c.open ? '#8dcc9c66' : '#dc8e8966' })))
+    series.applyOptions({ priceFormat: A.priceFormat(layout(), candles.at(-1)?.close) })   // 30655.00, not 30655.0000
+    const p = palette()
+    series.setData(A.colorBars(candles, layout(), p))
+    volumeSeries.setData(candles.map(c => volumeBar(c, p)))
+    A.watermark(chart, layout(), p, { symbol: marketName(), interval })
     drawingPanel.candles = candles
     if (drawingPanel.symbol !== 'hl:' + selected) { drawingPanel.symbol = 'hl:' + selected; drawingPanel.drawings.reload() }
     drawingPanel.drawings.redraw()
@@ -365,6 +371,9 @@ window.HyperTerminal = (() => {
   $('ht-periods').addEventListener('focusout', e => { if (e.target.id === 'ht-period-input') setTimeout(() => { if (document.activeElement !== periodInput()) closePeriodInput() }, 150) })
   window.addEventListener('timeframeschange', renderPeriods)
   window.addEventListener('themechange', theme)
+  $('ht-appearance').addEventListener('click', () => A.open({ scope: layout(), palette }))
+  // Chart settings changed (or another tab changed them): new options, and bars recoloured in place (zoom kept).
+  window.addEventListener('terminalappearance', () => { theme(); if (chart && chartKey && drawingPanel?.candles?.length) paintChart(drawingPanel.candles, chartKey) })
   // autoSize resizes the canvas without replacing the user's zoom or scroll position.
   // Live data through the shared Hyperliquid stream (hl-stream.js): the candle of the open interval, the order book and
   // the market context. REST loads the start and fills the gap after a dropped connection; while the stream is live the
@@ -405,8 +414,9 @@ window.HyperTerminal = (() => {
     }
     const kind = HLStream.mergeCandle(drawingPanel.candles, bar)
     if (!kind) return
-    series.update(bar)
-    volumeSeries.update({ time: bar.time, value: Number.isFinite(bar.volume) ? bar.volume : 0, color: bar.close >= bar.open ? '#8dcc9c66' : '#dc8e8966' })
+    const p = palette(), list = drawingPanel.candles
+    series.update(A.colorBar(bar, list[list.length - 2], layout(), p))
+    volumeSeries.update(volumeBar(bar, p))
     // Studies and overlays follow the new bar at once, and the forming bar at most every 2 s.
     if (kind === 'append') { clearTimeout(studiesTimer); studiesTimer = 0; drawingPanel.drawings.redraw(); orderflow.refresh(); studies.refresh() }
     else if (!studiesTimer) studiesTimer = setTimeout(() => { studiesTimer = 0; if (chartKey === key) studies.refresh() }, 2000)
@@ -448,7 +458,10 @@ window.HyperTerminal = (() => {
   setInterval(() => { if (!root.hidden && !document.hidden && initialized) { if (!streaming()) loadChart(); loadProfile() } }, 30000)
   // Revisiting the page within 15 s reuses the data (the timers keep it fresh while it is on screen).
   let shownAt = Date.now()
-  workspace = window.TerminalWorkspace?.attach(root, { theme, market: () => ({ coin: selected, interval, markets: all }), fetchJson: json,
+  // Switching BBB ↔ UNC may switch chart settings: re-theme, and recolour the bars when the layout changed.
+  let themedLayout = ''
+  const restyle = () => { theme(); if (themedLayout && themedLayout !== layout() && chart && chartKey && drawingPanel?.candles?.length) paintChart(drawingPanel.candles, chartKey); themedLayout = layout() }
+  workspace = window.TerminalWorkspace?.attach(root, { theme: restyle, market: () => ({ coin: selected, interval, markets: all }), fetchJson: json,
     chartRef: () => chart ? { chart, series, candles: drawingPanel?.candles || [] } : null })
   // Camera: all charts on screen (main chart and the visible layout panes) with their drawings, as one PNG.
   if (window.TerminalSnapshot) TerminalSnapshot.attach({ button: $('ht-snapshot'), host: root.querySelector('.ht-main'), collect: () => {

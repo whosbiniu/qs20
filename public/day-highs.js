@@ -108,9 +108,10 @@
     }
     return [...matched];
   }
+  // The session of an extreme, written as its quarter of the Daily Cycle profile
+  // (Asia Q1, London Q2, NY AM Q3, NY PM Q4). A candle across a boundary keeps both.
   function sessionLabel(dailyQ){
-    const names={Q1:'Azja',Q2:'Londyn',Q3:'NY AM',Q4:'NY PM'};
-    return String(dailyQ).split(' / ').map(q=>names[q]||'—').join(' / ');
+    return String(dailyQ).split(' / ').map(q=>/^Q[1-4]$/.test(q)?q:'—').join(' / ');
   }
   const api={register,calendarQuarter,assets,panels,tradingDay,quarters,quarterRange,monthly,periodKey,summarize,summarizeAll,matchingKeys,sessionLabel};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.DayHighs=api;

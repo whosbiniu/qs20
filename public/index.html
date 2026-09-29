@@ -435,7 +435,7 @@ async function setSymbol(p, raw) {
 const CYCLES = [
   ['HOTM', 'hotm', 'High of the month: Quarterly · Monthly · Weekly'], ['LOTM', 'lotm', 'Low of the month: Quarterly · Monthly · Weekly'],
   ['HOTW', 'hotw', 'High of the week: Monthly · Weekly · Daily'], ['LOTW', 'lotw', 'Low of the week: Monthly · Weekly · Daily'],
-  ['HOTD', 'hotd', 'High of the day: Weekly · Daily · Session'], ['LOTD', 'lotd', 'Low of the day: Weekly · Daily · Session'],
+  ['HOTD', 'hotd', 'High of the day: Weekly · Daily · Daily Cycle'], ['LOTD', 'lotd', 'Low of the day: Weekly · Daily · Daily Cycle'],
 ]
 const cycleRows = (d, waiting) => CYCLES.map(([k, key, tip]) =>
   `<div class="r cyc"><span title="${tip}">${k}</span><b>${d?.[key] ? d[key].join(' · ') : waiting ? '…' : '—'}</b></div>`).join('')

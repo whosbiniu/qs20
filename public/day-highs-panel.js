@@ -22,7 +22,7 @@
         if(panel.session){
           const td=cell(row,DayHighs.sessionLabel(value.quarters.daily));
           td.className='extreme-session';
-          td.title='Sesja odpowiada kwartałowi Daily; nie jest liczona ponownie jako osobny poziom zgodności.';
+          td.title='Q sesji w profilu Daily Cycle (Azja Q1, Londyn Q2, NY AM Q3, NY PM Q4); nie jest liczony ponownie jako osobny poziom zgodności.';
         }
         label.title+=` · ${value.period}`;
       }

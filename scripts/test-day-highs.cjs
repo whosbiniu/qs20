@@ -73,10 +73,12 @@ assert.equal(shortHistory.periods.month.high.error,'Niepełna historia okresu');
 assert.equal(shortHistory.periods.week.low.error,'Niepełna historia okresu');
 console.log('PASS six extrema: independent high/low periods, complete history, month/week boundaries, monthly Q0, three-quarter highlighting and uncertainty exclusions');
 
-assert.equal(Highs.sessionLabel('Q1'),'Azja');
-assert.equal(Highs.sessionLabel('Q2'),'Londyn');
-assert.equal(Highs.sessionLabel('Q3'),'NY AM');
-assert.equal(Highs.sessionLabel('Q4'),'NY PM');
-assert.equal(Highs.sessionLabel('Q2 / Q3'),'Londyn / NY AM');
+// Sessions are written as their Q in the Daily Cycle profile, not by name.
+assert.equal(Highs.sessionLabel('Q1'),'Q1');
+assert.equal(Highs.sessionLabel('Q2'),'Q2');
+assert.equal(Highs.sessionLabel('Q3'),'Q3');
+assert.equal(Highs.sessionLabel('Q4'),'Q4');
+assert.equal(Highs.sessionLabel('Q2 / Q3'),'Q2 / Q3');
+assert.equal(Highs.sessionLabel('Q0'),'—');
 assert.equal(Highs.panels.filter(panel=>panel.session).length,2);
 console.log('PASS weekly session names, including ambiguous boundaries');

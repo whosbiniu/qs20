@@ -390,78 +390,10 @@ const Other = (() => {
     },
 
     // ---- 6. trade journal ------------------------------------------------------------------------------------
+    // The journal itself is journal.js (modelled on LuxAlgo Trade Journal); this page supplies what only it knows:
+    // the quarter / session context of a moment, the active chart symbol and an off-screen chart snapshot.
     journal(pane) {
       const SESSION = { Q1: 'Azja', Q2: 'Londyn', Q3: 'NY AM', Q4: 'NY PM' }
-      let trades = [], openId = null
-      // Trades and chart snapshots live in IndexedDB (not the small localStorage quota shared with cached market data).
-      const db = new Promise(resolve => {
-        try {
-          const req = indexedDB.open('unc-journal', 2)
-          req.onupgradeneeded = () => { for (const name of ['shots', 'journal']) if (!req.result.objectStoreNames.contains(name)) req.result.createObjectStore(name) }
-          req.onsuccess = () => resolve(req.result); req.onerror = () => resolve(null)
-        } catch { resolve(null) }
-      })
-      const idb = async (store, mode, key, value) => {
-        const d = await db
-        if (!d) throw new Error('no IndexedDB')
-        return new Promise((resolve, reject) => {
-          const t = d.transaction(store, mode === 'get' ? 'readonly' : 'readwrite').objectStore(store)
-          const req = mode === 'put' ? t.put(value, key) : mode === 'delete' ? t.delete(key) : t.get(key)
-          req.onsuccess = () => resolve(req.result ?? null); req.onerror = () => reject(req.error)
-        })
-      }
-      const warn = text => { const el = pane.querySelector('[data-warn]'); if (el) { el.textContent = text; el.hidden = !text } }
-      async function save() {
-        try { await idb('journal', 'put', 'trades', trades); warn('') }
-        catch { if (!Store.set('other:journal', JSON.stringify(trades))) warn('Nie udało się zapisać dziennika: pamięć przeglądarki jest pełna. Zrób eksport, aby nie stracić danych.') }
-      }
-      // Imported files are untrusted: keep only well-formed fields, with the types the page expects.
-      const QUARTER = /^(Q[0-4](\/Q[14])?( \/ Q[0-4])?)$/
-      function cleanTrade(t) {
-        if (!t || typeof t !== 'object' || typeof t.id !== 'string' || !/^[a-z0-9]{1,20}$/.test(t.id)) return null
-        const n = v => typeof v === 'number' && Number.isFinite(v) ? v : null
-        const symbol = String(t.symbol || '').toUpperCase()
-        if (!/^[A-Z0-9^][A-Z0-9.^=!:-]{0,19}$/.test(symbol) || n(t.entry) === null || n(t.stop) === null || n(t.time) === null) return null
-        const c = t.context && typeof t.context === 'object' ? t.context : {}
-        const q = v => typeof v === 'string' && QUARTER.test(v) ? v : null
-        const labels = v => Array.isArray(v) ? v.slice(0, 3).map(x => String(x).slice(0, 12)) : null
-        return {
-          id: t.id, symbol, side: t.side === 'short' ? 'short' : 'long', entry: n(t.entry), stop: n(t.stop), target: n(t.target), exit: n(t.exit), size: n(t.size), time: n(t.time), closedAt: n(t.closedAt),
-          note: String(t.note || '').slice(0, 2000), shot: t.shot === true,
-          context: { monthly: q(c.monthly), weekly: q(c.weekly), daily: q(c.daily), m90: q(c.m90), micro: q(c.micro),
-            session: ['Azja', 'Londyn', 'NY AM', 'NY PM'].includes(c.session) ? c.session : null, weekday: typeof c.weekday === 'string' ? c.weekday.slice(0, 8) : null,
-            cycles: c.cycles && typeof c.cycles === 'object' ? { hotd: labels(c.cycles.hotd), lotd: labels(c.cycles.lotd), hotw: labels(c.cycles.hotw), lotw: labels(c.cycles.lotw) } : null },
-        }
-      }
-      const cleanShot = s => s && typeof s.image === 'string' && /^data:image\/(jpeg|png);base64,[A-Za-z0-9+/=]+$/.test(s.image) && s.image.length < 3000000 ? { symbol: String(s.symbol || '').slice(0, 20), frame: String(s.frame || '').slice(0, 4), image: s.image } : null
-      const shot = (mode, id, value) => idb('shots', mode, id, value).catch(() => null)
-      const rMultiple = t => {
-        const risk = Math.abs(t.entry - t.stop), sign = t.side === 'short' ? -1 : 1
-        return Number.isFinite(t.exit) && risk > 0 ? sign * (t.exit - t.entry) / risk : null
-      }
-      const plannedR = t => { const risk = Math.abs(t.entry - t.stop); return Number.isFinite(t.target) && risk > 0 ? Math.abs(t.target - t.entry) / risk : null }
-      const nowLocal = () => { const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 16) }
-      pane.innerHTML = `<header class="ot-head"><b>Dziennik transakcji</b><span>zapisywany w tej przeglądarce · kontekst i zrzut wykresu dodają się automatycznie</span><span class="grow"></span>
-        <button class="ot-mini" data-act="export">eksport</button><label class="ot-mini">import<input type="file" accept="application/json" data-act="import" hidden></label></header>
-        <p class="ot-warn" data-warn hidden></p>
-        <form class="ot-journal-form">
-          <label>Instrument<input name="symbol" required spellcheck="false" placeholder="NQ1!"></label>
-          <label>Kierunek<select name="side"><option value="long">long</option><option value="short">short</option></select></label>
-          <label>Wejście<input name="entry" type="number" step="any" required></label>
-          <label>Stop<input name="stop" type="number" step="any" required></label>
-          <label>Cel<input name="target" type="number" step="any"></label>
-          <label>Wyjście<input name="exit" type="number" step="any" placeholder="gdy zamknięta"></label>
-          <label>Kontrakty<input name="size" type="number" step="any"></label>
-          <label>Czas wejścia<input name="time" type="datetime-local" required></label>
-          <label class="wide">Notatka<input name="note" placeholder="setup, powód, emocje…"></label>
-          <label class="check"><input type="checkbox" name="shot" checked> zrzut wykresu</label>
-          <button>Zapisz transakcję</button>
-        </form>
-        <div class="ot-tiles" data-stats></div><div class="ot-split"><div class="ot-card grow"><h4>Wyniki według kontekstu <i>(średnie R, liczba transakcji)</i></h4><div class="ot-table" data-groups></div></div></div>
-        <div class="ot-card"><h4>Transakcje</h4><div class="ot-table" data-list></div></div>`
-      const form = pane.querySelector('form')
-      const fillSymbol = () => { if (!form.symbol.value && typeof panels !== 'undefined') form.symbol.value = panels[active]?.symbol || '' }
-      form.time.value = nowLocal(); fillSymbol()
       function context(symbol, ms) {
         const q = typeof DayHighs !== 'undefined' ? DayHighs.quarters(ms) : null
         const monthly = typeof DayHighs !== 'undefined' ? DayHighs.monthly(ms) : null
@@ -492,90 +424,9 @@ const Other = (() => {
           return { symbol: t.symbol, frame: typeof frame !== 'undefined' ? frame : '', image }
         } catch { return null } finally { host.remove() }
       }
-      form.onsubmit = async e => {
-        e.preventDefault()
-        const f = new FormData(form), n = k => { const v = parseFloat(f.get(k)); return Number.isFinite(v) ? v : null }
-        const ms = new Date(f.get('time')).getTime(), symbol = String(f.get('symbol')).trim().toUpperCase()
-        if (!symbol || !Number.isFinite(ms) || n('entry') === null || n('stop') === null || n('entry') === n('stop')) return
-        const t = { id: Date.now().toString(36), symbol, side: f.get('side'), entry: n('entry'), stop: n('stop'), target: n('target'), exit: n('exit'), size: n('size'), time: ms, note: String(f.get('note') || '').slice(0, 2000), context: context(symbol, ms) }
-        if (f.get('shot')) { const s = await snapshot(t); if (s) { await shot('put', t.id, s); t.shot = true } }
-        trades.unshift(t); save(); form.reset(); form.time.value = nowLocal(); fillSymbol(); render()
-      }
-      function stats(list) {
-        const closed = list.filter(t => rMultiple(t) !== null), rs = closed.map(rMultiple), wins = rs.filter(r => r > 0)
-        return { n: closed.length, open: list.length - closed.length, win: closed.length ? wins.length / closed.length : null, avg: rs.length ? rs.reduce((a, b) => a + b, 0) / rs.length : null, sum: rs.reduce((a, b) => a + b, 0), best: rs.length ? Math.max(...rs) : null, worst: rs.length ? Math.min(...rs) : null }
-      }
-      const rTxt = r => Number.isFinite(r) ? (r >= 0 ? '+' : '−') + Math.abs(r).toFixed(2) + 'R' : '—'
-      function render() {
-        const s = stats(trades), tile = (label, v) => `<div class="ot-tile"><small>${label}</small><b>${v}</b></div>`
-        pane.querySelector('[data-stats]').innerHTML = tile('Zamknięte', s.n) + tile('Otwarte', s.open) + tile('Skuteczność', s.win === null ? '—' : Math.round(s.win * 100) + '%') + tile('Średnio', rTxt(s.avg)) + tile('Suma', rTxt(s.sum)) + tile('Najlepsza / najgorsza', `${rTxt(s.best)} / ${rTxt(s.worst)}`)
-        const groups = [['Sesja', t => t.context?.session], ['Daily Q', t => t.context?.daily], ['Weekly Q', t => t.context?.weekly], ['Dzień', t => t.context?.weekday], ['Kierunek', t => t.side], ['Instrument', t => t.symbol]]
-        pane.querySelector('[data-groups]').innerHTML = `<table><thead><tr><th>Kontekst</th><th>Wartość</th><th>Transakcje</th><th>Skuteczność</th><th>Średnio</th><th>Suma</th></tr></thead><tbody>${groups.flatMap(([name, key]) => {
-          const by = new Map()
-          for (const t of trades) { const k = key(t) || '—'; if (!by.has(k)) by.set(k, []); by.get(k).push(t) }
-          return [...by].map(([k, list]) => { const g = stats(list); return g.n ? `<tr><td>${name}</td><td>${esc(k)}</td><td>${g.n}</td><td>${Math.round(g.win * 100)}%</td><td>${rTxt(g.avg)}</td><td>${rTxt(g.sum)}</td></tr>` : '' })
-        }).join('') || '<tr><td colspan="6">Zamknij pierwszą transakcję (pole „Wyjście”), aby zobaczyć statystyki.</td></tr>'}</tbody></table>`
-        pane.querySelector('[data-list]').innerHTML = trades.length ? `<table class="ot-trades"><thead><tr><th>Czas</th><th>Instrument</th><th>Kierunek</th><th>Wejście</th><th>Stop</th><th>Cel</th><th>Wyjście</th><th>Wynik</th><th>Kontekst</th><th></th></tr></thead><tbody>${trades.map(t => {
-          const r = rMultiple(t), c = t.context || {}
-          return `<tr data-id="${t.id}" class="${openId === t.id ? 'open' : ''}"><td>${new Date(t.time).toLocaleString('pl-PL', { dateStyle: 'short', timeStyle: 'short' })}</td><td><b>${esc(t.symbol)}</b></td><td>${t.side}</td><td>${num(t.entry)}</td><td>${num(t.stop)}</td><td>${num(t.target)}${plannedR(t) ? ` <small>(${plannedR(t).toFixed(1)}R)</small>` : ''}</td>
-            <td>${Number.isFinite(t.exit) ? num(t.exit) : `<input class="ot-exit" type="number" step="any" placeholder="zamknij…" aria-label="Cena wyjścia">`}</td><td><b>${r === null ? 'otwarta' : rTxt(r)}</b></td>
-            <td><small>${esc([c.session, c.daily && 'D ' + c.daily, c.weekly && 'W ' + c.weekly, c.monthly && 'M ' + c.monthly].filter(Boolean).join(' · '))}</small></td><td><button class="ot-mini" data-more>${openId === t.id ? 'zwiń' : 'więcej'}</button> <button class="ot-mini" data-del aria-label="Usuń transakcję">✕</button></td></tr>
-            ${openId === t.id ? `<tr class="ot-detail"><td colspan="10"><div class="ot-detail-body"><div><p>${esc(t.note) || '<i>brak notatki</i>'}</p><p><small>${c.cycles ? `HOTD ${esc(c.cycles.hotd?.join(' · ') || '—')} · LOTD ${esc(c.cycles.lotd?.join(' · ') || '—')} · HOTW ${esc(c.cycles.hotw?.join(' · ') || '—')} · LOTW ${esc(c.cycles.lotw?.join(' · ') || '—')}` : 'brak cykli dla tego instrumentu'}${t.size ? ` · kontrakty ${t.size}` : ''} · 90m ${esc(c.m90 || '—')} · micro ${esc(c.micro || '—')}</small></p></div><div class="ot-shot" data-shot="${t.id}">${t.shot ? 'wczytywanie zrzutu…' : '<small>bez zrzutu</small>'}</div></div></td></tr>` : ''}`
-        }).join('')}</tbody></table>` : '<p class="ot-empty">Brak transakcji. Wypełnij formularz powyżej: kontekst kwartałów i zrzut aktywnego wykresu zapiszą się same.</p>'
-        const box = pane.querySelector('[data-shot]')
-        if (box) shot('get', box.dataset.shot).then(s => { if (s) box.innerHTML = `<img src="${s.image}" alt="Wykres ${esc(s.symbol)} w chwili zapisu"><small>${esc(s.symbol)} · ${esc(s.frame)}</small>` })
-      }
-      pane.querySelector('[data-list]').addEventListener('click', async e => {
-        const id = e.target.closest('tr[data-id]')?.dataset.id
-        if (!id) return
-        if (e.target.closest('[data-del]')) { if (confirm('Usunąć tę transakcję?')) { trades = trades.filter(t => t.id !== id); save(); shot('delete', id); render() } return }
-        if (e.target.closest('[data-more]')) { openId = openId === id ? null : id; render() }
-      })
-      pane.querySelector('[data-list]').addEventListener('change', e => {
-        if (!e.target.classList.contains('ot-exit')) return
-        const t = trades.find(x => x.id === e.target.closest('tr[data-id]').dataset.id), v = parseFloat(e.target.value)
-        if (t && Number.isFinite(v)) { t.exit = v; t.closedAt = Date.now(); save(); render() }
-      })
-      pane.querySelector('[data-act="export"]').onclick = async () => {
-        const shots = {}
-        for (const t of trades) if (t.shot) shots[t.id] = await shot('get', t.id)
-        const blob = new Blob([JSON.stringify({ version: 1, trades, shots }, null, 1)], { type: 'application/json' }), a = document.createElement('a')
-        a.href = URL.createObjectURL(blob); a.download = `dziennik-${new Date().toISOString().slice(0, 10)}.json`; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000)
-      }
-      pane.querySelector('[data-act="import"]').onchange = async e => {
-        try {
-          const file = JSON.parse(await e.target.files[0].text())
-          if (!Array.isArray(file.trades)) throw new Error('format')
-          const known = new Set(trades.map(t => t.id))
-          let added = 0, skipped = 0
-          for (const raw of file.trades) {
-            const t = cleanTrade(raw)
-            if (!t || known.has(t.id)) { skipped++; continue }
-            const image = cleanShot(file.shots?.[t.id])
-            t.shot = !!image
-            if (image) await shot('put', t.id, image)
-            trades.push(t); known.add(t.id); added++
-          }
-          trades.sort((a, b) => b.time - a.time); await save(); render()
-          warn(`Zaimportowano ${added} transakcji${skipped ? `, pominięto ${skipped} (duplikaty lub niepoprawne wpisy)` : ''}.`)
-        } catch { alert('To nie jest plik dziennika.') }
-        e.target.value = ''
-      }
-      refreshers.journal = fillSymbol
-      // Load from IndexedDB; the first time, move the trades that used to live in localStorage.
-      ;(async () => {
-        try {
-          const stored = await idb('journal', 'get', 'trades')
-          if (Array.isArray(stored)) trades = stored.map(cleanTrade).filter(Boolean)
-          else {
-            const legacy = store.get('journal', [])
-            trades = (Array.isArray(legacy) ? legacy : []).map(cleanTrade).filter(Boolean)
-            await idb('journal', 'put', 'trades', trades)
-            localStorage.removeItem('other:journal')
-          }
-        } catch { trades = (store.get('journal', []) || []).map(cleanTrade).filter(Boolean); warn('Ta przeglądarka nie udostępnia IndexedDB: dziennik zapisuje się w mniejszej pamięci lokalnej.') }
-        render()
-      })()
+      const currentSymbol = () => typeof panels !== 'undefined' ? panels[active]?.symbol || '' : ''
+      const journal = Journal.mount(pane, { context, snapshot, currentSymbol })
+      refreshers.journal = journal.refresh
     },
 
     // ---- 7. Commitments of Traders ---------------------------------------------------------------------------

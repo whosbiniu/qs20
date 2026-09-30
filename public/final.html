@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="pl" data-final-page>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>UNC’s Way · Final</title>
+<link rel="icon" type="image/png" sizes="64x64" href="favicon-64.png">
+<link rel="stylesheet" href="final.css">
+</head>
+<body>
+<div class="fx" id="app">
+  <header class="fx-top" data-drag>
+    <nav class="fx-crumbs" aria-label="Ścieżka" data-drag><span>UNC’s Way</span><span>Terminal</span><b>Dashboard</b></nav>
+    <div class="fx-tools" role="group" aria-label="Szybkie przejścia">
+      <a href="index.html#calendar" title="Kalendarz ekonomiczny" aria-label="Kalendarz ekonomiczny"><svg viewBox="0 0 20 20"><ellipse cx="10" cy="5" rx="6" ry="2.4"/><path d="M4 5v10c0 1.3 2.7 2.4 6 2.4s6-1.1 6-2.4V5M4 10c0 1.3 2.7 2.4 6 2.4s6-1.1 6-2.4"/></svg></a>
+      <a href="index.html#quarters" title="Kwartały" aria-label="Kwartały"><svg viewBox="0 0 20 20"><path d="M10 2.5 16.5 6v8L10 17.5 3.5 14V6z"/><path d="M3.5 6 10 9.5 16.5 6M10 9.5v8"/></svg></a>
+      <a href="index.html#monitor" title="Monitor" aria-label="Monitor"><svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="7"/><path d="M10 3v14M3 10h14M5 5l10 10M15 5 5 15"/></svg></a>
+    </div>
+    <div class="fx-status" data-drag><span id="latency">Opóźnienie: —</span><a class="fx-launch" href="index.html#hyper-terminal">Terminal</a></div>
+  </header>
+
+  <aside class="fx-rail" aria-label="Nawigacja">
+    <img class="fx-logo" src="logo.png" alt="UNC’s Way">
+    <a class="active" href="final.html" title="Dashboard" aria-label="Dashboard"><svg viewBox="0 0 20 20"><path d="M10 2.8 17 7.5V16a1.2 1.2 0 0 1-1.2 1.2H4.2A1.2 1.2 0 0 1 3 16V7.5z"/><path d="M6.5 12.5h7"/></svg></a>
+    <a href="index.html#charts" title="Wykresy" aria-label="Wykresy"><svg viewBox="0 0 20 20"><path d="m10 3 7 3.5-7 3.5-7-3.5z"/><path d="m3 10 7 3.5 7-3.5M3 13.5 10 17l7-3.5"/></svg></a>
+    <a href="index.html#hyper-terminal" title="Terminal" aria-label="Terminal"><svg viewBox="0 0 20 20"><path d="M10 2.5 16.5 6v8L10 17.5 3.5 14V6z"/><path d="M3.5 6 10 9.5 16.5 6M10 9.5v8"/></svg></a>
+    <span class="fx-grow"></span>
+    <a href="index.html#other" title="Inne" aria-label="Inne"><svg viewBox="0 0 20 20"><circle cx="5" cy="10" r="1"/><circle cx="10" cy="10" r="1"/><circle cx="15" cy="10" r="1"/></svg></a>
+    <a href="index.html#home" title="Start" aria-label="Start"><svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="2.6"/><path d="M10 2.5v2.2M10 15.3v2.2M2.5 10h2.2M15.3 10h2.2M4.7 4.7l1.6 1.6M13.7 13.7l1.6 1.6M4.7 15.3l1.6-1.6M13.7 6.3l1.6-1.6"/></svg></a>
+    <img class="fx-avatar" src="postcreator-avatar.jpg" alt="">
+  </aside>
+
+  <section class="fx-units" aria-label="Instrumenty">
+    <header><h2>INSTRUMENTY</h2><button type="button" id="refresh" title="Odśwież" aria-label="Odśwież dane"><svg viewBox="0 0 20 20"><rect x="3.5" y="4" width="13" height="12" rx="2"/><path d="M3.5 8h13M8 11h4"/></svg></button></header>
+    <div id="groups"></div>
+  </section>
+
+  <main class="fx-stage" aria-label="Teren cen">
+    <canvas id="terrain" aria-label="Trójwymiarowy teren z historii cen wybranego instrumentu"></canvas>
+    <div class="fx-guides" aria-hidden="true"><i class="h"></i><i class="v"></i></div>
+    <div class="fx-reticle" id="reticle" aria-hidden="true"><span></span></div>
+    <div class="fx-reticle-label" id="reticleLabel" aria-hidden="true"></div>
+    <p class="fx-stage-note" id="stageNote"></p>
+  </main>
+
+  <aside class="fx-side">
+    <section class="fx-stream">
+      <header><h2>STRUMIEŃ WYDARZEŃ</h2><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M2 10h3l2-5 3 10 2-6 1.5 3H18"/></svg></header>
+      <ol id="stream" aria-live="polite"></ol>
+    </section>
+    <section class="fx-diag">
+      <header><h2>DIAGNOSTYKA</h2><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 2.5 11.6 8.4 17.5 10l-5.9 1.6L10 17.5l-1.6-5.9L2.5 10l5.9-1.6z"/></svg></header>
+      <dl id="diag"></dl>
+      <p class="fx-note" id="note"></p>
+    </section>
+  </aside>
+
+  <section class="fx-timeline" aria-label="Oś czasu">
+    <div class="fx-transport">
+      <button type="button" id="pause" title="Pauza" aria-label="Pauza"><svg viewBox="0 0 20 20"><path d="M7 5v10M13 5v10"/></svg></button>
+      <button type="button" id="play" title="Odtwórz historię" aria-label="Odtwórz historię"><svg viewBox="0 0 20 20"><path d="M7 4.5v11l8.5-5.5z"/></svg></button>
+      <button type="button" id="loop" class="on" title="Zapętlenie" aria-label="Zapętlenie" aria-pressed="true"><svg viewBox="0 0 24 20"><path d="M8 6.5c-2 0-3.5 1.6-3.5 3.5s1.5 3.5 3.5 3.5c3 0 5-7 8-7 2 0 3.5 1.6 3.5 3.5S18 13.5 16 13.5c-3 0-5-7-8-7z"/></svg></button>
+      <time id="clock">00:00:00:000</time>
+      <span class="fx-grow"></span>
+      <button type="button" id="zoomIn" aria-label="Przybliż">+</button><span id="zoom">100%</span><button type="button" id="zoomOut" aria-label="Oddal">−</button>
+    </div>
+    <div class="fx-tracks"><ul id="trackNames"></ul><div class="fx-area"><canvas id="area"></canvas><div class="fx-marker" id="marker"><i></i><div class="fx-tip"><small id="tipLabel">ZMIANA</small><b id="tipValue">—</b></div></div></div></div>
+  </section>
+</div>
+<script src="storage.js"></script>
+<script src="day-highs.js"></script>
+<script src="terminal-data.js"></script>
+<script src="hyperliquid-data.js"></script>
+<script src="final.js"></script>
+</body>
+</html>

@@ -277,6 +277,30 @@ final class CalendarExportBridge: NSObject, WKScriptMessageHandlerWithReply {
     }
 }
 
+// UNCsWay Final draws its own title bar: dragging it (or double-clicking) moves or zooms the window.
+// The page reports the mouse-down; the move follows the real mouse until the button is released.
+final class WindowDragBridge: NSObject, WKScriptMessageHandler {
+    weak var window: NSWindow?
+    private var monitor: Any?
+    func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+        guard isBundledPage(message.frameInfo), message.frameInfo.isMainFrame, let window, let action = message.body as? String else { return }
+        if action == "zoom" { window.zoom(nil); return }
+        guard action == "drag", monitor == nil, NSEvent.pressedMouseButtons & 1 != 0 else { return }
+        let start = NSEvent.mouseLocation, origin = window.frame.origin
+        monitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDragged, .leftMouseUp]) { [weak self] event in
+            guard let self, let window = self.window else { return event }
+            if event.type == .leftMouseUp {
+                if let monitor = self.monitor { NSEvent.removeMonitor(monitor) }
+                self.monitor = nil
+                return event
+            }
+            let now = NSEvent.mouseLocation
+            window.setFrameOrigin(NSPoint(x: origin.x + now.x - start.x, y: origin.y + now.y - start.y))
+            return nil
+        }
+    }
+}
+
 final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUIDelegate {
     var window: NSWindow!
     var webView: WKWebView!
@@ -285,6 +309,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
     let marketHighs = MarketHighsBridge()
     let proxy = ProxyBridge()
     let tv = TVBridge()
+    let windowDrag = WindowDragBridge()
+    // "final" in Info.plist (UNCShell): the UNCsWay Final build opens the dashboard in a borderless-looking window.
+    let isFinal = (Bundle.main.object(forInfoDictionaryKey: "UNCShell") as? String) == "final"
     let postCreatorFile = PostCreatorFileBridge()
     var selfTestStarted = false
     var benchStage = 0
@@ -306,6 +333,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
         config.userContentController.addScriptMessageHandler(marketHighs, contentWorld: .page, name: "marketHighs")
         config.userContentController.addScriptMessageHandler(proxy, contentWorld: .page, name: "proxy")
         config.userContentController.add(tv, name: "tv")
+        if isFinal {
+            config.userContentController.add(windowDrag, name: "windowDrag")
+            config.userContentController.addUserScript(WKUserScript(source: """
+            document.documentElement.dataset.shell = 'final';
+            // Other pages than the dashboard get a thin strip under the traffic lights: drag area and a way back.
+            addEventListener('DOMContentLoaded', () => {
+              if (document.documentElement.hasAttribute('data-final-page')) return;
+              const style = document.createElement('style');
+              style.textContent = 'html[data-shell=final] body{padding-top:34px!important}.unc-final-strip{position:fixed;top:0;left:0;right:0;height:30px;z-index:2147483000;display:flex;justify-content:flex-end;align-items:center;padding:0 12px;-webkit-user-select:none;user-select:none}.unc-final-strip a{font:12px -apple-system,sans-serif;color:#aaa;text-decoration:none;border:1px solid #333;border-radius:5px;padding:2px 9px;background:#141414}.unc-final-strip a:hover{color:#fff}';
+              document.head.append(style);
+              const strip = document.createElement('div');
+              strip.className = 'unc-final-strip';
+              strip.innerHTML = '<a href="final.html">‹ Dashboard</a>';
+              document.body.append(strip);
+              strip.addEventListener('mousedown', e => { if (e.target === strip && e.button === 0 && e.detail === 1) webkit.messageHandlers.windowDrag.postMessage('drag'); });
+              strip.addEventListener('dblclick', e => { if (e.target === strip) webkit.messageHandlers.windowDrag.postMessage('zoom'); });
+            });
+            """, injectionTime: .atDocumentStart, forMainFrameOnly: true))
+        }
         config.userContentController.addScriptMessageHandler(postCreatorFile, contentWorld: .page, name: "postCreatorFile")
         config.userContentController.addUserScript(WKUserScript(source: """
         (() => {
@@ -404,20 +450,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
         window.title = "UNC Terminal"
         window.minSize = NSSize(width: 850, height: 600)
         window.contentView = webView
-        window.setFrameAutosaveName("QuarterlyTimeline")
+        window.setFrameAutosaveName(isFinal ? "UNCsWayFinal" : "QuarterlyTimeline")
         window.center()
+        if isFinal {
+            // The page's dark title bar reaches under the traffic lights, like a native pro app.
+            window.styleMask.insert(.fullSizeContentView)
+            window.titlebarAppearsTransparent = true
+            window.titleVisibility = .hidden
+            window.title = "UNC’s Way Final"
+            window.backgroundColor = NSColor(calibratedWhite: 0.05, alpha: 1)
+            window.minSize = NSSize(width: 1100, height: 720)
+            if !UserDefaults.standard.bool(forKey: "finalSized") {
+                UserDefaults.standard.set(true, forKey: "finalSized")
+                window.setContentSize(NSSize(width: 1480, height: 940)); window.center()
+            }
+        }
         if bench != nil { window.setContentSize(NSSize(width: 1600, height: 950)); window.center() }
         makeMenu()
         let root = Bundle.main.resourceURL!.appendingPathComponent("public")
         // The self-tests exercise the Kwartały page / the L/H page directly, not the terminal shell.
         let entry = CommandLine.arguments.contains("--self-test") ? "quarters/index.html"
-            : CommandLine.arguments.contains("--self-test-highs") ? "quarters/highs.html" : "index.html"
+            : CommandLine.arguments.contains("--self-test-highs") ? "quarters/highs.html"
+            : isFinal && (!CommandLine.arguments.contains(where: { $0.hasPrefix("--self-test") }) || CommandLine.arguments.contains("--self-test-final")) && bench == nil ? "final.html" : "index.html"
         webView.loadFileURL(root.appendingPathComponent(entry), allowingReadAccessTo: root)
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
         if CommandLine.arguments.contains("--self-test") || CommandLine.arguments.contains("--self-test-highs") ||
            CommandLine.arguments.contains("--self-test-terminal") || CommandLine.arguments.contains("--self-test-integrations") ||
-           CommandLine.arguments.contains("--self-test-tv") {
+           CommandLine.arguments.contains("--self-test-tv") ||
+           CommandLine.arguments.contains("--self-test-final") {
             DispatchQueue.main.asyncAfter(deadline: .now() + 40) { fputs("Self-test timeout\n", stderr); exit(1) }
         }
         if bench != nil { DispatchQueue.main.asyncAfter(deadline: .now() + 900) { fputs("Benchmark timeout\n", stderr); exit(1) } }
@@ -439,9 +500,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
         for (title, action, key) in [("Odśwież", #selector(reload), "r"), ("Powiększ", #selector(zoomIn), "+"), ("Pomniejsz", #selector(zoomOut), "-"), ("Rozmiar domyślny", #selector(resetZoom), "0")] {
             let item = view.submenu!.addItem(withTitle: title, action: action, keyEquivalent: key); item.target = self
         }
+        if isFinal {
+            view.submenu!.addItem(.separator())
+            for (title, action, key) in [("Dashboard", #selector(showDashboard), "1"), ("Terminal", #selector(showTerminal), "2")] {
+                let item = view.submenu!.addItem(withTitle: title, action: action, keyEquivalent: key); item.target = self
+            }
+        }
         NSApp.mainMenu = menu
     }
     @objc func reload() { webView.reload() }
+    @objc func showDashboard() { open("final.html") }
+    @objc func showTerminal() { open("index.html") }
+    private func open(_ page: String) {
+        let root = Bundle.main.resourceURL!.appendingPathComponent("public")
+        webView.loadFileURL(root.appendingPathComponent(page), allowingReadAccessTo: root)
+    }
     @objc func zoomIn() { webView.pageZoom = min(2, webView.pageZoom + 0.1) }
     @objc func zoomOut() { webView.pageZoom = max(0.5, webView.pageZoom - 0.1) }
     @objc func resetZoom() { webView.pageZoom = 1 }
@@ -546,6 +619,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
                         save(image, "/tmp/qs-tv-preview.png")
                         DispatchQueue.main.asyncAfter(deadline: .now() + 6) { exit(0) }
                     }
+                }
+            }
+            return
+        }
+        if CommandLine.arguments.contains("--self-test-final"), !selfTestStarted {
+            // UNCsWay Final: the dashboard loads its markets through the native proxy and the GPU draws the terrain.
+            selfTestStarted = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + 15) {
+                webView.evaluateJavaScript("""
+                (() => {
+                  const units = [...document.querySelectorAll('.fx-unit')], priced = units.filter(u => /%$/.test(u.querySelector('small').textContent));
+                  const c = document.getElementById('terrain'), gl = c.getContext('webgl2');
+                  const state = { page: location.pathname.split('/').pop(), shell: document.documentElement.dataset.shell, units: units.length, priced: priced.length,
+                    webgl: !!gl, canvas: [c.width, c.height], news: document.querySelectorAll('#stream li').length,
+                    diag: document.querySelectorAll('#diag div').length, latency: document.getElementById('latency').textContent };
+                  state.ok = state.page === 'final.html' && state.shell === 'final' && state.units === 9 && state.priced >= 6 && state.webgl && state.canvas[0] > 0 && state.diag === 6;
+                  return JSON.stringify(state);
+                })()
+                """) { result, error in
+                    let output = (result as? String) ?? "FAIL \(String(describing: error))"
+                    print(output, "window:", self.window.titlebarAppearsTransparent, self.window.styleMask.contains(.fullSizeContentView))
+                    exit(output.contains("\"ok\":true") ? 0 : 1)
                 }
             }
             return

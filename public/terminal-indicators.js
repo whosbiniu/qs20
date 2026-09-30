@@ -10,13 +10,15 @@
   ]
   // `pop` (optional): { el, title, empty, remove, close } and `showSettings(id)` → whether that indicator has settings.
   // Clicking an active chip (or ⚙ in the library) opens its settings right next to the chip.
-  function attach({ button, panel, list, search, active, close, get, set, pop, showSettings }) {
+  // `candles()` (optional) gives the Pine editor this chart's candles to test a script on.
+  function attach({ button, panel, list, search, active, close, get, set, pop, showSettings, candles }) {
     const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]))
     function render() {
       const q = search.value.trim().toLocaleLowerCase('pl')
-      const entries = catalog.filter(d => `${d.title} ${d.group} ${d.description}`.toLocaleLowerCase('pl').includes(q))
+      // Own Pine scripts come last, whatever order the catalogue was filled in.
+      const entries = catalog.filter(d => `${d.title} ${d.group} ${d.description}`.toLocaleLowerCase('pl').includes(q)).sort((a, b) => (a.pine ? 1 : 0) - (b.pine ? 1 : 0))
       const gear = d => pop && get(d.id) ? `<button type="button" class="ht-indicator-gear" data-open-settings="${d.id}" title="Ustawienia" aria-label="Ustawienia: ${esc(d.title)}">⚙</button>` : ''
-      list.innerHTML = entries.map(d => `<div class="ht-indicator-entry"><div><b>${esc(d.title)}</b><small>${esc(d.group)}</small><p>${esc(d.description)}</p></div>${d.unavailable ? '<button type="button" disabled>Niedostępny</button>' : `${gear(d)}<button type="button" data-indicator="${d.id}" aria-label="${get(d.id) ? 'Usuń' : 'Dodaj'} ${esc(d.title)}" aria-pressed="${get(d.id)}">${get(d.id) ? 'Usuń' : '+ Dodaj'}</button>`}</div>`).join('') || '<p>Brak pasujących indykatorów.</p>'
+      list.innerHTML = entries.map(d => `<div class="ht-indicator-entry"><div><b>${esc(d.title)}</b><small>${esc(d.group)}</small><p>${esc(d.description)}</p></div>${d.unavailable ? '<button type="button" disabled>Niedostępny</button>' : `${gear(d)}${d.pine ? `<button type="button" data-pine-edit="${d.id.slice(5)}" aria-label="Edytuj kod: ${esc(d.title)}">Edytuj</button>` : ''}<button type="button" data-indicator="${d.id}" aria-label="${get(d.id) ? 'Usuń' : 'Dodaj'} ${esc(d.title)}" aria-pressed="${get(d.id)}">${get(d.id) ? 'Usuń' : '+ Dodaj'}</button>`}</div>`).join('') || '<p>Brak pasujących indykatorów.</p>'
       const selected = catalog.filter(d => !d.unavailable && get(d.id))
       active.innerHTML = selected.map(d => `<span${d.id === current ? ' class="open"' : ''}><button type="button" data-settings="${d.id}" title="Ustawienia" aria-label="Ustawienia: ${esc(d.title)}" aria-expanded="${d.id === current}">${esc(d.chip || d.title)}</button><button type="button" data-remove="${d.id}" title="Usuń" aria-label="Usuń ${esc(d.title)}">×</button></span>`).join('')
       active.hidden = !selected.length
@@ -57,10 +59,25 @@
       window.addEventListener('resize', () => { if (current) place() })
     }
     function show(value) { panel.hidden = !value; button.setAttribute('aria-expanded', String(value)); if (value) search.focus(); else button.focus() }
+    // Own Pine Script indicators (terminal-pine.js): a "+ Pine Script" button, "Edytuj" on each script.
+    const Pine = root.TerminalPine
+    const openEditor = id => { show(false); Pine.editor.open({ id, candles, onSaved: saved => { if (!id) set('pine:' + saved, true); render() } }) }
+    if (Pine) {
+      const head = panel.querySelector?.('.ht-library-head')
+      if (head && !head.querySelector('[data-pine-new]')) {
+        const add = document.createElement('button'); add.type = 'button'; add.dataset.pineNew = ''; add.className = 'ht-pine-new'; add.textContent = '+ Pine Script'
+        add.title = 'Dodaj własny wskaźnik napisany w Pine Script'
+        head.insertBefore(add, head.lastElementChild)
+        add.addEventListener('click', () => openEditor(null))
+      }
+      root.addEventListener?.('pinelibrary', render)
+    }
     button.addEventListener('click', () => show(panel.hidden))
     close.addEventListener('click', () => show(false))
     search.addEventListener('input', render)
     list.addEventListener('click', e => {
+      const edit = e.target.closest('[data-pine-edit]')?.dataset.pineEdit
+      if (edit && Pine) { openEditor(edit); return }
       const open = e.target.closest('[data-open-settings]')?.dataset.openSettings
       if (open) { show(false); current = null; openSettings(open); return }
       const id = e.target.closest('[data-indicator]')?.dataset.indicator; if (catalog.some(d => d.id === id)) { set(id, !get(id)); render() }

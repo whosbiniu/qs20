@@ -25,7 +25,9 @@ window.HyperTerminal = (() => {
   const orderflow = TerminalOrderflow.attach($('ht-orderflow'))
   // Extra studies (VWAP, profiles, levels, order book, OI, funding...) are added to the indicator catalog.
   TerminalIndicators.catalog.push(...TerminalStudies.catalog)
-  const studies = TerminalStudies.attach({ settingsHost: $('ht-studies-settings'), fetchJson: url => json(url), orderflow })
+  // Own Pine Script indicators ride along with the studies (terminal-pine.js).
+  const baseStudies = TerminalStudies.attach({ settingsHost: $('ht-studies-settings'), fetchJson: url => json(url), orderflow })
+  const studies = window.TerminalPine ? TerminalPine.extend(baseStudies, { pop: $('ht-ind-pop'), storageKey: 'hl-pine' }) : baseStudies
   const saveSettings = () => Store.set('hl-indicators', JSON.stringify(settings))
   $('ht-step').value = settings.step
   $('ht-tpo-mode').value = settings.mode
@@ -280,7 +282,8 @@ window.HyperTerminal = (() => {
     return study || id === 'tpo' || ORDERFLOW.includes(id)
   }
   TerminalIndicators.attach({ button: $('ht-indicators-open'), panel: $('ht-indicator-panel'), list: $('ht-indicator-list'), search: $('ht-indicator-search'), active: $('ht-active-indicators'), close: $('ht-indicators-close'), get: indicatorEnabled, set: setIndicator,
-    pop: { el: $('ht-ind-pop'), title: $('ht-ind-pop-title'), empty: $('ht-ind-pop-empty'), remove: $('ht-ind-pop-remove'), close: $('ht-ind-pop-close') }, showSettings })
+    pop: { el: $('ht-ind-pop'), title: $('ht-ind-pop-title'), empty: $('ht-ind-pop-empty'), remove: $('ht-ind-pop-remove'), close: $('ht-ind-pop-close') }, showSettings,
+    candles: () => drawingPanel?.candles || [] })
   $('ht-step').addEventListener('change', e => { settings.step = Math.max(0, Number(e.target.value) || 0); e.target.value = settings.step; saveSettings(); renderProfile() })
   for (const [id, key] of [['ht-tpo-mode', 'mode'], ['ht-tpo-from', 'from'], ['ht-tpo-to', 'to']]) $(id).addEventListener('change', e => {
     if (key !== 'mode' && (!e.target.value || Number(e.target.value.slice(3)) % 30 !== 0)) { e.target.value = settings[key]; return }

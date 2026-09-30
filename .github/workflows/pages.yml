@@ -45,6 +45,7 @@ jobs:
           node scripts/test-orderflow-analysis.cjs
           node scripts/test-terminal-indicators.cjs
           node scripts/test-terminal-profile.cjs
+          node scripts/test-pine-engine.cjs
       - name: Prepare static site and calendar data
         env:
           SITE_PASSWORD: ${{ secrets.SITE_PASSWORD }}

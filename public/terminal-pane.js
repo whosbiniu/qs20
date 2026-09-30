@@ -83,6 +83,7 @@
       profile = TerminalProfile.attach(panel);
       orderflow = TerminalOrderflow.attach($('.of-host'), { storageKey: o.key + ':orderflow' });
       studies = TerminalStudies.attach({ settingsHost: $('.st-settings'), fetchJson: url => o.fetchJson(url), orderflow, storageKey: o.key + ':studies', chips });
+      if (root.TerminalPine) studies = TerminalPine.extend(studies, { pop: $('.tw-pop'), storageKey: o.key + ':pine' });
       orderflow.bindPanel(panel); studies.bindPanel(panel);
       if (firstUse && mode === 'vwap') studies.setEnabled('vwap', true);   // saved like any other choice
       chart.subscribeCrosshairMove(param => o.onCrosshair?.(api, param));
@@ -107,7 +108,7 @@
     function library() {
       const lib = $('.tw-library');
       TerminalIndicators.attach({ button: $('.tw-ind-btn'), panel: lib, list: $('.tw-lib-list'), search: lib.querySelector('input'), active: chips, close: $('[data-lib-close]'),
-        get: enabled, set: setIndicator, showSettings,
+        get: enabled, set: setIndicator, showSettings, candles: () => panel?.candles || [],
         pop: { el: $('.tw-pop'), title: $('.tw-pop-title'), empty: $('.ht-ind-pop-empty'), remove: $('[data-pop-remove]'), close: $('[data-pop-close]') } });
       $('[data-tpo-mode]').value = flags.tpoMode;
       $('[data-tpo-mode]').addEventListener('change', e => { flags = cleanFlags({ ...flags, tpoMode: e.target.value }); saveFlags(); paintTpo(); });

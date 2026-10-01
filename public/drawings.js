@@ -56,11 +56,103 @@ const Drawings = (() => {
 .draw-edit .de-custom input{position:absolute;inset:0;opacity:0;width:100%;height:100%;cursor:pointer;padding:0;border:0}
 .draw-edit .de-width{color:var(--dim);height:30px}.draw-edit .de-width input.de-num{width:26px;height:22px;margin:0;padding:0 2px;font:inherit;font-size:12px;color:var(--ink);background:transparent;border:0;border-radius:3px;outline:0;text-align:center;-moz-appearance:textfield;appearance:textfield}
 .draw-edit .de-width input.de-num:focus{background:var(--faint)}.draw-edit .de-width input.de-num::-webkit-inner-spin-button,.draw-edit .de-width input.de-num::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}.draw-edit .de-width [data-width-icon]{display:flex}.draw-edit [data-delete]:hover{color:#e07a7a}`;
+    style.textContent += `
+.draw-bar button{position:relative}.draw-bar .db-star{position:absolute;top:-1px;right:0;font-size:9px;line-height:1;color:var(--dim);opacity:0;pointer-events:auto;cursor:pointer;padding:1px}
+.draw-bar button:hover .db-star,.draw-bar button:focus-visible .db-star{opacity:.75}.draw-bar .db-star:hover{opacity:1!important;color:var(--ink)}.draw-bar .db-star.on{opacity:1;color:#e8c268}
+.draw-favs{position:absolute;z-index:30;display:flex;align-items:center;gap:2px;padding:3px 4px;background:var(--tw-chrome,var(--bg));border:1px solid var(--line);border-radius:8px;box-shadow:0 8px 28px #0008;user-select:none}
+.draw-favs[hidden]{display:none}.draw-favs.vertical{flex-direction:column}.draw-favs .df-tools{display:flex;gap:2px}.draw-favs.vertical .df-tools{flex-direction:column}
+.draw-favs .df-grip{cursor:grab;color:var(--dim);font-size:12px;letter-spacing:-2px;padding:2px 3px;line-height:1}.draw-favs.vertical .df-grip{letter-spacing:0;writing-mode:vertical-rl}.draw-favs .df-grip:active{cursor:grabbing}
+.draw-favs button{display:grid;place-items:center;width:28px;height:28px;padding:0;background:transparent;border:1px solid transparent;border-radius:5px;color:var(--dim);cursor:pointer}
+.draw-favs button:hover{color:var(--ink);background:var(--faint)}.draw-favs button.active{color:var(--tw-accent,var(--ink));background:var(--faint)}
+.draw-favs svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.2;stroke-linecap:round;stroke-linejoin:round}.draw-favs .df-turn svg{width:13px;height:13px}`;
     document.head.append(style);
   }
 
   // Only one drawing can be selected across all chart panels: the panel that owns the selection.
   let owner = null;
+
+  // ---- favourite tools ------------------------------------------------------------------------------------------
+  // On panels that name a host (panel.favoritesHost(), the terminal), every tool has a star (or right-click the tool).
+  // Starred tools get a floating bar in that host, dragged by its grip anywhere and turned vertical / horizontal;
+  // its buttons act on the chart used last. Favourites and the bar's place are remembered.
+  const FAV_KEY = 'draw-favorites', FAV_BAR_KEY = 'draw-favorites-bar';
+  const readJson = (key, fallback) => { try { const v = JSON.parse(localStorage.getItem(key)); return v ?? fallback; } catch { return fallback; } };
+  const writeJson = (key, value) => (window.Store?.set || ((k, v) => localStorage.setItem(k, v)))(key, JSON.stringify(value));
+  let favorites = (readJson(FAV_KEY, []) || []).filter(id => typeof id === 'string').slice(0, 30);
+  const instances = new Set(), favBars = new Map();   // attached panels; host element → floating bar
+  let lastUsed = null;
+  const titleOf = id => TOOLS.find(t => t[0] === id)?.[1] || id;
+  const shortTitle = id => titleOf(id).split(':')[0];
+  function toggleFavorite(id) {
+    favorites = favorites.includes(id) ? favorites.filter(x => x !== id) : [...favorites, id];
+    writeJson(FAV_KEY, favorites);
+    instances.forEach(i => i.syncStars());
+    renderFavorites();
+  }
+  const visibleIn = (host, inst) => inst.host() === host && inst.box.offsetParent;
+  function targetFor(host) {
+    if (lastUsed && visibleIn(host, lastUsed)) return lastUsed;
+    return [...instances].find(i => visibleIn(host, i)) || null;
+  }
+  function renderFavorites() {
+    const hosts = new Set([...instances].map(i => i.host()).filter(Boolean));
+    for (const [host, fav] of favBars) if (!hosts.has(host)) { fav.el.remove(); favBars.delete(host); }
+    for (const host of hosts) {
+      let fav = favBars.get(host);
+      if (!fav) fav = createFavBar(host);
+      const list = favorites.filter(id => TOOLS.some(t => t[0] === id));
+      fav.el.hidden = !list.length;
+      fav.el.querySelector('.df-tools').innerHTML = list.map(id => `<button type="button" data-fav-tool="${id}" title="${shortTitle(id)} (ulubione)" aria-label="${shortTitle(id)}"><svg viewBox="0 0 16 16" aria-hidden="true">${ICONS[id]}</svg></button>`).join('');
+      fav.place(); markFavorites();
+    }
+  }
+  function markFavorites() {
+    for (const [host, fav] of favBars) {
+      const t = targetFor(host);
+      fav.el.querySelectorAll('[data-fav-tool]').forEach(b => b.classList.toggle('active', !!t && t.tool() === b.dataset.favTool));
+    }
+  }
+  function createFavBar(host) {
+    if (getComputedStyle(host).position === 'static') host.style.position = 'relative';
+    const el = document.createElement('div');
+    el.className = 'draw-favs'; el.setAttribute('role', 'toolbar'); el.setAttribute('aria-label', 'Ulubione narzędzia');
+    el.innerHTML = `<span class="df-grip" title="Przeciągnij, aby przesunąć pasek ulubionych" aria-hidden="true">⋮⋮</span><div class="df-tools"></div>
+      <button type="button" class="df-turn" title="Obróć pasek (poziomo / pionowo)" aria-label="Obróć pasek ulubionych"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8a5 5 0 0 1 9-3M13 8a5 5 0 0 1-9 3M12 2v3H9M4 14v-3h3"/></svg></button>`;
+    host.append(el);
+    let pos = readJson(FAV_BAR_KEY, null);
+    if (!pos || !Number.isFinite(pos.x) || !Number.isFinite(pos.y)) pos = { x: null, y: 150, vertical: false };   // first time: centred over the chart
+    const place = () => {
+      el.classList.toggle('vertical', !!pos.vertical);
+      const w = host.clientWidth, h = host.clientHeight;
+      if (!w || !h || el.hidden) return;
+      if (!Number.isFinite(pos.x)) pos.x = Math.round((w - el.offsetWidth) / 2);
+      el.style.left = Math.max(0, Math.min(pos.x, w - el.offsetWidth)) + 'px';
+      el.style.top = Math.max(0, Math.min(pos.y, h - el.offsetHeight)) + 'px';
+    };
+    el.addEventListener('pointerdown', e => e.stopPropagation());
+    el.addEventListener('click', e => {
+      const b = e.target.closest('button');
+      if (!b) return;
+      if (b.classList.contains('df-turn')) { pos.vertical = !pos.vertical; writeJson(FAV_BAR_KEY, pos); place(); return; }
+      const id = b.dataset.favTool, t = targetFor(host);
+      if (!id || !t) return;
+      t.setTool(id === t.tool() && id !== 'cursor' ? 'cursor' : id);
+      lastUsed = t; markFavorites();
+    });
+    el.addEventListener('contextmenu', e => { const id = e.target.closest('[data-fav-tool]')?.dataset.favTool; if (id) { e.preventDefault(); toggleFavorite(id); } });
+    const grip = el.querySelector('.df-grip');
+    grip.addEventListener('pointerdown', e => {
+      e.preventDefault(); e.stopPropagation(); grip.setPointerCapture(e.pointerId);
+      const r = host.getBoundingClientRect(), dx = e.clientX - el.offsetLeft - r.left, dy = e.clientY - el.offsetTop - r.top;
+      const move = ev => { const rr = host.getBoundingClientRect(); pos.x = ev.clientX - rr.left - dx; pos.y = ev.clientY - rr.top - dy; place(); };
+      const up = () => { pos.x = el.offsetLeft; pos.y = el.offsetTop; writeJson(FAV_BAR_KEY, pos); grip.removeEventListener('pointermove', move); grip.removeEventListener('pointerup', up); grip.removeEventListener('pointercancel', up); };
+      grip.addEventListener('pointermove', move); grip.addEventListener('pointerup', up); grip.addEventListener('pointercancel', up);
+    });
+    new ResizeObserver(place).observe(host);
+    const fav = { el, place };
+    favBars.set(host, fav);
+    return fav;
+  }
 
   function attach(panel) {
     const self = {};
@@ -253,6 +345,7 @@ const Drawings = (() => {
       canvas.style.pointerEvents = tool === 'cursor' ? 'none' : 'auto'; grabbing = false;
       canvas.style.cursor = tool === 'erase' ? 'pointer' : tool === 'text' ? 'text' : 'crosshair';
       bar.querySelectorAll('button').forEach(b => b.classList.toggle('active', b.dataset.tool === tool));
+      lastUsed = self; markFavorites();
       redraw();
     }
     function commit(points, extra) {
@@ -338,7 +431,13 @@ const Drawings = (() => {
     });
     canvas.addEventListener('pointercancel', () => { if (drag) endDrag(); pending = null; stroke = null; downAt = null; redraw(); });
     canvas.addEventListener('pointerleave', () => { cursor = null; if (pending) redraw(); });
-    bar.addEventListener('click', e => { const t = e.target.closest('[data-tool]')?.dataset.tool; if (t) setTool(t === tool && t !== 'cursor' ? 'cursor' : t); });
+    bar.addEventListener('click', e => {
+      const star = e.target.closest('[data-star]')?.dataset.star;
+      if (star) { e.stopPropagation(); toggleFavorite(star); return; }
+      const t = e.target.closest('[data-tool]')?.dataset.tool; if (t) setTool(t === tool && t !== 'cursor' ? 'cursor' : t);
+    });
+    // Right-click a tool: add it to / remove it from the favourites.
+    bar.addEventListener('contextmenu', e => { const t = e.target.closest('[data-tool]')?.dataset.tool; if (t && host()) { e.preventDefault(); toggleFavorite(t); } });
     bar.addEventListener('pointerdown', e => e.stopPropagation());
     box.addEventListener('keydown', e => { if (e.key === 'Escape') setTool('cursor'); });
 
@@ -522,10 +621,25 @@ const Drawings = (() => {
       settle();
     }).observe(box);
     window.addEventListener('themechange', redraw);
+    // Favourites (terminal only): a star on each tool, and this panel joins its host's favourites bar.
+    const host = () => panel.favoritesHost?.() || null;
+    function syncStars() {
+      if (!host()) return;
+      bar.querySelectorAll('[data-tool]').forEach(b => {
+        let star = b.querySelector('.db-star');
+        if (!star) { star = document.createElement('span'); star.className = 'db-star'; star.dataset.star = b.dataset.tool; star.setAttribute('aria-hidden', 'true'); b.append(star); }
+        const on = favorites.includes(b.dataset.tool);
+        star.textContent = on ? '★' : '☆'; star.classList.toggle('on', on);
+        star.title = on ? 'Usuń z ulubionych' : 'Dodaj do ulubionych (pasek na wykresie)';
+        b.title = titleOf(b.dataset.tool) + (on ? ' · w ulubionych' : '') + ' · prawy klik: ulubione';
+      });
+    }
+    box.addEventListener('pointerdown', () => { if (lastUsed !== self) { lastUsed = self; markFavorites(); } }, true);
+    Object.assign(self, { redraw: settle, reload, setTool, deselect() { selected = null; redraw(); }, tool: () => tool, host, box, syncStars });
     setTool('cursor');
     reload();
-    Object.assign(self, { redraw: settle, reload, setTool, deselect() { selected = null; redraw(); } });
+    if (host()) { instances.add(self); syncStars(); requestAnimationFrame(renderFavorites); }
     return self;
   }
-  return { attach, register };
+  return { attach, register, favorites: () => favorites.slice(), toggleFavorite };
 })();

@@ -69,7 +69,7 @@ window.HyperTerminal = (() => {
     series = chart.addSeries(LightweightCharts.CandlestickSeries, { priceFormat: { type: 'price', precision: 4, minMove: 0.0001 } })
     volumeSeries = chart.addSeries(LightweightCharts.HistogramSeries, { priceFormat: { type: 'volume' }, priceScaleId: 'volume', lastValueVisible: false, priceLineVisible: false, visible: !!settings.volume })
     volumeSeries.priceScale().applyOptions({ scaleMargins: { top: .9, bottom: 0 } })
-    drawingPanel = { el: $('ht-chart'), chart, series, symbol: 'hl:' + selected, candles: [], volume: true }
+    drawingPanel = { el: $('ht-chart'), chart, series, symbol: 'hl:' + selected, candles: [], volume: true, favoritesHost: () => root }
     drawingPanel.drawings = Drawings.attach(drawingPanel)
     profileOverlay = TerminalProfile.attach(drawingPanel)
     theme()

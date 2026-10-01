@@ -78,7 +78,7 @@
       series = chart.addSeries(LightweightCharts.CandlestickSeries, { priceFormat: { type: 'price', precision: 2, minMove: .01 } });
       volume = chart.addSeries(LightweightCharts.HistogramSeries, { priceFormat: { type: 'volume' }, priceScaleId: 'volume', lastValueVisible: false, priceLineVisible: false, visible: flags.volume });
       volume.priceScale().applyOptions({ scaleMargins: { top: .85, bottom: 0 } });
-      panel = { el: chartEl, chart, series, symbol: 'hl:' + coin, candles: [], volume: true };
+      panel = { el: chartEl, chart, series, symbol: 'hl:' + coin, candles: [], volume: true, favoritesHost: () => chartEl.closest('#hyper-terminal') };
       drawings = Drawings.attach(panel); panel.drawings = drawings;
       profile = TerminalProfile.attach(panel);
       orderflow = TerminalOrderflow.attach($('.of-host'), { storageKey: o.key + ':orderflow' });

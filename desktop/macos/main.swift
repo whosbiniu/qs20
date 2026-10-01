@@ -210,9 +210,64 @@ final class TVBridge: NSObject, WKScriptMessageHandler {
 }
 
 final class PostCreatorFileBridge: NSObject, WKScriptMessageHandlerWithReply {
+    private var videoID: String?
+    private var videoURL: URL?
+    private var videoHandle: FileHandle?
+    private var videoName = ""
+    private var videoBytes = 0
+    private func discardVideo() {
+        try? videoHandle?.close();videoHandle=nil
+        if let url=videoURL {try? FileManager.default.removeItem(at:url)}
+        videoURL=nil;videoID=nil;videoBytes=0
+    }
+    deinit {discardVideo()}
+    private func handleVideo(_ fields:[String:String],reply:@escaping (Any?,String?)->Void) {
+        let action=fields["action"] ?? ""
+        do {
+            if action == "videoStart" {
+                guard videoID == nil,let filename=fields["filename"],filename.range(of:"^PostCreator-[A-Za-z0-9._-]+\\.mp4$",options:.regularExpression) != nil else {reply(nil,"Nieprawidłowa nazwa MP4 lub inny zapis w toku.");return}
+                let id=UUID().uuidString
+                let url=FileManager.default.temporaryDirectory.appendingPathComponent("PostCreator-\(id).mp4")
+                guard FileManager.default.createFile(atPath:url.path,contents:nil) else {reply(nil,"Nie można utworzyć pliku MP4.");return}
+                videoURL=url;videoID=id;videoName=filename;videoBytes=0
+                videoHandle=try FileHandle(forWritingTo:url);reply(["id":id],nil);return
+            }
+            guard let id=fields["id"],id==videoID else {reply(nil,"Nieprawidłowa sesja MP4.");return}
+            if action == "videoCancel" {discardVideo();reply(["ok":true],nil);return}
+            if action == "videoChunk" {
+                guard let encoded=fields["data"],encoded.count<1_500_000,let data=Data(base64Encoded:encoded),data.count<=1_048_576,videoBytes+data.count<=536_870_912,let handle=videoHandle else {discardVideo();reply(nil,"Nieprawidłowy fragment lub MP4 przekracza 512 MB.");return}
+                try handle.write(contentsOf:data);videoBytes+=data.count;reply(["ok":true],nil);return
+            }
+            guard action == "videoFinish",let source=videoURL,videoBytes>12 else {discardVideo();reply(nil,"Nieprawidłowy MP4.");return}
+            try videoHandle?.close();videoHandle=nil
+            let reader=try FileHandle(forReadingFrom:source)
+            let header=try reader.read(upToCount:12) ?? Data();try reader.close()
+            guard header.count==12,String(data:header.subdata(in:4..<8),encoding:.ascii)=="ftyp" else {discardVideo();reply(nil,"Plik nie jest MP4.");return}
+            if CommandLine.arguments.contains("--self-test-postcreator"), let output=ProcessInfo.processInfo.environment["POSTCREATOR_TEST_OUTPUT"] {
+                try Data(contentsOf:source).write(to:URL(fileURLWithPath:output),options:.atomic)
+                discardVideo();reply(["ok":true],nil);return
+            }
+            let panel=NSSavePanel();panel.nameFieldStringValue=videoName;panel.canCreateDirectories=true
+            panel.begin {response in
+                defer {self.discardVideo()}
+                guard response == .OK,let target=panel.url else {reply(["cancelled":true],nil);return}
+                do {
+                    let staged=target.deletingLastPathComponent().appendingPathComponent(".PostCreator-\(UUID().uuidString).mp4")
+                    defer {try? FileManager.default.removeItem(at:staged)}
+                    try FileManager.default.copyItem(at:source,to:staged)
+                    if FileManager.default.fileExists(atPath:target.path) {_ = try FileManager.default.replaceItemAt(target,withItemAt:staged)}
+                    else {try FileManager.default.moveItem(at:staged,to:target)}
+                    reply(["ok":true],nil)
+                }catch {reply(nil,error.localizedDescription)}
+            }
+        }catch {discardVideo();reply(nil,error.localizedDescription)}
+    }
     func userContentController(_ userContentController: WKUserContentController,
                                didReceive message: WKScriptMessage,
                                replyHandler: @escaping (Any?, String?) -> Void) {
+        if isBundledPage(message.frameInfo),let fields=message.body as? [String:String],fields["action"]?.hasPrefix("video") == true {
+            handleVideo(fields,reply:replyHandler);return
+        }
         guard isBundledPage(message.frameInfo),
               let fields = message.body as? [String: String],
               let action = fields["action"], ["save", "copy"].contains(action),
@@ -328,6 +383,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
         let config = WKWebViewConfiguration()
         // Self-tests must not depend on preferences saved by normal use (chart count, theme, home layout).
         if CommandLine.arguments.contains(where: { $0.hasPrefix("--self-test") }) { config.websiteDataStore = .nonPersistent() }
+        config.mediaTypesRequiringUserActionForPlayback = []
         config.userContentController.addScriptMessageHandler(calendar, contentWorld: .page, name: "calendar")
         config.userContentController.addScriptMessageHandler(calendarExport, contentWorld: .page, name: "calendarExport")
         config.userContentController.addScriptMessageHandler(marketHighs, contentWorld: .page, name: "marketHighs")
@@ -477,7 +533,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
         NSApp.activate(ignoringOtherApps: true)
         if CommandLine.arguments.contains("--self-test") || CommandLine.arguments.contains("--self-test-highs") ||
            CommandLine.arguments.contains("--self-test-terminal") || CommandLine.arguments.contains("--self-test-integrations") ||
-           CommandLine.arguments.contains("--self-test-tv") ||
+           CommandLine.arguments.contains("--self-test-tv") || CommandLine.arguments.contains("--self-test-postcreator") ||
            CommandLine.arguments.contains("--self-test-final") {
             DispatchQueue.main.asyncAfter(deadline: .now() + 40) { fputs("Self-test timeout\n", stderr); exit(1) }
         }
@@ -550,6 +606,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
                     case .failure(let error): print("FAIL", error); exit(1)
                     }
                 }
+            }
+            return
+        }
+        if CommandLine.arguments.contains("--self-test-postcreator"), !selfTestStarted {
+            selfTestStarted = true
+            guard let path=ProcessInfo.processInfo.environment["POSTCREATOR_TEST_INPUT"],let data=try? Data(contentsOf:URL(fileURLWithPath:path)) else {exit(1)}
+            webView.callAsyncJavaScript("""
+            await need('post-creator');
+            document.querySelector('nav button[data-tab="post-creator"]').click();
+            document.querySelector('[data-mode="aura"]').click();
+            document.querySelector('[data-action="video"]').click();
+            const transfer=new DataTransfer();
+            transfer.items.add(new File([Uint8Array.from(atob(encoded),c=>c.charCodeAt(0))],'test.mp4',{type:'video/mp4'}));
+            const input=document.getElementById('pc-file');input.files=transfer.files;input.dispatchEvent(new Event('change',{bubbles:true}));
+            const wait=ms=>new Promise(r=>setTimeout(r,ms));
+            for(let i=0;i<100&&!document.getElementById('pc-export').textContent.includes('MP4');i++)await wait(100);
+            for(const key of ['aura.textScale','aura.profileScale']){const e=document.querySelector('[data-field="'+key+'"]');e.value=.5;e.dispatchEvent(new Event('input',{bubbles:true}));}
+            document.getElementById('pc-export').click();
+            for(let i=0;i<200;i++){await wait(100);if(document.getElementById('pc-status').textContent.includes('Wyeksportowano MP4'))return 'PASS native MP4 export and scales';}
+            throw Error(document.getElementById('pc-status').textContent);
+            """,arguments:["encoded":data.base64EncodedString()],in:nil,in:.page) {result in
+                switch result {case .success(let value): print(value);exit(0)
+                case .failure(let error):print("FAIL",error);exit(1)}
             }
             return
         }

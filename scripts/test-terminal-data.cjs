@@ -128,6 +128,8 @@ assert.equal(new Date(articles[0].time).toISOString(),'2026-09-27T10:15:00.000Z'
   assert.ok(['events','articles'].every(name=>world.failed.includes(name))&&!['quakes','aircraft'].some(name=>world.failed.includes(name)),String(world.failed));
   await assert.rejects(Terminal.create(async()=>({status:500,text:''})).monitor(),/no monitor data/);
   // Earnings: Yahoo's screener needs cookie + crumb; preferred shares are dropped; an expired crumb is refreshed once.
+  const [ey,em]=new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York'}).format(Date.now()).split('-').map(Number);
+  const nextMonth=k=>new Date(Date.UTC(ey,em-1+k,1)).toISOString().slice(0,10);
   const seen=[];
   let crumbs=0;
   const yahooEarnings=Terminal.create(async(url,options)=>{
@@ -138,7 +140,7 @@ assert.equal(new Date(articles[0].time).toISOString(),'2026-09-27T10:15:00.000Z'
       if(url.includes('crumb1'))return {status:401,text:'{"finance":{"error":{"code":"Unauthorized"}}}'};
       const body=JSON.parse(options.body);
       assert.equal(body.entityIdType,'earnings');
-      assert.deepEqual(body.query.operands.map(o=>o.operands[1]),['2026-10-01','2026-11-01','us']);
+      assert.deepEqual(body.query.operands.map(o=>o.operands[1]),[nextMonth(1),nextMonth(2),'us']); // "month" = the next calendar month (ET)
       return {status:200,text:JSON.stringify({finance:{result:[{documents:[{columns:['ticker','companyshortname','startdatetime','startdatetimetype','epsestimate','epsactual','epssurprisepct','intradaymarketcap'].map(id=>({id})),
         rows:[['JPM-PC','JPMorgan pref','2026-10-13T12:30:00.000Z','TAS',null,null,null,3e10],['JPM','JPMorgan','2026-10-13T12:30:00.000Z','BMO',4.1,4.3,4.9,9e11],['BAD!','x','2026-10-13T12:30:00.000Z','BMO',null,null,null,1]]}]}]}})};
     }

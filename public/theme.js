@@ -14,14 +14,20 @@ const Theme = (() => {
     red: { label: 'czerwony', ink: '#ff5d5d', dim: '#a33b3b', line: '#5c2323', faint: '#2b1010', land: '#140808', border: '#7a3030',
       light: { bg: '#faf3f3', ink: '#b3202a', dim: '#b06a6f', line: '#e3c3c5', faint: '#f1e0e1', land: '#f4e8e8', border: '#d6a9ac' } },
   };
+  // Third mode: cream (or the accent) on cobalt blue, like an engraved print. Derived from the accent's ink.
+  const BLUE_BG = '#1e3a9a';
+  const BLUE_INK = { cream: '#f4ead2', white: '#ffffff', green: '#9af0bb', red: '#ffb3a8' };
+  const mix = (a, b, t) => '#' + [1, 3, 5].map(i => Math.round(parseInt(a.slice(i, i + 2), 16) * t + parseInt(b.slice(i, i + 2), 16) * (1 - t)).toString(16).padStart(2, '0')).join('');
+  const bluePalette = ink => ({ bg: BLUE_BG, ink, dim: mix(ink, BLUE_BG, .62), line: mix(ink, BLUE_BG, .28), faint: mix(ink, BLUE_BG, .1), land: '#18318a', border: mix(ink, BLUE_BG, .38) });
+  const MODES = ['dark', 'light', 'blue'];
   const isTop = window.parent === window;
   let current = 'cream', mode = 'dark';
   const rgb = hex => [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16)).join(' ');
-  const paletteOf = (id, m) => m === 'light' ? THEMES[id].light : { bg: DARK_BG, ...THEMES[id] };
+  const paletteOf = (id, m) => m === 'light' ? THEMES[id].light : m === 'blue' ? bluePalette(BLUE_INK[id]) : { bg: DARK_BG, ...THEMES[id] };
 
   function apply(id, nextMode) {
     current = THEMES[id] ? id : 'cream';
-    mode = nextMode === 'light' ? 'light' : 'dark';
+    mode = MODES.includes(nextMode) ? nextMode : 'dark';
     const theme = paletteOf(current, mode);
     const root = document.documentElement, style = root.style;
     for (const key of ['bg', 'ink', 'dim', 'line', 'faint', 'land', 'border']) style.setProperty('--' + key, theme[key]);
@@ -30,7 +36,7 @@ const Theme = (() => {
     // Variables of the framed Kwartały pages that carry text and accent colours.
     style.setProperty('--text', theme.ink); style.setProperty('--muted', theme.dim);
     for (const key of ['green', 'blue', 'hot']) style.setProperty('--' + key, theme.ink);
-    root.dataset.colorMode = mode; style.colorScheme = mode;
+    root.dataset.colorMode = mode; style.colorScheme = mode === 'light' ? 'light' : 'dark';
     window.dispatchEvent(new CustomEvent('themechange', { detail: current }));
   }
   const persist = () => { try { localStorage.setItem('theme', current); localStorage.setItem('mode', mode); } catch {} };

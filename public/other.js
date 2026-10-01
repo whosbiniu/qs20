@@ -19,15 +19,18 @@ const Other = (() => {
   const pct = (n, d = 2) => Number.isFinite(n) ? (n > 0 ? '+' : n < 0 ? '−' : '') + Math.abs(n).toFixed(d) + '%' : '—'
   const big = n => Number.isFinite(n) ? Intl.NumberFormat('pl-PL', { notation: 'compact', maximumFractionDigits: 1 }).format(n) : '—'
   const light = () => document.documentElement.dataset.colorMode === 'light'
+  const blue = () => document.documentElement.dataset.colorMode === 'blue'
   const css = name => Theme.css(name)
   // Categorical slots in fixed order (validated: dark on #050505, light with labels / table view as relief).
-  const SERIES = { dark: ['#3987e5', '#d95926', '#199e70', '#c98500', '#d55181', '#008300', '#9085e9', '#e66767'], light: ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#008300', '#4a3aa7', '#e34948'] }
-  const series = i => SERIES[light() ? 'light' : 'dark'][i % 8]
+  const SERIES = { dark: ['#3987e5', '#d95926', '#199e70', '#c98500', '#d55181', '#008300', '#9085e9', '#e66767'], light: ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#008300', '#4a3aa7', '#e34948'],
+    // on cobalt: no mid blues, which would vanish into the page
+    blue: ['#8ec5ff', '#ff9a5c', '#5fe0a8', '#ffd25c', '#ff9cc2', '#b5f06a', '#c8bfff', '#ff8a8a'] }
+  const series = i => SERIES[light() ? 'light' : blue() ? 'blue' : 'dark'][i % 8]
   // Diverging: blue (up) <-> red (down) through a grey midpoint; t in [-1, 1].
   const hex = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16))
   const mix = (a, b, t) => { const x = hex(a), y = hex(b); return `rgb(${x.map((v, i) => Math.round(v + (y[i] - v) * t)).join(',')})` }
   function diverging(t) {
-    const mid = light() ? '#e6e3da' : '#383835', up = light() ? '#2a78d6' : '#3987e5', down = light() ? '#e34948' : '#e66767'
+    const mid = light() ? '#e6e3da' : blue() ? '#33499e' : '#383835', up = light() ? '#2a78d6' : blue() ? '#8ec5ff' : '#3987e5', down = light() ? '#e34948' : blue() ? '#ff8a8a' : '#e66767'
     if (!Number.isFinite(t)) return mid
     const c = Math.max(-1, Math.min(1, t))
     return c >= 0 ? mix(mid, up, c) : mix(mid, down, -c)

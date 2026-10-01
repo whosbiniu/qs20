@@ -9,6 +9,7 @@
   font-variant-numeric:tabular-nums;
 }
 html[data-color-mode=light] #hyper-terminal[data-workspace] {--tw-accent:#b0582f; --tw-ask:#a3354f; --tw-bid:#1d7a5f; --tw-ask-depth:#a3354f18; --tw-bid-depth:#1d7a5f18}
+html[data-color-mode=blue] #hyper-terminal[data-workspace] {--tw-accent:#f2bd86; --tw-ask:#ffb3c4; --tw-bid:#a6f0d6; --tw-ask-depth:#ffb3c426; --tw-bid-depth:#a6f0d626}
 .tw {height:100%; min-height:0; display:flex; flex-direction:column; overflow:hidden; border:1px solid var(--line)}
 .tw *, .tw *::before, .tw *::after {box-sizing:border-box}
 .tw button,.tw select {font:inherit; color:var(--dim); background:transparent; border:1px solid transparent; border-radius:4px; cursor:pointer}

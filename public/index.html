@@ -10,6 +10,7 @@
 <link rel="stylesheet" href="hyper-terminal.css">
 <link rel="stylesheet" href="terminal-workspace.css">
 <link rel="stylesheet" href="post-creator.css">
+<link rel="stylesheet" href="post-creator-studio.css">
 <style>
 :root{--bg:#050505;--line:#3a3a34;--ink:#ebe6d3;--dim:#8c8a7c;--faint:#1c1c19}
 *{box-sizing:border-box}
@@ -302,7 +303,7 @@ html[data-color-mode=light] .ot-pane input,html[data-color-mode=light] .ot-pane 
   </section>
   <section class="page" id="charts"></section>
   <section class="page" id="hyper-terminal" hidden></section>
-  <section class="page" id="post-creator" hidden></section>
+  <section class="page" id="post-creator" data-layout="studio" hidden></section>
   <section class="page" id="calendar" hidden></section>
   <section class="page" id="news" hidden><div class="news-page"><div class="newsbar"><input id="newsFilter" type="search" placeholder="filtr wydarzeń…" aria-label="Filtr wydarzeń"><button class="lang" data-lang aria-label="Język nagłówków">PL</button></div><div class="feed" id="newsFull"></div></div></section>
   <section class="page" id="quarters" hidden></section>
@@ -594,7 +595,7 @@ $('tf').onclick = e => {
 // so the first screen parses and runs as little as possible. Files keep their order: each list runs in sequence.
 const LAZY = {
   monitor: ["world-data.js", "world-labels.js", "monitor-geo.js", "monitor.js"],
-  'post-creator': ["post-creator-icons.js", "post-creator-video.js", "post-creator.js"],
+  'post-creator': ["post-creator-icons.js", "post-creator-video.js", "post-creator.js", "post-creator-studio.js"],
   other: ["terminal-extra-data.js", "journal-core.js", "journal.js", "other.js"],
 }
 const lazyLoads = {}

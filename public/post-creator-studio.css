@@ -1,0 +1,95 @@
+/* Post Creator studio inside the terminal (F3): the black frosted-glass look of the standalone site,
+   scoped to this tab. Shares its rules with post-creator-studio.js (slider bars). */
+#post-creator[data-layout=studio]{container-type:inline-size;color:var(--ink);font:13px/1.4 var(--sans);-webkit-font-smoothing:antialiased;overflow:auto;
+  background:radial-gradient(42% 38% at 12% 8%,rgba(64,82,160,.28),transparent 70%),radial-gradient(38% 34% at 92% 18%,rgba(150,60,120,.20),transparent 70%),
+  radial-gradient(46% 40% at 55% 108%,rgba(200,110,40,.16),transparent 70%),#050506}
+/* Floating rounded panels on a dark backdrop with soft colour glows (so the frost has something to blur), canvas in
+   the middle, small floating toolbars, slider fields as filled bars. */
+#post-creator[data-layout=studio]{--bg:#050506;--ink:#f2f2f3;--dim:#9a9aa1;--line:rgba(255,255,255,.09);--faint:rgba(255,255,255,.05);
+  --glass:rgba(24,24,27,.52);--glass-hi:rgba(255,255,255,.07);--edge:rgba(255,255,255,.09);--pick:rgba(255,255,255,.15);
+  --sans:-apple-system,BlinkMacSystemFont,"SF Pro Text","Inter","Helvetica Neue",sans-serif;color-scheme:dark}
+
+/* layout: three floating columns */
+#post-creator[data-layout=studio] .pc{height:100%;display:grid;grid-template-columns:288px minmax(0,1fr) 300px;gap:12px;padding:12px;border:0}
+#post-creator[data-layout=studio] .pc-controls,#post-creator[data-layout=studio] .pc-side{min-height:0;overflow-y:auto;scrollbar-width:none;padding:16px 16px 8px;border:1px solid var(--edge);border-radius:18px;
+  background:var(--glass);-webkit-backdrop-filter:blur(30px) saturate(150%);backdrop-filter:blur(30px) saturate(150%);
+  box-shadow:0 18px 50px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.06)}
+#post-creator[data-layout=studio] .pc-controls h3,#post-creator[data-layout=studio] .pc-side h3{margin:2px 2px 16px;font:600 15px var(--sans);letter-spacing:0;color:var(--ink)}
+
+/* sections */
+#post-creator[data-layout=studio] .pc fieldset{border:0;margin:0 0 18px;padding:0}
+#post-creator[data-layout=studio] .pc legend{padding:0 2px;margin-bottom:9px;font:600 13px var(--sans);letter-spacing:0;text-transform:none;color:var(--ink)}
+#post-creator[data-layout=studio] .pc label{color:var(--dim);font-size:12px;gap:5px;margin-bottom:9px}
+#post-creator[data-layout=studio] .pc input:not([type=range]):not([type=checkbox]),#post-creator[data-layout=studio] .pc select,#post-creator[data-layout=studio] .pc textarea{height:36px;padding:0 12px;border:1px solid var(--edge);border-radius:10px;
+  background:var(--faint);color:var(--ink);font:13px var(--sans);outline:none}
+#post-creator[data-layout=studio] .pc textarea{height:auto;padding:10px 12px;line-height:1.45}
+#post-creator[data-layout=studio] .pc select{appearance:none;-webkit-appearance:none;background-image:linear-gradient(45deg,transparent 50%,var(--dim) 50%),linear-gradient(-45deg,transparent 50%,var(--dim) 50%);
+  background-position:calc(100% - 17px) 15px,calc(100% - 12px) 15px;background-size:5px 5px;background-repeat:no-repeat;padding-right:30px}
+#post-creator[data-layout=studio] .pc input:focus,#post-creator[data-layout=studio] .pc select:focus,#post-creator[data-layout=studio] .pc textarea:focus{border-color:rgba(255,255,255,.28)}
+
+/* buttons */
+#post-creator[data-layout=studio] .pc button{height:34px;padding:0 13px;border:1px solid var(--edge);border-radius:10px;background:var(--glass-hi);color:var(--ink);font:500 12.5px var(--sans);transition:background .15s,border-color .15s}
+#post-creator[data-layout=studio] .pc button:hover{background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.16);color:var(--ink)}
+#post-creator[data-layout=studio] .pc button.active{background:var(--pick);border-color:rgba(255,255,255,.34);color:#fff}
+#post-creator[data-layout=studio] .pc button:disabled{opacity:.4}
+#post-creator[data-layout=studio] .pc-actions{gap:6px}
+
+/* mode switch: segmented control */
+#post-creator[data-layout=studio] .pc-tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:2px;padding:3px;margin-bottom:20px;border-radius:12px;background:rgba(255,255,255,.05);border:1px solid var(--edge)}
+#post-creator[data-layout=studio] .pc .pc-tabs button{height:30px;border:0;background:transparent;color:var(--dim)}
+#post-creator[data-layout=studio] .pc .pc-tabs button.active{background:rgba(255,255,255,.14);color:#fff;box-shadow:0 1px 6px rgba(0,0,0,.35)}
+
+/* slider fields: a filled bar with the name on the left and the value on the right */
+#post-creator[data-layout=studio] .pc label.pc-range{position:relative;flex-direction:row;align-items:center;justify-content:space-between;height:36px;padding:0 12px;
+  border-radius:10px;background:var(--faint);border:1px solid var(--edge);overflow:hidden;color:var(--dim);font-size:12.5px}
+#post-creator[data-layout=studio] .pc label.pc-range::before{content:"";position:absolute;inset:0 auto 0 0;width:var(--p,0%);background:rgba(255,255,255,.11);border-right:1px solid rgba(255,255,255,.18);pointer-events:none}
+#post-creator[data-layout=studio] .pc label.pc-range input{position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;cursor:ew-resize}
+#post-creator[data-layout=studio] .pc label.pc-range .pc-val{position:relative;color:var(--ink);font-variant-numeric:tabular-nums;pointer-events:none}
+
+/* checkboxes as switches */
+#post-creator[data-layout=studio] .pc .pc-check{flex-direction:row-reverse!important;justify-content:space-between;align-items:center;padding:7px 2px;color:var(--ink);font-size:12.5px}
+#post-creator[data-layout=studio] .pc .pc-check input{appearance:none;-webkit-appearance:none;width:36px;height:21px;margin:0;border-radius:11px;background:rgba(255,255,255,.14);position:relative;cursor:pointer;transition:background .15s;flex:none}
+#post-creator[data-layout=studio] .pc .pc-check input::after{content:"";position:absolute;top:2px;left:2px;width:17px;height:17px;border-radius:50%;background:#d9d9dc;transition:transform .15s}
+#post-creator[data-layout=studio] .pc .pc-check input:checked{background:rgba(255,255,255,.85)}
+#post-creator[data-layout=studio] .pc .pc-check input:checked::after{transform:translateX(15px);background:#0b0b0c}
+
+/* ticker list and timeframes */
+#post-creator[data-layout=studio] .pc-quick-title{margin:14px 2px 8px;font:600 12px var(--sans);letter-spacing:0;text-transform:none;color:var(--ink)}
+#post-creator[data-layout=studio] .pc-quick{gap:4px;max-height:300px;scrollbar-width:none}
+#post-creator[data-layout=studio] .pc .pc-quick button{height:38px;border-radius:10px;border-color:transparent;background:transparent}
+#post-creator[data-layout=studio] .pc .pc-quick button:hover,#post-creator[data-layout=studio] .pc .pc-quick button.active{background:rgba(255,255,255,.08);border-color:var(--edge)}
+#post-creator[data-layout=studio] .pc .pc-quick span{font:500 12px var(--sans)}
+#post-creator[data-layout=studio] .pc .pc-tf button{height:30px;padding:0;font:500 12px ui-monospace,"SF Mono",monospace}
+#post-creator[data-layout=studio] .pc-layers button{text-align:left}
+#post-creator[data-layout=studio] .pc-media-note{color:var(--dim);font-size:11.5px;line-height:1.45}
+
+/* stage: the canvas between the panels, toolbars floating over it */
+#post-creator[data-layout=studio] .pc-stage{position:relative;min-height:0;border-radius:18px;background:rgba(255,255,255,.025);border:1px solid rgba(255,255,255,.05);overflow:hidden}
+#post-creator[data-layout=studio] .pc-top{position:absolute;z-index:2;top:12px;left:12px;right:12px;padding:0;gap:8px;border:0;background:none;flex-wrap:nowrap}
+#post-creator[data-layout=studio] .pc-top span,#post-creator[data-layout=studio] .pc-top button{height:38px;display:inline-flex;align-items:center;padding:0 14px;border-radius:12px;border:1px solid var(--edge);
+  background:var(--glass);-webkit-backdrop-filter:blur(24px) saturate(150%);backdrop-filter:blur(24px) saturate(150%);box-shadow:0 8px 28px rgba(0,0,0,.35)}
+#post-creator[data-layout=studio] .pc-top span{color:var(--dim);font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+#post-creator[data-layout=studio] .pc .pc-top #pc-export{background:rgba(255,255,255,.92);color:#0b0b0c;border-color:transparent;font-weight:600}
+#post-creator[data-layout=studio] .pc .pc-top #pc-export:hover{background:#fff}
+#post-creator[data-layout=studio] .pc-preview{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:66px 28px 60px;overflow:hidden}
+#post-creator[data-layout=studio] .pc-preview canvas{max-width:100%;max-height:100%;width:auto;height:auto;border-radius:6px;box-shadow:0 30px 80px rgba(0,0,0,.6),0 0 0 1px rgba(255,255,255,.06)}
+#post-creator[data-layout=studio] .pc-status{z-index:2;position:absolute;left:50%;bottom:12px;transform:translateX(-50%);max-width:calc(100% - 24px);padding:9px 16px;border:1px solid var(--edge);border-radius:999px;
+  background:var(--glass);-webkit-backdrop-filter:blur(24px);backdrop-filter:blur(24px);color:var(--dim);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#post-creator[data-layout=studio] #pc-video-controls{z-index:2;position:absolute;left:12px;right:12px;bottom:58px;border:1px solid var(--edge);border-radius:14px;background:var(--glass);-webkit-backdrop-filter:blur(24px);backdrop-filter:blur(24px)}
+#post-creator[data-layout=studio] #pc-video-seek{accent-color:#fff}
+#post-creator[data-layout=studio] .pc-drop{outline:2px dashed rgba(255,255,255,.4);outline-offset:-14px;border-radius:18px}
+
+@media (max-width:720px){#post-creator[data-layout=studio] .pc{grid-template-columns:1fr}#post-creator[data-layout=studio] .pc-controls{max-height:none}#post-creator[data-layout=studio] .pc-top{flex-wrap:wrap;position:static;margin:12px}#post-creator[data-layout=studio] .pc-preview{padding:12px}}
+/* The terminal tab is narrower than the standalone page (the events column stays beside it): side panels give
+   way first, toolbar buttons never wrap and the mode title shrinks instead. */
+#post-creator[data-layout=studio] .pc{grid-template-columns:minmax(232px,288px) minmax(0,1fr) minmax(232px,300px)}
+#post-creator[data-layout=studio] .pc-top button{white-space:nowrap;flex:none;padding:0 12px}
+#post-creator[data-layout=studio] .pc-top span{flex:1 1 0}
+#post-creator[data-layout=studio] .pc-top .pc-spacer{display:none}
+@container (max-width:1180px){
+  #post-creator[data-layout=studio] .pc{grid-template-columns:minmax(232px,288px) minmax(0,1fr);height:auto;min-height:100%}
+  #post-creator[data-layout=studio] .pc-controls{max-height:calc(100vh - 160px);position:sticky;top:12px}
+  #post-creator[data-layout=studio] .pc-stage{min-height:calc(100vh - 160px)}
+  #post-creator[data-layout=studio] .pc-side{grid-column:2;overflow:visible}
+}
+@container (max-width:900px){#post-creator[data-layout=studio] .pc-top span{display:none}}

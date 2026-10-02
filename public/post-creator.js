@@ -7,6 +7,8 @@ window.PostCreator = (() => {
   const merge = saved => { const base = initial(), t = { ...base.thesis, ...saved?.thesis }; t.panels = base.thesis.panels.map((p, i) => ({ ...p, ...(Array.isArray(saved?.thesis?.panels) ? saved.thesis.panels[i] : null) })); return { ...base, ...saved, aura: { ...base.aura, ...saved?.aura }, thesis: t } }
   let project = initial(), selected = -1, images = new Map(), drag = null, panel = 0
   try { const saved = JSON.parse(localStorage.getItem('postcreator-project') || 'null'); if (saved?.version === 2) project = merge(saved) } catch {}
+  // Words drawn on the canvas go through the page's translator when there is one (the English site).
+  const say = s => window.PostCreatorSay ? window.PostCreatorSay(s) : s
   const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]))
   const $ = id => document.getElementById(id)
   // "studio" (the standalone site): appearance settings go to a second panel on the right; in the terminal all stay on the left.
@@ -143,7 +145,7 @@ window.PostCreator = (() => {
     thesisBoxes(w,h).forEach((box,i)=>{
       const p=t.panels[i],img=getImage(p.image)
       if(img)placeImage(c,img,box.x,box.y,box.w,box.h,'fit')
-      else if(preview){c.save();c.strokeStyle=faint;c.setLineDash([10*u,8*u]);c.lineWidth=2*u;c.strokeRect(box.x,box.y,box.w,box.h);c.fillStyle=soft;c.textAlign='center';c.font=font(26);c.fillText(`Wykres ${i+1} · wklej (⌘V) lub przeciągnij`,box.x+box.w/2,box.y+box.h/2);c.restore()}
+      else if(preview){c.save();c.strokeStyle=faint;c.setLineDash([10*u,8*u]);c.lineWidth=2*u;c.strokeRect(box.x,box.y,box.w,box.h);c.fillStyle=soft;c.textAlign='center';c.font=font(26);c.fillText(say(`Wykres ${i+1} · wklej (⌘V) lub przeciągnij`),box.x+box.w/2,box.y+box.h/2);c.restore()}
       if(preview&&i===panel&&t.count>1){c.save();c.strokeStyle=t.accent;c.globalAlpha=.55;c.lineWidth=3*u;c.strokeRect(box.x-8*u,box.y-8*u,box.w+16*u,box.h+16*u);c.restore()}
       if(!t.showWheel)return
       // Timeframe wheel: the chosen one large in the accent colour, two neighbours each side fading out, dots underneath.

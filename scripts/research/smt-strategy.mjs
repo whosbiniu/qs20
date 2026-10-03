@@ -1,6 +1,7 @@
 // Research: SMT divergence in the predicted High/Low windows of our Daily Cycle model.
 //
-//   node scripts/research/smt-strategy.mjs <data dir>
+//   node scripts/research/smt-strategy.mjs <data dir> [R target, default 2] [hold]
+//   "hold": no end-of-day exit – the trade stays open until the stop or the target (fixed RR).
 //
 // Data: Yahoo JSON m5_<SYM>.json (5-minute bars, last 60 days) and h_<SYM>.json (60-minute bars, ~2 years).
 //
@@ -21,7 +22,7 @@ const dir = process.argv[2]
 if (!dir) { console.error('usage: node scripts/research/smt-strategy.mjs <data dir>'); process.exit(1) }
 const GROUPS = { 'Indeksy (NQ/ES/YM/RTY)': ['NQ=F', 'ES=F', 'YM=F', 'RTY=F'], 'Metale (GC/SI)': ['GC=F', 'SI=F'] }
 const TICK = { 'NQ=F': .25, 'ES=F': .25, 'YM=F': 1, 'RTY=F': .1, 'GC=F': .1, 'SI=F': .005 }
-const COST_TICKS = 2, R_TARGET = 2
+const COST_TICKS = 2, R_TARGET = +(process.argv[3] || 2), HOLD = process.argv[4] === 'hold'
 
 const fmt = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
 function et(ts) { const p = Object.fromEntries(fmt.formatToParts(new Date(ts * 1000)).map(x => [x.type, x.value])); return { y: +p.year, m: +p.month, d: +p.day, h: +p.hour % 24, min: +p.minute } }
@@ -65,7 +66,7 @@ const FILTERS = {
 }
 
 // One day: scan for the first SMT in an allowed row and manage the trade on the chosen market.
-function tradeDay(day, prev, syms, ref, allowed) {
+function tradeDay(day, prev, syms, ref, allowed, after = []) {
   const t = targetsOf(day), rows = day.rows
   let period = null, refs = null, run = null
   const reset = (key, levels) => { period = key; refs = levels; run = Object.fromEntries(syms.map(s => [s, { h: -Infinity, l: Infinity }])) }
@@ -95,12 +96,13 @@ function tradeDay(day, prev, syms, ref, allowed) {
     if (risk < 4 * tick) continue
     const target = entry + side * R_TARGET * risk
     let r = null
-    for (const x of rows.slice(i + 1)) {
+    const path = HOLD ? rows.slice(i + 1).concat(after) : rows.slice(i + 1)
+    for (const x of path) {
       const b = x.b[sym]
       if (side === 1 ? b.l <= stop : b.h >= stop) { r = -1; break }
       if (side === 1 ? b.h >= target : b.l <= target) { r = R_TARGET; break }
     }
-    if (r === null) r = side * (rows.at(-1).b[sym].c - entry) / risk
+    if (r === null) r = side * ((path.at(-1) ?? row).b[sym].c - entry) / risk
     return { r: r - COST_TICKS * tick / risk, sym, side, date: day.key, session: row.q, m90: row.m90 }
   }
   return null
@@ -108,7 +110,7 @@ function tradeDay(day, prev, syms, ref, allowed) {
 
 function run(syms, prefix, ref, filter) {
   const ds = days(syms, prefix), res = []
-  for (let i = 1; i < ds.length; i++) { const tr = tradeDay(ds[i], ds[i - 1], syms, ref, FILTERS[filter].ok); if (tr) res.push(tr) }
+  for (let i = 1; i < ds.length; i++) { const tr = tradeDay(ds[i], ds[i - 1], syms, ref, FILTERS[filter].ok, HOLD ? ds.slice(i + 1).flatMap(d => d.rows) : []); if (tr) res.push(tr) }
   return { res, from: ds[0]?.key, to: ds.at(-1)?.key, n: ds.length }
 }
 function summary(res) {
@@ -123,6 +125,7 @@ function summary(res) {
 const pad = (s, n) => String(s).padEnd(n)
 const line = (label, s) => s ? `${pad(label, 34)} n=${pad(s.n, 4)} win ${pad((s.win * 100).toFixed(1) + '%', 6)} avg ${pad((s.avg >= 0 ? '+' : '') + s.avg.toFixed(3) + 'R', 8)} suma ${pad((s.total >= 0 ? '+' : '') + s.total.toFixed(1) + 'R', 8)} PF ${pad(s.pf.toFixed(2), 5)} maxDD ${pad(s.dd.toFixed(1) + 'R', 7)} t=${s.t.toFixed(2)}` : `${pad(label, 34)} brak transakcji`
 
+console.log(`Cel ${R_TARGET}R · ${HOLD ? 'bez wyjścia na koniec dnia (tylko SL albo TP)' : 'wyjście najpóźniej o 17:00 NY'}`)
 for (const [prefix, refsList, label] of [['m5', ['m90', 'pd'], '5 min · ostatnie 60 dni'], ['h', ['pd'], '60 min · ~2,5 roku']]) {
   console.log(`\n######## ${label} ########`)
   for (const [gname, syms] of Object.entries(GROUPS)) {

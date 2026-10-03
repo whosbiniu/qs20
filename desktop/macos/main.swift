@@ -332,27 +332,38 @@ final class CalendarExportBridge: NSObject, WKScriptMessageHandlerWithReply {
     }
 }
 
-// UNCsWay Final draws its own title bar: dragging it (or double-clicking) moves or zooms the window.
-// The page reports the mouse-down; the move follows the real mouse until the button is released.
-final class WindowDragBridge: NSObject, WKScriptMessageHandler {
-    weak var window: NSWindow?
-    private var monitor: Any?
-    func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
-        guard isBundledPage(message.frameInfo), message.frameInfo.isMainFrame, let window, let action = message.body as? String else { return }
-        if action == "zoom" { window.zoom(nil); return }
-        guard action == "drag", monitor == nil, NSEvent.pressedMouseButtons & 1 != 0 else { return }
-        let start = NSEvent.mouseLocation, origin = window.frame.origin
-        monitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDragged, .leftMouseUp]) { [weak self] event in
-            guard let self, let window = self.window else { return event }
-            if event.type == .leftMouseUp {
-                if let monitor = self.monitor { NSEvent.removeMonitor(monitor) }
-                self.monitor = nil
-                return event
-            }
-            let now = NSEvent.mouseLocation
-            window.setFrameOrigin(NSPoint(x: origin.x + now.x - start.x, y: origin.y + now.y - start.y))
-            return nil
+// UNCsWay Final draws its own title bar. The page reports where its drag areas ([data-drag]) and the controls in
+// them are; a mouse-down on a free spot of a drag area moves the window natively (performDrag, like a real title
+// bar), a double-click zooms it. Clicks on buttons and links in the bar reach the page as usual.
+final class DragWebView: WKWebView {
+    var dragRects: [CGRect] = []
+    var controlRects: [CGRect] = []
+    func pagePoint(_ event: NSEvent) -> CGPoint {
+        let p = convert(event.locationInWindow, from: nil), zoom = max(0.1, pageZoom)
+        return CGPoint(x: p.x / zoom, y: (isFlipped ? p.y : bounds.height - p.y) / zoom)
+    }
+    func isDragArea(_ point: CGPoint) -> Bool {
+        dragRects.contains { $0.contains(point) } && !controlRects.contains { $0.contains(point) }
+    }
+    override func mouseDown(with event: NSEvent) {
+        if isDragArea(pagePoint(event)), let window {
+            if event.clickCount == 2 { window.performZoom(nil) } else { window.performDrag(with: event) }
+            return
         }
+        super.mouseDown(with: event)
+    }
+}
+
+final class WindowDragBridge: NSObject, WKScriptMessageHandler {
+    weak var webView: DragWebView?
+    func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+        guard isBundledPage(message.frameInfo), message.frameInfo.isMainFrame, let body = message.body as? [String: Any] else { return }
+        let rects = { (key: String) -> [CGRect] in
+            ((body[key] as? [[Double]]) ?? []).compactMap { $0.count == 4 ? CGRect(x: $0[0], y: $0[1], width: $0[2], height: $0[3]) : nil }
+        }
+        if body["drag"] != nil { webView?.dragRects = rects("drag"); webView?.controlRects = rects("controls") }
+        // A Bloomberg price alert went off: sound and a bouncing Dock icon while the app is in the background.
+        if body["attention"] != nil { NSSound.beep(); NSApp.requestUserAttention(.informationalRequest) }
     }
 }
 
@@ -393,6 +404,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
             config.userContentController.add(windowDrag, name: "windowDrag")
             config.userContentController.addUserScript(WKUserScript(source: """
             document.documentElement.dataset.shell = 'final';
+            // Drag areas of the page's title bar and the controls inside them, for the native window drag.
+            (() => {
+              const rect = el => { const b = el.getBoundingClientRect(); return [b.left, b.top, b.width, b.height]; };
+              const visible = el => el.getClientRects().length > 0;
+              let timer = 0;
+              const report = () => { clearTimeout(timer); timer = setTimeout(() => {
+                const areas = [...document.querySelectorAll('[data-drag]')].filter(visible);
+                const controls = areas.flatMap(a => [...a.querySelectorAll('a,button,input,select,textarea,label,[role=button],[contenteditable]')]).filter(visible);
+                window.webkit.messageHandlers.windowDrag.postMessage({ drag: areas.map(rect), controls: controls.map(rect) });
+              }, 60); };
+              addEventListener('DOMContentLoaded', () => { report(); new MutationObserver(report).observe(document.documentElement, { subtree: true, childList: true, attributes: true, attributeFilter: ['hidden', 'class'] }); });
+              addEventListener('load', report); addEventListener('resize', report);
+            })();
+            // Other pages than the dashboard get a thin strip under the traffic lights: drag area and a way back.
             // Other pages than the dashboard get a thin strip under the traffic lights: drag area and a way back.
             addEventListener('DOMContentLoaded', () => {
               if (document.documentElement.hasAttribute('data-final-page')) return;
@@ -400,11 +425,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
               style.textContent = 'html[data-shell=final] body{padding-top:34px!important}.unc-final-strip{position:fixed;top:0;left:0;right:0;height:30px;z-index:2147483000;display:flex;justify-content:flex-end;align-items:center;padding:0 12px;-webkit-user-select:none;user-select:none}.unc-final-strip a{font:12px -apple-system,sans-serif;color:#aaa;text-decoration:none;border:1px solid #333;border-radius:5px;padding:2px 9px;background:#141414}.unc-final-strip a:hover{color:#fff}';
               document.head.append(style);
               const strip = document.createElement('div');
-              strip.className = 'unc-final-strip';
+              strip.className = 'unc-final-strip'; strip.dataset.drag = '';
               strip.innerHTML = '<a href="final.html">‹ Dashboard</a>';
               document.body.append(strip);
-              strip.addEventListener('mousedown', e => { if (e.target === strip && e.button === 0 && e.detail === 1) webkit.messageHandlers.windowDrag.postMessage('drag'); });
-              strip.addEventListener('dblclick', e => { if (e.target === strip) webkit.messageHandlers.windowDrag.postMessage('zoom'); });
             });
             """, injectionTime: .atDocumentStart, forMainFrameOnly: true))
         }
@@ -497,7 +520,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
             config.websiteDataStore = .nonPersistent()
             config.userContentController.addUserScript(WKUserScript(source: bench.script, injectionTime: .atDocumentStart, forMainFrameOnly: true))
         }
-        webView = WKWebView(frame: .zero, configuration: config)
+        if isFinal { let view = DragWebView(frame: .zero, configuration: config); windowDrag.webView = view; webView = view }
+        else { webView = WKWebView(frame: .zero, configuration: config) }
         tv.host = webView
         webView.navigationDelegate = self
         webView.uiDelegate = self
@@ -715,13 +739,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
             for(let i=0;i<150&&!/^E-Mini|ES/.test($('secName').textContent);i++)await wait(100);
             document.querySelector('[data-p="5D"]').click();await wait(2500);
             $('freq').click();[...document.querySelectorAll('#pop button')].find(b=>/H1$/.test(b.textContent)).click();await wait(3000);
-            const state={first,second:$('secName').textContent,freq:$('freq').textContent,range:[$('from').textContent,$('to').textContent],status:$('status').textContent,shell:document.documentElement.dataset.shell};
+            const center=el=>{const b=el.getBoundingClientRect();return [b.left+b.width/2,b.top+b.height/2]};
+            const state={first,second:$('secName').textContent,freq:$('freq').textContent,range:[$('from').textContent,$('to').textContent],status:$('status').textContent,shell:document.documentElement.dataset.shell,
+              dragPoint:center(document.querySelector('.bb-top .bb-grow')),buttonPoint:center($('related'))};
             state.ok=/\\d/.test(first[1])&&first[2]>=4&&/E-Mini|ES/.test(state.second)&&/^H1/.test(state.freq)&&state.range[0]!==state.range[1]&&!state.status;
             return JSON.stringify(state);
             """, arguments: [:], in: nil, in: .page) { result in
                 let output = (try? result.get() as? String) ?? "FAIL \(result)"
-                print(output)
-                exit(output.contains("\"ok\":true") ? 0 : 1)
+                // Native window drag: a free spot of the title bar drags, a button in it does not.
+                var dragOK = false
+                if let view = webView as? DragWebView, let json = try? JSONSerialization.jsonObject(with: Data(output.utf8)) as? [String: Any],
+                   let d = json["dragPoint"] as? [Double], let b = json["buttonPoint"] as? [Double], d.count == 2, b.count == 2 {
+                    dragOK = view.isDragArea(CGPoint(x: d[0], y: d[1])) && !view.isDragArea(CGPoint(x: b[0], y: b[1]))
+                }
+                print(output, "drag:", dragOK)
+                exit(output.contains("\"ok\":true") && dragOK ? 0 : 1)
             }
             return
         }

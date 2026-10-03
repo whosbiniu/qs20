@@ -12,14 +12,14 @@
 <div class="bb" id="bb">
   <!-- launchpad bar: history arrows, security, function, related functions, messages -->
   <header class="bb-top" data-drag>
-    <button type="button" class="bb-nav" id="back" aria-label="Wstecz">‹</button><button type="button" class="bb-nav" id="fwd" aria-label="Dalej">›</button>
+    <button type="button" class="bb-link" id="link" title="Łączenie paneli: kliknij, aby wybrać kolor – panele w tym samym kolorze pokazują ten sam instrument" aria-label="Kolor łączenia paneli"></button><button type="button" class="bb-nav" id="back" aria-label="Wstecz">‹</button><button type="button" class="bb-nav" id="fwd" aria-label="Dalej">›</button>
     <button type="button" class="bb-title" id="title" title="Kliknij lub zacznij pisać, aby zmienić instrument"><span id="secName">—</span> ▾</button>
-    <span class="bb-sep"></span><span class="bb-fn">GPC</span><span class="bb-sep"></span>
+    <span class="bb-sep"></span><span class="bb-fn" id="fn">GP</span><span class="bb-sep"></span>
     <button type="button" class="bb-menu" id="related">Related Functions Menu <i>≫</i></button>
     <form class="bb-cmd" id="cmd" hidden><input id="cmdInput" autocomplete="off" spellcheck="false" aria-label="Komenda: ticker i Enter (np. ES1! GO)"><span>&lt;GO&gt;</span></form>
     <span class="bb-grow" data-drag></span>
     <a class="bb-msg" href="final.html" title="Wróć do dashboardu">✉ Message</a>
-    <span class="bb-icons" aria-hidden="true"><b>⧉▾</b><b>☆</b><b>?▾</b></span>
+    <button type="button" class="bb-icon" id="layoutBtn" title="Launchpad: 1, 2 lub 4 panele">⧉▾</button><span class="bb-icons" aria-hidden="true"><b>☆</b><b>?▾</b></span>
   </header>
 
   <!-- quote lines -->
@@ -27,13 +27,13 @@
     <div class="bb-q1">
       <i class="bb-flag"></i><b id="qSym">—</b><span id="qArrow" class="bb-arrow"></span><b id="qLast" class="bb-last">—</b>
       <span id="qChg" class="bb-chg">—</span><canvas id="spark" width="80" height="22" aria-hidden="true"></canvas>
-      <span id="qBidAsk" class="bb-ba">N.A./N.A.</span><span class="bb-size">— x —</span>
+      <span id="qBidAsk" class="bb-ba">N.A./N.A.</span><span class="bb-size" id="qSize">— x —</span>
       <span class="bb-grow"></span><span class="bb-lbl">Prev</span><b id="qPrev">—</b>
     </div>
     <div class="bb-q2">
       <span class="bb-lbl">At</span><b id="qAt">—</b><span class="bb-lbl">Vol</span><b id="qVol">—</b>
       <span class="bb-lbl">Op</span><b id="qOp">—</b><span class="bb-lbl">Hi</span><b id="qHi">—</b><span class="bb-lbl">Lo</span><b id="qLo">—</b>
-      <span class="bb-lbl">OpenInt</span><b>N.A.</b>
+      <span class="bb-lbl">OpenInt</span><b id="qOI">N.A.</b>
     </div>
   </section>
 
@@ -56,6 +56,7 @@
     <span class="bb-amber bb-field bb-ccy">Local CCY</span><span class="bb-drop">▾</span>
     <label class="bb-check"><input type="checkbox" id="mavg"><span>Mov Avgs</span></label><span class="bb-pen">✎</span>
     <label class="bb-check"><input type="checkbox" id="events"><span>Key Events</span></label>
+    <label class="bb-check"><input type="checkbox" id="sessions"><span>Sessions Q1–Q4</span></label>
   </div>
 
   <!-- periods and chart controls -->
@@ -77,7 +78,14 @@
     <button type="button" class="bb-btn" id="editChart">✎ Edit Chart</button><button type="button" class="bb-btn bb-gear" id="gear" aria-label="Ustawienia">⚙</button>
   </div>
 
-  <!-- chart -->
+  <div class="bb-alert" id="alertBar" role="alert" hidden></div>
+  <!-- watchlist + chart -->
+  <div class="bb-body">
+  <aside class="bb-watch" id="watch" hidden>
+    <h3>MON · Watchlist</h3>
+    <ul id="watchList"></ul>
+    <input id="watchAdd" placeholder="+ Add security" spellcheck="false" aria-label="Dodaj do listy (ticker i Enter)">
+  </aside>
   <main class="bb-chart" id="chartBox">
     <div class="bb-tools" role="group" aria-label="Narzędzia wykresu">
       <button data-tool="track" class="on">⌖ Track</button><button data-tool="annotate">∠ Annotate</button><button data-tool="news">▤ News</button><button data-tool="zoom">⌕ Zoom</button>
@@ -86,8 +94,11 @@
     <div id="chart"></div>
     <div class="bb-table" id="tableView" hidden></div>
     <aside class="bb-news" id="newsView" hidden></aside>
+    <div class="bb-sess" id="sessLegend" hidden></div>
     <p class="bb-status" id="status"></p>
   </main>
+  </div>
+  <section class="bb-screen" id="screen" hidden></section>
 </div>
 <script src="storage.js"></script>
 <script src="day-highs.js"></script>

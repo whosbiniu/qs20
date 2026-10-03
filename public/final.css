@@ -122,3 +122,7 @@ html[data-shell=final] .fx-top { padding-left: 90px }
 /* Bloomberg terminal button next to Terminal: amber like the Bloomberg keyboard's function keys. */
 .fx-launch.fx-bbg { background: #fb8b1e; color: #000; margin-right: -12px }
 .fx-launch.fx-bbg:hover { color: #000 }
+
+/* Title bar: free space on the left (drag area under the traffic lights), every control on the right. */
+.fx-drag-space { flex: 1; align-self: stretch }
+.fx-top .fx-tools { position: static; transform: none; gap: 22px }

@@ -14,7 +14,7 @@ window.PostCreator = (() => {
   // "studio" (the standalone site): appearance settings go to a second panel on the right; in the terminal all stay on the left.
   const studio = root.dataset.layout === 'studio'
   const STYLE = new Set(['Elementy', 'Profil', 'Rozmiar nakładki', 'Widoczność', 'Opis tezy', 'Wygląd'])
-  root.innerHTML = `<div class="pc"><aside class="pc-controls"><h3>POST CREATOR</h3><div class="pc-tabs"><button data-mode="charts">Wykresy</button><button data-mode="aura">Aura</button><button data-mode="thesis">Teza</button></div><div id="pc-fields"></div></aside><div class="pc-stage"><div class="pc-top"><span id="pc-mode-title">Wykresy</span><div class="pc-spacer"></div><button id="pc-open">Otwórz projekt</button><button id="pc-save">Zapisz projekt</button><button id="pc-export">Eksportuj PNG</button><button id="pc-copy">Kopiuj PNG</button></div><div class="pc-preview" id="pc-drop"><canvas id="pc-canvas" aria-label="Podgląd grafiki"></canvas></div><div id="pc-video-controls" hidden><button id="pc-video-play">Odtwórz</button><input id="pc-video-seek" type="range" min="0" max="0" step="0.05" value="0" aria-label="Pozycja filmu"><span id="pc-video-time"></span></div><button id="pc-video-cancel" hidden>Anuluj eksport MP4</button><div class="pc-status" id="pc-status" role="status">Wklej obraz (⌘V), przeciągnij plik lub wybierz go w panelu.</div></div>${studio ? '<aside class="pc-side" aria-label="Styl"><h3>Styl</h3><div id="pc-style"></div></aside>' : ''}<input type="file" id="pc-file" accept="image/*" hidden><input type="file" id="pc-project-file" accept=".postcreator,application/json" hidden></div>`
+  root.innerHTML = `<div class="pc"><aside class="pc-controls"><h3>POST CREATOR</h3><div class="pc-tabs"><button data-mode="charts">Wykresy</button><button data-mode="aura">Aura</button><button data-mode="thesis">Teza</button></div><div id="pc-fields"></div></aside><div class="pc-stage"><div class="pc-top"><span id="pc-mode-title">Wykresy</span><div class="pc-spacer"></div><button id="pc-undo" title="Cofnij ostatnią zmianę (⌘Z)" disabled>Cofnij</button><button id="pc-reset" title="Przywróć domyślny widok – ⌘Z cofa">Reset</button><button id="pc-open">Otwórz projekt</button><button id="pc-save">Zapisz projekt</button><button id="pc-export">Eksportuj PNG</button><button id="pc-copy">Kopiuj PNG</button></div><div class="pc-preview" id="pc-drop"><canvas id="pc-canvas" aria-label="Podgląd grafiki"></canvas></div><div id="pc-video-controls" hidden><button id="pc-video-play">Odtwórz</button><input id="pc-video-seek" type="range" min="0" max="0" step="0.05" value="0" aria-label="Pozycja filmu"><span id="pc-video-time"></span></div><button id="pc-video-cancel" hidden>Anuluj eksport MP4</button><div class="pc-status" id="pc-status" role="status">Wklej obraz (⌘V), przeciągnij plik lub wybierz go w panelu.</div></div>${studio ? '<aside class="pc-side" aria-label="Styl"><h3>Styl</h3><div id="pc-style"></div></aside>' : ''}<input type="file" id="pc-file" accept="image/*" hidden><input type="file" id="pc-project-file" accept=".postcreator,application/json" hidden></div>`
   const canvas = $('pc-canvas'), ctx = canvas.getContext('2d')
   const status = s => $('pc-status').textContent = s
   const video = new PostCreatorVideo({draw,status,changed(name){project.aura.videoName=name;project.aura.photo=null;update()},busy(value){root.querySelectorAll('button,input,select').forEach(el=>el.disabled=value);$('pc-video-cancel').hidden=!value;$('pc-video-cancel').disabled=false;if(!value)controls()}})
@@ -167,10 +167,23 @@ window.PostCreator = (() => {
   // not on every input event; pending changes are written when the page is left. Images no longer used by the
   // project leave the decoded-image cache at the same time.
   let saveTimer=0
-  function persist(){clearTimeout(saveTimer);saveTimer=0;try{localStorage.setItem('postcreator-project',JSON.stringify(project))}catch{status('Projekt jest zbyt duży dla autozapisu. Użyj „Zapisz projekt”.')}
+  // Undo history: every autosave that changed the project records the state before it, so a burst of changes
+  // (a slider drag) is one step. Copies share the image strings, so a step costs almost nothing.
+  const copy=v=>Array.isArray(v)?v.map(copy):v&&typeof v==='object'?Object.fromEntries(Object.entries(v).map(([k,x])=>[k,copy(x)])):v
+  const same=(a,b)=>a===b||(a&&b&&typeof a==='object'&&typeof b==='object'&&Array.isArray(a)===Array.isArray(b)&&Object.keys(a).length===Object.keys(b).length&&Object.keys(a).every(k=>same(a[k],b[k])))
+  const undoStack=[],redoStack=[]
+  let committed=null
+  function remember(){if(committed&&!same(committed,project)){undoStack.push(committed);if(undoStack.length>60)undoStack.shift();redoStack.length=0}committed=copy(project)}
+  function historyButtons(){const b=$('pc-undo');if(b)b.disabled=!undoStack.length&&!(saveTimer&&committed&&!same(committed,project))}
+  function persist(){clearTimeout(saveTimer);saveTimer=0;remember();historyButtons();try{localStorage.setItem('postcreator-project',JSON.stringify(project))}catch{status('Projekt jest zbyt duży dla autozapisu. Użyj „Zapisz projekt”.')}
     const used=new Set([project.background,project.avatar,project.aura.photo,...project.charts.map(c=>c.data),...project.thesis.panels.map(p=>p.image)])
     for(const key of images.keys())if(!used.has(key)&&key!=='/postcreator-avatar.jpg')images.delete(key)}
-  function saveLocal(){clearTimeout(saveTimer);saveTimer=setTimeout(persist,400)}
+  function saveLocal(){clearTimeout(saveTimer);saveTimer=setTimeout(persist,400);historyButtons()}
+  function restore(state,status_){video.clear();project=merge(copy(state));committed=copy(project);selected=-1;panel=0;controls();draw();clearTimeout(saveTimer);saveTimer=0;try{localStorage.setItem('postcreator-project',JSON.stringify(project))}catch{}historyButtons();status(status_)}
+  function undo(){if(saveTimer)persist();const prev=undoStack.pop();if(!prev){status('Nie ma czego cofnąć.');return}redoStack.push(copy(project));restore(prev,'Cofnięto ostatnią zmianę.')}
+  function redo(){if(saveTimer)persist();const next=redoStack.pop();if(!next)return;undoStack.push(copy(project));restore(next,'Przywrócono zmianę.')}
+  // Reset: the default look of every panel. Profile (name, handle, avatar) stays; ⌘Z brings the old state back.
+  function reset(){if(saveTimer)persist();const keep={displayName:project.displayName,handle:project.handle,avatar:project.avatar,activePanel:project.activePanel};undoStack.push(copy(project));redoStack.length=0;restore({...initial(),...keep},'Przywrócono domyślny widok. ⌘Z cofa.')}
   addEventListener('pagehide',()=>{if(saveTimer)persist()})
   let drawFrame=0
   const drawSoon=()=>{if(!drawFrame)drawFrame=requestAnimationFrame(()=>{drawFrame=0;draw()})}
@@ -213,6 +226,8 @@ window.PostCreator = (() => {
   root.addEventListener('input',e=>{const key=e.target.dataset.field;if(!key||video.exporting)return;let value=e.target.type==='checkbox'?e.target.checked:e.target.value;if(e.target.type==='range')value=Number(value);if(key==='format'){[project.canvasWidth,project.canvasHeight]=value.split('x').map(Number);if(project.keepCentered)centreAll()}else if(key==='keepCentered'){project.keepCentered=value;if(value)centreAll();status(value?'Wykresy zawsze na środku: uchwyt skaluje od środka, przesuwanie wyłączone.':'Wykresy można swobodnie przesuwać.')}else if(key==='aura.format'){[project.aura.width,project.aura.height]=value.split('x').map(Number)}else if(key==='thesis.format'){[project.thesis.width,project.thesis.height]=value.split('x').map(Number)}else if(key==='thesis.count'){project.thesis.count=Number(value);panel=Math.min(panel,project.thesis.count-1);controls()}else if(key.startsWith('thesis.'))project.thesis[key.slice(7)]=value;else if(['fit','opacity'].includes(key)){if(project.charts[selected])project.charts[selected][key]=value}else if(key.startsWith('aura.'))project.aura[key.slice(5)]=value;else project[key]=value;if(key==='ticker'||key==='aura.ticker'||key==='thesis.ticker')controls();drawSoon();saveLocal()})
   $('pc-file').onchange=e=>{addFile(e.target.files[0]);e.target.value=''}
   $('pc-open').onclick=()=>$('pc-project-file').click()
+  $('pc-undo').onclick=()=>{if(!video.exporting)undo()}
+  $('pc-reset').onclick=()=>{if(!video.exporting)reset()}
   $('pc-project-file').onchange=async e=>{try{const incoming=JSON.parse(await e.target.files[0].text());if(!incoming||!Array.isArray(incoming.charts))throw Error('Nieprawidłowy plik');video.clear();project=merge(incoming);selected=-1;panel=0;images.clear();update();status('Otworzono projekt.')}catch(err){status(err.message)}e.target.value=''}
   const asBase64 = blob => new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result).split(',')[1]);reader.onerror=reject;reader.readAsDataURL(blob)})
   async function download(blob,name){
@@ -267,7 +282,8 @@ window.PostCreator = (() => {
   })
   function endDrag(){if(drag){drag=null;saveLocal()}canvas.style.cursor=''}
   canvas.addEventListener('pointerup',endDrag);canvas.addEventListener('pointercancel',endDrag);canvas.addEventListener('lostpointercapture',endDrag)
-  document.addEventListener('keydown',e=>{if(root.hidden||!(e.metaKey||e.ctrlKey))return;if(e.key.toLowerCase()==='e'){e.preventDefault();$('pc-export').click()}else if(e.key.toLowerCase()==='s'){e.preventDefault();$('pc-save').click()}})
+  document.addEventListener('keydown',e=>{if(root.hidden||!(e.metaKey||e.ctrlKey))return;if(e.key.toLowerCase()==='z'&&!e.target.matches?.('textarea,input:not([type]),input[type=text],input[type=date]')){e.preventDefault();if(!video.exporting)(e.shiftKey?redo:undo)();return}if(e.key.toLowerCase()==='e'){e.preventDefault();$('pc-export').click()}else if(e.key.toLowerCase()==='s'){e.preventDefault();$('pc-save').click()}})
+  committed=copy(project)
   update()
   return { show(){requestAnimationFrame(draw)} }
 })()

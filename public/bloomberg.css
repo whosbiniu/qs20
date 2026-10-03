@@ -174,3 +174,7 @@ html[data-pane] .bb-kind span, html[data-pane] .bb-cal, html[data-pane] .bb-pen 
 html[data-pane] .bb-red { font-size: 15px } html[data-pane] .bb-secfield { min-width: 120px }
 html[data-pane] .bb-ba { margin-left: 12px; min-width: 0 } html[data-pane] .bb-size { min-width: 0 } html[data-pane] .bb-chg { min-width: 0 }
 html[data-pane] .bb-date, html[data-pane] .bb-field { min-width: 0 } html[data-pane] .bb-field { margin-left: 8px }
+
+/* second row fits the 9 ranges and every control at Bloomberg's default window width */
+.bb-periods button { padding: 0 7px } #table { padding: 0 12px } .bb-btn { padding: 0 6px } .bb-add { width: 90px; margin-left: 6px } .bb-freq { margin-left: 4px; padding: 0 7px }
+.bb-legend { right: 84px }

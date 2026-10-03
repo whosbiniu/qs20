@@ -60,7 +60,7 @@
 
   const state = { sym: load('symbol', pane ? ['NQ1!', 'ES1!', 'GC1!', 'BTC1!'][pane - 1] || 'NQ1!' : 'NQ1!'), period: load('period', 'YTD'), freq: null, freqs: load('freqs', {}),
     type: load('type', 'candle'), mavg: load('mavg', false), events: load('events', false), track: true, annotate: false,
-    compares: load('compares', []), relative: load('relative', false), watch: load('watchOpen', !pane), fn: 'GP', group: load('group', null) }
+    compares: load('compares', []), relative: load('relative', false), watch: load('watchOpen', false), fn: 'GP', group: load('group', null) }
   if (!PERIODS.includes(state.period)) state.period = 'YTD'
   const history = [state.sym]; let hpos = 0
   const cache = new Map()
@@ -144,15 +144,61 @@
   const chart = LC.createChart($('chart'), {
     autoSize: true,
     layout: { background: { type: 'solid', color: '#000' }, textColor: '#f2f2f2', fontFamily: 'Arial, Helvetica, sans-serif', fontSize: 13, attributionLogo: false },
-    grid: { vertLines: { color: '#8c8c8c', style: LC.LineStyle.Dotted }, horzLines: { color: '#8c8c8c', style: LC.LineStyle.Dotted } },
-    rightPriceScale: { borderVisible: false, ticksVisible: true, scaleMargins: { top: .12, bottom: .06 } },
+    // Horizontal grid and price labels are drawn by the axis primitive below (Bloomberg's ~6 round levels).
+    grid: { vertLines: { color: '#8c8c8c', style: LC.LineStyle.Dotted }, horzLines: { visible: false } },
+    rightPriceScale: { borderVisible: false, ticksVisible: false, minimumWidth: 74, scaleMargins: { top: .12, bottom: .06 } },
     leftPriceScale: { visible: false, borderVisible: false },
-    timeScale: { borderVisible: false, ticksVisible: true, rightOffset: 4 },
-    crosshair: { mode: LC.CrosshairMode.Normal, vertLine: { color: '#8a8a8a', style: LC.LineStyle.Dotted, labelBackgroundColor: '#333' }, horzLine: { color: '#8a8a8a', style: LC.LineStyle.Dotted, labelBackgroundColor: '#333' } },
+    // Daily charts label the first tick of a year with its month (Jan), as Bloomberg does; long ranges keep years.
+    timeScale: { borderVisible: false, ticksVisible: true, rightOffset: 4, ensureEdgeTickMarksVisible: true,
+      tickMarkFormatter: (time, type) => type === 0 && !['1Y', '5Y', 'Max'].includes(state.period) ? new Date(time * 1000).toLocaleString('en-US', { month: 'short', timeZone: 'UTC' }) : null },
+    crosshair: { mode: LC.CrosshairMode.Normal, vertLine: { color: '#8a8a8a', style: LC.LineStyle.Dotted, labelBackgroundColor: '#333' }, horzLine: { color: '#8a8a8a', style: LC.LineStyle.Dotted, labelVisible: false } },
     localization: { locale: 'en-US', dateFormat: 'MM/dd/yy' },
   })
   const UP = '#ffffff', DOWN = '#2a8cff', WICK = '#d9d9d9'
-  let series = null, lastLine = null, maLines = [], cmpSeries = [], markers = null, notes = [], levelLines = [], alertLines = []
+  let series = null, maLines = [], cmpSeries = [], markers = null, notes = [], levelLines = [], alertLines = []
+
+  // Price axis like Bloomberg's: about six round levels with dotted lines across the chart, the last price, coloured
+  // labels of levels / alerts / annotations, and the crosshair price. The series' own labels are blanked.
+  const marks = new Map()
+  const axis = {
+    ticks: [], last: null, cross: null, fmt: v => num(v), requestUpdate: null,
+    attached({ requestUpdate }) { this.requestUpdate = requestUpdate }, detached() { this.requestUpdate = null },
+    updateAllViews() {
+      if (!series) return
+      const h = chart.paneSize?.(0)?.height ?? $('chart').clientHeight - 28
+      const top = series.coordinateToPrice(0), bottom = series.coordinateToPrice(h)
+      if (!Number.isFinite(top) || !Number.isFinite(bottom) || top === bottom) { this.ticks = []; return }
+      const lo = Math.min(top, bottom), hi = Math.max(top, bottom), raw = (hi - lo) / 6, mag = 10 ** Math.floor(Math.log10(raw))
+      const step = [1, 2, 2.5, 5, 10].map(k => k * mag).find(x => x >= raw)
+      this.ticks = []
+      for (let v = Math.ceil(lo / step) * step; v <= hi; v += step) this.ticks.push(+v.toPrecision(12))
+    },
+    paneViews() { return [{ zOrder: () => 'bottom', renderer: () => ({ draw() {}, drawBackground: target => target.useMediaCoordinateSpace(({ context: c, mediaSize }) => {
+      c.strokeStyle = '#8c8c8c'; c.lineWidth = 1; c.setLineDash([1, 3])
+      for (const p of axis.ticks) { const y = series?.priceToCoordinate(p); if (y == null) continue; c.beginPath(); c.moveTo(0, Math.round(y) + .5); c.lineTo(mediaSize.width, Math.round(y) + .5); c.stroke() }
+      // Titles of levels and alerts, right-aligned just above their line.
+      c.setLineDash([]); c.font = '12px Arial, Helvetica, sans-serif'; c.textAlign = 'right'; c.textBaseline = 'bottom'
+      // Levels at the same price (e.g. today's high is also the week's) stack their titles instead of overlapping.
+      const used = new Map()
+      for (const m of marks.values()) {
+        const y = m.title ? series?.priceToCoordinate(m.price) : null
+        if (y == null) continue
+        const row = Math.round(y), n = used.get(row) || 0; used.set(row, n + 1)
+        c.fillStyle = m.back; c.fillText(m.title, mediaSize.width - 6, y - 2 - n * 13)
+      }
+    }) }) }] },
+    priceAxisViews() {
+      const view = (price, text, textColor, backColor, y) => ({ coordinate: () => y ?? series?.priceToCoordinate(price) ?? -100, text: () => text, textColor: () => textColor, backColor: () => backColor, visible: () => true, tickVisible: () => true })
+      const out = this.ticks.map(p => view(p, this.fmt(p), '#f2f2f2', '#000000'))
+      for (const m of marks.values()) out.push(view(m.price, this.fmt(m.price), m.fore, m.back))
+      if (Number.isFinite(this.last)) out.push(view(this.last, this.fmt(this.last), '#000000', '#ffffff'))
+      if (this.cross != null && series) { const p = series.coordinateToPrice(this.cross); if (Number.isFinite(p)) out.push(view(p, this.fmt(p), '#ffffff', '#333333', this.cross)) }
+      return out
+    },
+  }
+  // A price line whose axis label is drawn by the axis primitive (line in the chart, coloured box on the axis).
+  function priceLine(opts, back, fore = '#000000') { const line = series.createPriceLine({ ...opts, title: '', axisLabelVisible: false }); marks.set(line, { price: opts.price, back, fore, title: opts.title }); return line }
+  function dropLine(line) { marks.delete(line); series?.removePriceLine(line) }
   function makeSeries() {
     if (series) chart.removeSeries(series)
     const common = { lastValueVisible: false, priceLineVisible: false }
@@ -160,22 +206,25 @@
     series = type === 'line' ? chart.addSeries(LC.LineSeries, { ...common, color: '#ffffff', lineWidth: 1 })
       : type === 'bar' ? chart.addSeries(LC.BarSeries, { ...common, upColor: UP, downColor: DOWN, thinBars: true })
         : chart.addSeries(LC.CandlestickSeries, { ...common, upColor: UP, downColor: DOWN, borderVisible: false, wickUpColor: WICK, wickDownColor: WICK })
-    lastLine = null; markers = null; notes = []; levelLines = []; alertLines = []
+    markers = null; notes = []; levelLines = []; alertLines = []; marks.clear()
+    series.attachPrimitive(axis)
   }
+  // Whole range in view with a little room on both sides, so the first month label (Jan) is not cut at the edge.
+  function fit() { const n = shown.length; if (n) chart.timeScale().setVisibleLogicalRange({ from: -Math.max(2, n * .015), to: n - 1 + Math.max(3, n * .02) }) }
   const sma = (data, n) => data.map((c, i) => i < n - 1 ? { time: c.time } : { time: c.time, value: data.slice(i - n + 1, i + 1).reduce((s, x) => s + x.close, 0) / n })
 
   // Current day / week / month high and low with their Q labels (our cycle rules, /api/highs), as price lines.
   let qLabels = {}
   async function loadLabels(sym) { try { const r = await fetch('/api/highs?symbol=' + encodeURIComponent(sym)); if (r.ok) qLabels = await r.json() } catch { qLabels = {} } }
   function drawLevels() {
-    levelLines.forEach(l => series.removePriceLine(l)); levelLines = []
+    levelLines.forEach(dropLine); levelLines = []
     if (!state.events || state.relative || !daily?.candles.length) return
     const d = daily.candles, today = d.at(-1)
     const wk = d.filter(c => weekKey(c.time) === weekKey(today.time)), mo = d.filter(c => monthKey(c.time) === monthKey(today.time))
     const hi = a => Math.max(...a.map(c => c.high)), lo = a => Math.min(...a.map(c => c.low))
     const lab = k => (qLabels[k] || []).filter(Boolean).join('·')
     for (const [price, title, color] of [[today.high, 'HOTD ' + lab('hotd'), '#fb8b1e'], [today.low, 'LOTD ' + lab('lotd'), '#fb8b1e'], [hi(wk), 'HOTW ' + lab('hotw'), '#35d0ff'], [lo(wk), 'LOTW ' + lab('lotw'), '#35d0ff'], [hi(mo), 'HOTM ' + lab('hotm'), '#ff5fd2'], [lo(mo), 'LOTM ' + lab('lotm'), '#ff5fd2']])
-      if (Number.isFinite(price)) levelLines.push(series.createPriceLine({ price, color, lineWidth: 1, lineStyle: LC.LineStyle.Dashed, axisLabelVisible: true, axisLabelColor: color, axisLabelTextColor: '#000', title: title.trim() }))
+      if (Number.isFinite(price)) levelLines.push(priceLine({ price, color, lineWidth: 1, lineStyle: LC.LineStyle.Dashed, title: title.trim() }, color))
   }
 
   function draw() {
@@ -183,12 +232,11 @@
     chart.applyOptions({ timeScale: { timeVisible: isIntraday(), secondsVisible: false } })
     const base = shown[0]?.close, rel = state.relative && Number.isFinite(base)
     const d = rel ? 2 : digits(shown.at(-1)?.close ?? 1)
-    series.applyOptions({ priceFormat: rel ? { type: 'custom', formatter: v => (v > 0 ? '+' : '') + v.toFixed(2) + '%', minMove: .01 } : { type: 'price', precision: d, minMove: 10 ** -d } })
+    series.applyOptions({ priceFormat: { type: 'custom', formatter: () => '', minMove: rel ? .01 : 10 ** -d } })
+    axis.fmt = rel ? v => (v > 0 ? '+' : '') + v.toFixed(2) + '%' : v => v.toFixed(d)
     series.setData(rel ? shown.map(c => ({ time: c.time, value: (c.close / base - 1) * 100 }))
       : (state.type === 'line' ? shown.map(c => ({ time: c.time, value: c.close })) : shown.map(({ time, open, high, low, close }) => ({ time, open, high, low, close }))))
-    if (lastLine) series.removePriceLine(lastLine)
-    const last = rel ? (shown.at(-1)?.close / base - 1) * 100 : shown.at(-1)?.close
-    lastLine = Number.isFinite(last) ? series.createPriceLine({ price: last, color: '#ffffff', lineVisible: false, axisLabelVisible: true, axisLabelColor: '#000000', axisLabelTextColor: '#ffffff' }) : null
+    axis.last = rel ? (shown.at(-1)?.close / base - 1) * 100 : shown.at(-1)?.close
     maLines.forEach(s => chart.removeSeries(s)); maLines = []
     if (state.mavg && !rel) for (const [n, color] of [[50, '#f5d300'], [200, '#c26cff']]) {
       const s = chart.addSeries(LC.LineSeries, { color, lineWidth: 1, lastValueVisible: false, priceLineVisible: false, crosshairMarkerVisible: false })
@@ -198,7 +246,7 @@
     const list = state.events && !rel && shown.length ? [{ time: hi.time, position: 'aboveBar', color: '#fb8b1e', shape: 'arrowDown', text: 'H' }, { time: lo.time, position: 'belowBar', color: '#fb8b1e', shape: 'arrowUp', text: 'L' }].sort((a, b) => a.time - b.time) : []
     if (!markers) markers = LC.createSeriesMarkers(series, list); else markers.setMarkers(list)
     drawLevels(); drawAlerts()
-    chart.timeScale().fitContent()
+    fit()
     legend()
     if (!$('tableView').hidden) table()
   }
@@ -241,6 +289,7 @@
       + others().map((s, i) => `<div><i style="color:${COLORS[i % COLORS.length]}">—</i><span>${esc(s)}${state.relative ? '' : ' (L1)'}</span><span></span></div>`).join('')
   }
   chart.subscribeCrosshairMove(p => {
+    axis.cross = state.track && p?.point ? p.point.y : null; axis.requestUpdate?.()
     if (!state.track || !p?.time || !series) return legend()
     const bar = p.seriesData.get(series)
     bar ? legend({ ...bar, time: p.time }) : legend()
@@ -248,16 +297,16 @@
   chart.subscribeClick(p => {
     if (!state.annotate || !series || !p?.point) return
     const price = series.coordinateToPrice(p.point.y)
-    if (Number.isFinite(price)) notes.push(series.createPriceLine({ price, color: '#fb8b1e', lineWidth: 1, lineStyle: LC.LineStyle.Dashed, axisLabelVisible: true, axisLabelColor: '#fb8b1e', axisLabelTextColor: '#000', title: '' }))
+    if (Number.isFinite(price)) notes.push(priceLine({ price, color: '#fb8b1e', lineWidth: 1, lineStyle: LC.LineStyle.Dashed, title: '' }, '#fb8b1e'))
   })
 
   // ---------- alerts: right-click the chart to set one; crossing it rings, flashes and (in the app) bounces the Dock ----------
   let alerts = shared.get('alerts', [])
   const saveAlerts = () => shared.set('alerts', alerts)
   function drawAlerts() {
-    alertLines.forEach(l => series.removePriceLine(l)); alertLines = []
+    alertLines.forEach(dropLine); alertLines = []
     if (state.relative) return
-    for (const a of alerts.filter(a => a.sym === state.sym)) alertLines.push(series.createPriceLine({ price: a.price, color: '#ff3b3b', lineWidth: 1, lineStyle: LC.LineStyle.SparseDotted, axisLabelVisible: true, axisLabelColor: '#ff3b3b', axisLabelTextColor: '#fff', title: '🔔 ALRT' }))
+    for (const a of alerts.filter(a => a.sym === state.sym)) alertLines.push(priceLine({ price: a.price, color: '#ff3b3b', lineWidth: 1, lineStyle: LC.LineStyle.SparseDotted, title: '🔔 ALRT' }, '#ff3b3b', '#ffffff'))
   }
   $('chartBox').addEventListener('contextmenu', e => {
     if (!series || state.relative) return
@@ -338,7 +387,7 @@
       $('qSize').textContent = Number.isFinite(m.funding) ? `Fund ${(m.funding * 100).toFixed(4)}%` : ''
       $('qAt').textContent = new Date().toLocaleTimeString('en-GB', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit', second: '2-digit' })
       const bar = shown.at(-1)
-      if (bar && !state.relative && series) { bar.close = m.price; bar.high = Math.max(bar.high, m.price); bar.low = Math.min(bar.low, m.price); series.update(state.type === 'line' ? { time: bar.time, value: bar.close } : { time: bar.time, open: bar.open, high: bar.high, low: bar.low, close: bar.close }); if (lastLine) lastLine.applyOptions({ price: m.price }) }
+      if (bar && !state.relative && series) { bar.close = m.price; bar.high = Math.max(bar.high, m.price); bar.low = Math.min(bar.low, m.price); series.update(state.type === 'line' ? { time: bar.time, value: bar.close } : { time: bar.time, open: bar.open, high: bar.high, low: bar.low, close: bar.close }); axis.last = m.price; axis.requestUpdate?.() }
       checkAlerts({ [state.sym]: m.price })
     } catch {}
   }
@@ -426,6 +475,8 @@
     document.querySelectorAll('#periods button').forEach(b => b.classList.toggle('on', b.dataset.p === state.period))
     document.querySelectorAll('#types button').forEach(b => b.classList.toggle('on', !state.relative && b.dataset.t === state.type))
     $('freq').textContent = state.freq + ' ▾'
+    // Bloomberg's function code follows the chart: GPC candles, GP line, GPO bars, COMP relative.
+    if (state.fn === 'GP') $('fn').textContent = state.relative ? 'COMP' : { candle: 'GPC', line: 'GP', bar: 'GPO' }[state.type]
     $('kindName').textContent = state.relative ? 'Relative (COMP)' : { candle: 'Candle Chart', line: 'Line Chart', bar: 'Bar Chart' }[state.type]
     $('mavg').checked = state.mavg; $('events').checked = state.events
     $('back').disabled = hpos <= 0; $('fwd').disabled = hpos >= history.length - 1
@@ -444,7 +495,8 @@
       daily = d1
       renderQuote(d1, intraday)
       shown = window_(reshape(base.candles, state.freq), state.period)
-      if (shown.length) { $('from').textContent = mdy(shown[0].time); $('to').textContent = mdy(shown.at(-1).time) }
+      // YTD starts on the last day of the previous year, like Bloomberg's date box.
+      if (shown.length) { $('from').textContent = state.period === 'YTD' ? `12/31/${new Date(shown.at(-1).time * 1000).getUTCFullYear() - 1}` : mdy(shown[0].time); $('to').textContent = mdy(shown.at(-1).time) }
       draw()
       drawCompare()
       status(shown.length ? '' : 'No data for this range')
@@ -506,7 +558,7 @@
     if (tool === 'track') { state.track = !state.track; chart.applyOptions({ crosshair: { mode: state.track ? LC.CrosshairMode.Normal : LC.CrosshairMode.Hidden } }); legend() }
     if (tool === 'annotate') { state.annotate = !state.annotate; status(state.annotate ? 'Annotate: kliknij wykres, aby dodać linię ceny' : '') }
     if (tool === 'news') return news()
-    if (tool === 'zoom') chart.timeScale().fitContent()
+    if (tool === 'zoom') fit()
     controls()
   }
 
@@ -519,7 +571,7 @@
       ['4', `Add to Watchlist`, () => { if (!watch.includes(state.sym)) { watch.push(state.sym); shared.set('watch', watch) } toggleWatch(true) }],
       ['5', `Clear Alerts for ${state.sym} (${alerts.filter(a => a.sym === state.sym).length})`, () => { alerts = alerts.filter(a => a.sym !== state.sym); saveAlerts(); drawAlerts() }],
       ['6', `Clear All Alerts (${alerts.length})`, () => { alerts = []; saveAlerts(); drawAlerts() }]],
-    edit: () => [['1', 'Reset Chart', () => { state.compares = []; store('compares', []); $('addData').value = ''; notes.forEach(n => series.removePriceLine(n)); notes = []; setRelative(false); chart.timeScale().fitContent() }], ['2', 'Clear Annotations', () => { notes.forEach(n => series.removePriceLine(n)); notes = [] }]],
+    edit: () => [['1', 'Reset Chart', () => { state.compares = []; store('compares', []); $('addData').value = ''; notes.forEach(dropLine); notes = []; setRelative(false); fit() }], ['2', 'Clear Annotations', () => { notes.forEach(dropLine); notes = [] }]],
     freq: () => FREQS[state.period].map((f, i) => [String(i + 1), f, () => setFreq(f)]),
     data: () => [['1', 'Compare: NQ1!, ES1!, YM1!, RTY1! (COMP)', () => { state.compares = ['ES1!', 'YM1!', 'RTY1!'].filter(s => s !== state.sym); if (state.sym !== 'NQ1!') state.compares.unshift('NQ1!'); store('compares', state.compares); $('addData').value = state.compares.join(', '); setRelative(true) }],
       ['2', 'Spread NQ1! / ES1!', () => open('NQ1!/ES1!')], ['3', 'Spread GC1! / SI1! (gold / silver)', () => open('GC1!/SI1!')], ['4', 'Spread CL1! − BZ1! (WTI − Brent)', () => open('CL1!-BZ1!')],

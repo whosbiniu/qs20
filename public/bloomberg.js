@@ -7,14 +7,19 @@
   const store = (k, v) => { try { v === undefined ? localStorage.removeItem(k) : localStorage.setItem(k, JSON.stringify(v)) } catch {} }
   const load = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k)); return v ?? d } catch { return d } }
 
-  const PERIODS = ['1D', '3D', '1M', '6M', 'YTD', '1Y', '5Y', 'Max']
-  // Periodicities a range can show, first = default. Intraday ranges come from 5-minute bars, 5Y from weekly
-  // and Max from monthly history (Yahoo keeps 2 years of daily bars).
-  const FREQS = { '1D': ['5 Min', '30 Min'], '3D': ['5 Min', '30 Min'], '1M': ['Daily', 'Weekly'], '6M': ['Daily', 'Weekly', 'Monthly'],
+  const PERIODS = ['1D', '3D', '5D', '1M', '6M', 'YTD', '1Y', '5Y', 'Max']
+  // Periodicities a range can show, first = default. What history exists decides the list: 5-minute bars cover
+  // 5 days, 15/30-minute bars a month, hourly bars (and H4 built from them) 6 months, daily bars 2 years; 5Y uses
+  // weekly and Max monthly history.
+  const FREQS = { '1D': ['M5', 'M15', 'M30', 'H1'], '3D': ['M15', 'M5', 'M30', 'H1', 'H4'], '5D': ['M15', 'M5', 'M30', 'H1', 'H4'],
+    '1M': ['Daily', 'M15', 'M30', 'H1', 'H4', 'Weekly'], '6M': ['Daily', 'H1', 'H4', 'Weekly', 'Monthly'],
     YTD: ['Daily', 'Weekly', 'Monthly'], '1Y': ['Daily', 'Weekly', 'Monthly'], '5Y': ['Weekly', 'Monthly'], Max: ['Monthly'] }
-  const SOURCE = { '1D': '5m', '3D': '5m', '1M': '1D', '6M': '1D', YTD: '1D', '1Y': '1D', '5Y': '1W', Max: '1M' }
+  const INTRADAY = { M5: '5m', M15: '15m', M30: '30m', H1: '60m', H4: '60m' }
+  const PERIOD_SOURCE = { '1M': '1D', '6M': '1D', YTD: '1D', '1Y': '1D', '5Y': '1W', Max: '1M' }
+  const source = () => INTRADAY[state.freq] || PERIOD_SOURCE[state.period] || '1D'
+  const isIntraday = () => !!INTRADAY[state.freq]
 
-  const state = { sym: load('bb-symbol', 'NQ1!'), period: load('bb-period', 'YTD'), freq: null, type: load('bb-type', 'candle'),
+  const state = { sym: load('bb-symbol', 'NQ1!'), period: load('bb-period', 'YTD'), freq: null, freqs: load('bb-freqs', {}), type: load('bb-type', 'candle'),
     mavg: load('bb-mavg', false), events: load('bb-events', false), track: true, annotate: false, compare: null }
   if (!PERIODS.includes(state.period)) state.period = 'YTD'
   const history = [state.sym]; let hpos = 0
@@ -44,8 +49,11 @@
   }
   const weekKey = t => { const d = new Date(t * 1000); d.setUTCDate(d.getUTCDate() - (d.getUTCDay() + 6) % 7); return d.toISOString().slice(0, 10) }
   const monthKey = t => new Date(t * 1000).toISOString().slice(0, 7)
+  // H4 bars start at 18:00 New York time like the CME session (18, 22, 02, 06, 10, 14), in summer and winter.
+  const etOffset = new Map()
+  const etShift = t => { const day = Math.floor(t / 86400); if (!etOffset.has(day)) { const p = Object.fromEntries(new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour12: false, hour: '2-digit', minute: '2-digit', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date(day * 86400000 + 43200000)).map(x => [x.type, x.value])); etOffset.set(day, Date.UTC(+p.year, p.month - 1, +p.day, +p.hour % 24, +p.minute) / 1000 - (day * 86400 + 43200)) } return etOffset.get(day) }
   function reshape(candles, freq) {
-    if (freq === '30 Min') return bucket(candles, t => Math.floor(t / 1800))
+    if (freq === 'H4') return bucket(candles, t => Math.floor((t + etShift(t) - 18 * 3600) / 14400))
     if (freq === 'Weekly') return bucket(candles, weekKey)
     if (freq === 'Monthly') return bucket(candles, monthKey)
     return candles
@@ -53,8 +61,8 @@
   function window_(candles, period) {
     if (!candles.length) return candles
     const last = candles.at(-1).time
-    if (period === '1D' || period === '3D') {
-      const days = [...new Set(candles.map(c => etDay(c.time)))].slice(period === '1D' ? -1 : -3)
+    if (period === '1D' || period === '3D' || period === '5D') {
+      const days = [...new Set(candles.map(c => etDay(c.time)))].slice(-parseInt(period))
       return candles.filter(c => days.includes(etDay(c.time)))
     }
     const d = new Date(last * 1000)
@@ -103,7 +111,7 @@
 
   function draw() {
     if (!series) makeSeries()
-    const intraday = state.period === '1D' || state.period === '3D'
+    const intraday = isIntraday()
     chart.applyOptions({ timeScale: { timeVisible: intraday, secondsVisible: false } })
     const d = digits(shown.at(-1)?.close ?? 1)
     series.applyOptions({ priceFormat: { type: 'price', precision: d, minMove: 10 ** -d } })
@@ -128,7 +136,7 @@
     chart.applyOptions({ leftPriceScale: { visible: !!state.compare } })
     if (!state.compare) { legend(); return }
     try {
-      const data = await chartData(state.compare, SOURCE[state.period])
+      const data = await chartData(state.compare, source())
       const rows = window_(reshape(data.candles, state.freq), state.period)
       cmpSeries = chart.addSeries(LC.LineSeries, { color: '#fb8b1e', lineWidth: 1, priceScaleId: 'left', lastValueVisible: true, priceLineVisible: false })
       cmpSeries.setData(rows.map(c => ({ time: c.time, value: c.close })))
@@ -143,7 +151,7 @@
     if (!shown.length) { $('legend').innerHTML = ''; return }
     const d = digits(shown.at(-1).close)
     if (bar) {
-      $('legend').innerHTML = `<div class="first"><span class="sw"></span><span>${state.period === '1D' || state.period === '3D' ? new Date(bar.time * 1000).toLocaleString('en-US', { timeZone: 'America/New_York', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }) : short(bar.time)}</span><span></span></div>`
+      $('legend').innerHTML = `<div class="first"><span class="sw"></span><span>${isIntraday() ? new Date(bar.time * 1000).toLocaleString('en-US', { timeZone: 'America/New_York', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }) : short(bar.time)}</span><span></span></div>`
         + [['Open', bar.open], ['High', bar.high], ['Low', bar.low], ['Close', bar.close ?? bar.value]].map(([k, v]) => `<div><i>·</i><span>${k}</span><span>${num(v, d)}</span></div>`).join('')
       return
     }
@@ -214,11 +222,11 @@
   }
   async function refresh(quiet) {
     const sym = state.sym
-    if (!FREQS[state.period].includes(state.freq)) state.freq = FREQS[state.period][0]
+    if (!FREQS[state.period].includes(state.freq)) state.freq = FREQS[state.period].includes(state.freqs[state.period]) ? state.freqs[state.period] : FREQS[state.period][0]
     controls()
     if (!quiet) status('Loading ' + sym + '…')
     try {
-      const [daily, base, intraday] = await Promise.all([chartData(sym, '1D'), chartData(sym, SOURCE[state.period]), chartData(sym, '5m').catch(() => null)])
+      const [daily, base, intraday] = await Promise.all([chartData(sym, '1D'), chartData(sym, source()), chartData(sym, '5m').catch(() => null)])
       if (sym !== state.sym) return
       renderQuote(daily, intraday)
       shown = window_(reshape(base.candles, state.freq), state.period)
@@ -247,7 +255,7 @@
   $('addData').addEventListener('keydown', e => { if (e.key === 'Enter') { state.compare = e.target.value.trim().toUpperCase() || null; drawCompare() } })
 
   function table() {
-    const d = digits(shown.at(-1)?.close ?? 1), intraday = state.period === '1D' || state.period === '3D'
+    const d = digits(shown.at(-1)?.close ?? 1), intraday = isIntraday()
     const time = t => intraday ? new Date(t * 1000).toLocaleString('en-US', { timeZone: 'America/New_York', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }) : mdy(t)
     $('tableView').innerHTML = `<table><thead><tr><th>Date</th><th>Last Px</th><th>Open</th><th>High</th><th>Low</th><th>Change</th><th>Volume</th></tr></thead><tbody>${shown.slice().reverse().map((c, i, a) => {
       const prev = a[i + 1]?.close
@@ -278,7 +286,7 @@
     charts: () => [['1', 'Candle Chart', () => setType('candle')], ['2', 'Line Chart', () => setType('line')], ['3', 'Bar Chart', () => setType('bar')], ['4', (state.mavg ? '✓ ' : '') + 'Moving Averages 50/200', () => { state.mavg = !state.mavg; store('bb-mavg', state.mavg); controls(); draw() }]],
     actions: () => [['1', 'Save Chart Image (PNG)', saveImage], ['2', 'Refresh Data', () => { cache.clear(); refresh() }], ['3', 'Copy Security', () => navigator.clipboard?.writeText(state.sym)]],
     edit: () => [['1', 'Reset Chart', () => { state.compare = null; $('addData').value = ''; notes.forEach(n => series.removePriceLine(n)); notes = []; drawCompare(); chart.timeScale().fitContent() }], ['2', 'Clear Annotations', () => { notes.forEach(n => series.removePriceLine(n)); notes = [] }], ['3', (state.events ? '✓ ' : '') + 'Key Events (High / Low)', () => { state.events = !state.events; store('bb-events', state.events); controls(); draw() }]],
-    freq: () => FREQS[state.period].map((f, i) => [String(i + 1), f, () => { state.freq = f; refresh() }]),
+    freq: () => FREQS[state.period].map((f, i) => [String(i + 1), f, () => { state.freq = f; state.freqs[state.period] = f; store('bb-freqs', state.freqs); refresh() }]),
     related: () => [['GP', 'Line / Candle Chart', () => {}], ['GIP', 'Intraday Chart', () => { state.period = '1D'; state.freq = null; refresh() }], ['HP', 'Historical Prices', () => { if ($('tableView').hidden) $('table').click() }], ['CN', 'Company / Market News', () => { if ($('newsView').hidden) news() }]],
   }
   function setType(t) { state.type = t; store('bb-type', t); makeSeries(); controls(); draw() }

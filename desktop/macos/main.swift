@@ -713,9 +713,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
             const first=[$('secName').textContent,$('qLast').textContent,document.querySelectorAll('#legend div').length];
             $('title').click();$('cmdInput').value='ES1! GO';$('cmd').requestSubmit();
             for(let i=0;i<150&&!/^E-Mini|ES/.test($('secName').textContent);i++)await wait(100);
-            document.querySelector('[data-p="1D"]').click();await wait(2500);
-            const state={first,second:$('secName').textContent,freq:$('freq').textContent,status:$('status').textContent,shell:document.documentElement.dataset.shell};
-            state.ok=/\\d/.test(first[1])&&first[2]>=4&&/E-Mini|ES/.test(state.second)&&/Min/.test(state.freq)&&!state.status;
+            document.querySelector('[data-p="5D"]').click();await wait(2500);
+            $('freq').click();[...document.querySelectorAll('#pop button')].find(b=>/H1$/.test(b.textContent)).click();await wait(3000);
+            const state={first,second:$('secName').textContent,freq:$('freq').textContent,range:[$('from').textContent,$('to').textContent],status:$('status').textContent,shell:document.documentElement.dataset.shell};
+            state.ok=/\\d/.test(first[1])&&first[2]>=4&&/E-Mini|ES/.test(state.second)&&/^H1/.test(state.freq)&&state.range[0]!==state.range[1]&&!state.status;
             return JSON.stringify(state);
             """, arguments: [:], in: nil, in: .page) { result in
                 let output = (try? result.get() as? String) ?? "FAIL \(result)"

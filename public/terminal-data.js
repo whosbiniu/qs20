@@ -13,8 +13,10 @@
     '1W': { interval: '1wk', range: '10y' },
     '1D': { interval: '1d', range: '2y' },
     '6H': { interval: '60m', range: '3mo', bucket: 6 * 3600 },
-    // Intraday frames for the Bloomberg GP screen (1D / 3D ranges).
+    // Intraday frames for the Bloomberg GP screen (M5 … H4 over ranges up to 6 months).
+    '60m': { interval: '60m', range: '6mo' },
     '30m': { interval: '30m', range: '1mo' },
+    '15m': { interval: '15m', range: '1mo' },
     '5m': { interval: '5m', range: '5d' },
   };
 

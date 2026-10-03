@@ -163,7 +163,17 @@ window.PostCreator = (() => {
   }
   const dims=()=>{const m=project.activePanel,a=project.aura,t=project.thesis;return m==='aura'?[a.width,a.height]:m==='thesis'?[t.width,t.height]:[project.canvasWidth,project.canvasHeight]}
   function draw() { const [dw,dh]=dims(),ratio=dh/dw;if(canvas.width!==1000||canvas.height!==Math.round(1000*ratio)){canvas.width=1000;canvas.height=Math.round(1000*ratio)}render(ctx,canvas.width,canvas.height,true) }
-  function saveLocal(){try{localStorage.setItem('postcreator-project',JSON.stringify(project))}catch{status('Projekt jest zbyt duży dla autozapisu. Użyj „Zapisz projekt”.')}}
+  // Autosave serialises every image in the project, so it runs once after a burst of changes (slider drags),
+  // not on every input event; pending changes are written when the page is left. Images no longer used by the
+  // project leave the decoded-image cache at the same time.
+  let saveTimer=0
+  function persist(){clearTimeout(saveTimer);saveTimer=0;try{localStorage.setItem('postcreator-project',JSON.stringify(project))}catch{status('Projekt jest zbyt duży dla autozapisu. Użyj „Zapisz projekt”.')}
+    const used=new Set([project.background,project.avatar,project.aura.photo,...project.charts.map(c=>c.data),...project.thesis.panels.map(p=>p.image)])
+    for(const key of images.keys())if(!used.has(key)&&key!=='/postcreator-avatar.jpg')images.delete(key)}
+  function saveLocal(){clearTimeout(saveTimer);saveTimer=setTimeout(persist,400)}
+  addEventListener('pagehide',()=>{if(saveTimer)persist()})
+  let drawFrame=0
+  const drawSoon=()=>{if(!drawFrame)drawFrame=requestAnimationFrame(()=>{drawFrame=0;draw()})}
   function update(){controls();draw();saveLocal()}
   function fileData(file){return new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=reject;reader.readAsDataURL(file)})}
   let fileTarget='chart'
@@ -175,6 +185,10 @@ window.PostCreator = (() => {
       let data=await fileData(file)
       const img=new Image()
       await new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=()=>reject(Error('Nie można odczytać obrazu. Spróbuj pliku PNG lub JPG.'));img.src=data})
+      // Nothing is exported wider than 4096 px: larger uploads are scaled down once, which keeps memory,
+      // autosave and project files small (photos as JPEG, charts and screenshots stay lossless PNG).
+      const longest=Math.max(img.naturalWidth,img.naturalHeight)
+      if(longest>4096&&target!=='avatar'){const k=4096/longest,out=document.createElement('canvas');out.width=Math.round(img.naturalWidth*k);out.height=Math.round(img.naturalHeight*k);out.getContext('2d').drawImage(img,0,0,out.width,out.height);data=out.toDataURL(target==='photo'?'image/jpeg':'image/png',.92);img.src=data;await img.decode().catch(()=>{})}
       if(target==='avatar'){
         const size=Math.min(512,img.naturalWidth,img.naturalHeight),out=document.createElement('canvas')
         out.width=size;out.height=size
@@ -196,7 +210,7 @@ window.PostCreator = (() => {
     }catch(error){status('Nie udało się wczytać obrazu: '+error.message)}
   }
   root.addEventListener('click',e=>{const mode=e.target.closest('[data-mode]')?.dataset.mode;if(video.exporting)return;if(mode){video.video.pause();project.activePanel=mode;selected=-1;update();return}const chosen=e.target.closest('[data-ticker]');if(chosen){const f=chosen.dataset.for;if(f==='aura')project.aura.ticker=chosen.dataset.ticker;else if(f==='thesis')project.thesis.ticker=chosen.dataset.ticker;else project.ticker=chosen.dataset.ticker;update();return}const pick=e.target.closest('[data-panel]')?.dataset.panel;if(pick!==undefined){panel=Number(pick);update();return}const tf=e.target.closest('[data-tf]')?.dataset.tf;if(tf){project.thesis.panels[panel].timeframe=tf;update();return}const layer=e.target.closest('[data-layer]')?.dataset.layer;if(layer!==undefined){selected=Number(layer);update();return}const action=e.target.closest('[data-action]')?.dataset.action;if(!action)return;if(action==='center-all'){centreAll();status('Wyśrodkowano wykresy.');update();return}if(action==='aura-center'){Object.assign(project.aura,{zoom:1,positionX:.5,positionY:.5});status('Wyśrodkowano zdjęcie.');update();return}if(action==='center'&&project.charts[selected]){centre(project.charts[selected]);status('Wyśrodkowano wykres.');update();return}if(action==='remove-video'){video.clear();project.aura.videoName=null;update();return}if(action==='thesis-clear'){project.thesis.panels[panel].image=null;update();return}if(action==='thesis-image'){fileTarget='thesis';$('pc-file').accept='image/*';$('pc-file').click();return}if(['chart','photo','background','avatar','video'].includes(action)){fileTarget=action;$('pc-file').accept=action==='video'?'video/mp4,.mp4':'image/*';$('pc-file').click();return}if(selected<0)return;if(action==='remove'){project.charts.splice(selected,1);selected=-1}else if(action==='up'&&selected<project.charts.length-1){[project.charts[selected],project.charts[selected+1]]=[project.charts[selected+1],project.charts[selected]];selected++}else if(action==='down'&&selected>0){[project.charts[selected],project.charts[selected-1]]=[project.charts[selected-1],project.charts[selected]];selected--}update()})
-  root.addEventListener('input',e=>{const key=e.target.dataset.field;if(!key||video.exporting)return;let value=e.target.type==='checkbox'?e.target.checked:e.target.value;if(e.target.type==='range')value=Number(value);if(key==='format'){[project.canvasWidth,project.canvasHeight]=value.split('x').map(Number);if(project.keepCentered)centreAll()}else if(key==='keepCentered'){project.keepCentered=value;if(value)centreAll();status(value?'Wykresy zawsze na środku: uchwyt skaluje od środka, przesuwanie wyłączone.':'Wykresy można swobodnie przesuwać.')}else if(key==='aura.format'){[project.aura.width,project.aura.height]=value.split('x').map(Number)}else if(key==='thesis.format'){[project.thesis.width,project.thesis.height]=value.split('x').map(Number)}else if(key==='thesis.count'){project.thesis.count=Number(value);panel=Math.min(panel,project.thesis.count-1);controls()}else if(key.startsWith('thesis.'))project.thesis[key.slice(7)]=value;else if(['fit','opacity'].includes(key)){if(project.charts[selected])project.charts[selected][key]=value}else if(key.startsWith('aura.'))project.aura[key.slice(5)]=value;else project[key]=value;if(key==='ticker'||key==='aura.ticker'||key==='thesis.ticker')controls();draw();saveLocal()})
+  root.addEventListener('input',e=>{const key=e.target.dataset.field;if(!key||video.exporting)return;let value=e.target.type==='checkbox'?e.target.checked:e.target.value;if(e.target.type==='range')value=Number(value);if(key==='format'){[project.canvasWidth,project.canvasHeight]=value.split('x').map(Number);if(project.keepCentered)centreAll()}else if(key==='keepCentered'){project.keepCentered=value;if(value)centreAll();status(value?'Wykresy zawsze na środku: uchwyt skaluje od środka, przesuwanie wyłączone.':'Wykresy można swobodnie przesuwać.')}else if(key==='aura.format'){[project.aura.width,project.aura.height]=value.split('x').map(Number)}else if(key==='thesis.format'){[project.thesis.width,project.thesis.height]=value.split('x').map(Number)}else if(key==='thesis.count'){project.thesis.count=Number(value);panel=Math.min(panel,project.thesis.count-1);controls()}else if(key.startsWith('thesis.'))project.thesis[key.slice(7)]=value;else if(['fit','opacity'].includes(key)){if(project.charts[selected])project.charts[selected][key]=value}else if(key.startsWith('aura.'))project.aura[key.slice(5)]=value;else project[key]=value;if(key==='ticker'||key==='aura.ticker'||key==='thesis.ticker')controls();drawSoon();saveLocal()})
   $('pc-file').onchange=e=>{addFile(e.target.files[0]);e.target.value=''}
   $('pc-open').onclick=()=>$('pc-project-file').click()
   $('pc-project-file').onchange=async e=>{try{const incoming=JSON.parse(await e.target.files[0].text());if(!incoming||!Array.isArray(incoming.charts))throw Error('Nieprawidłowy plik');video.clear();project=merge(incoming);selected=-1;panel=0;images.clear();update();status('Otworzono projekt.')}catch(err){status(err.message)}e.target.value=''}
@@ -217,7 +231,7 @@ window.PostCreator = (() => {
   }
   $('pc-save').onclick=async()=>{try{if(await download(new Blob([JSON.stringify(project)],{type:'application/json'}),`${project.ticker||'PostCreator'}.postcreator`))status('Zapisano projekt.')}catch(error){status('Nie udało się zapisać projektu: '+error.message)}}
   async function exportBlob(){const out=document.createElement('canvas');[out.width,out.height]=dims();render(out.getContext('2d'),out.width,out.height);return new Promise(resolve=>out.toBlob(resolve,'image/png'))}
-  $('pc-export').onclick=async()=>{if(video.exporting)return;if(auraVideo()){try{draw();await Promise.all([...images.values()].map(img=>img.decode().catch(()=>{})));const size=videoSize(),blob=await video.export({...size,render});if(await download(blob,`PostCreator-aura-${Date.now()}.mp4`))status(`Wyeksportowano MP4 ${size.width} × ${size.height} z nakładką i dźwiękiem.`);else status('Anulowano zapis MP4.')}catch(error){status(error.name==='AbortError'?'Anulowano eksport MP4.':'Nie udało się wyeksportować MP4: '+error.message)}return}try{const blob=await exportBlob();if(blob&&await download(blob,`PostCreator-${project.activePanel}-${Date.now()}.png`))status(`Wyeksportowano ${dims().join(' × ')} PNG.`)}catch(error){status('Nie udało się wyeksportować PNG: '+error.message)}}
+  $('pc-export').onclick=async()=>{if(video.exporting)return;if(auraVideo()){try{draw();await Promise.all([...images.values()].map(img=>img.decode().catch(()=>{})));const size=videoSize(),blob=await video.export({...size,render});if(await download(blob,`PostCreator-aura-${Date.now()}.mp4`))status(`Wyeksportowano MP4 ${(blob.exportSize||[size.width,size.height]).join(' × ')} z nakładką i dźwiękiem.`);else status('Anulowano zapis MP4.')}catch(error){status(error.name==='AbortError'?'Anulowano eksport MP4.':'Nie udało się wyeksportować MP4: '+error.message)}return}try{const blob=await exportBlob();if(blob&&await download(blob,`PostCreator-${project.activePanel}-${Date.now()}.png`))status(`Wyeksportowano ${dims().join(' × ')} PNG.`)}catch(error){status('Nie udało się wyeksportować PNG: '+error.message)}}
   $('pc-copy').onclick=async()=>{try{const blob=await exportBlob();if(window.webkit?.messageHandlers?.postCreatorFile)await window.webkit.messageHandlers.postCreatorFile.postMessage({action:'copy',data:await asBase64(blob)});else await navigator.clipboard.write([new ClipboardItem({'image/png':blob})]);status('Skopiowano PNG.')}catch{status('Kopiowanie obrazu jest niedostępne. Użyj eksportu PNG.')}}
   const target=()=>({aura:'photo',thesis:'thesis'})[project.activePanel]||'chart'
   const drop=$('pc-drop');drop.addEventListener('dragover',e=>{e.preventDefault();drop.classList.add('pc-drop')});drop.addEventListener('dragleave',()=>drop.classList.remove('pc-drop'));drop.addEventListener('drop',e=>{e.preventDefault();drop.classList.remove('pc-drop');addFile(e.dataTransfer.files[0],target())})
@@ -245,11 +259,11 @@ window.PostCreator = (() => {
       if(drag.kind==='move'){status('Wykres jest na środku. Wyłącz „Zawsze na środku”, aby go przesuwać.');return}
       const ratio=drag.oh/drag.ow
       l.width=Math.max(.08,Math.min(1,drag.ow+2*dx));l.height=Math.min(1,l.width*ratio);if(l.height===1)l.width=1/ratio
-      centre(l);draw();return
+      centre(l);drawSoon();return
     }
     if(drag.kind==='move'){l.x=Math.max(0,Math.min(1-l.width,drag.ox+dx));l.y=Math.max(0,Math.min(1-l.height,drag.oy+dy))}
     else{l.width=Math.max(.08,Math.min(1-l.x,drag.ow+dx));l.height=Math.max(.08,Math.min(1-l.y,drag.oh+dy))}
-    draw()
+    drawSoon()
   })
   function endDrag(){if(drag){drag=null;saveLocal()}canvas.style.cursor=''}
   canvas.addEventListener('pointerup',endDrag);canvas.addEventListener('pointercancel',endDrag);canvas.addEventListener('lostpointercapture',endDrag)

@@ -47,16 +47,58 @@ window.PostCreatorVideo = class {
   async toggle(){if(!this.ready||this.exporting)return;if(this.video.paused){if(this.video.ended)this.video.currentTime=0;await this.audioContext?.resume();await this.video.play()}else this.video.pause()}
   seek(value){if(this.ready&&!this.exporting)this.video.currentTime=Number(value)}
   async at(time){if(Math.abs(this.video.currentTime-time)<.001)return;await new Promise((resolve,reject)=>{const timer=setTimeout(()=>{clean();reject(Error('Nie można przewinąć filmu.'))},10000);const clean=()=>{clearTimeout(timer);this.video.removeEventListener('seeked',done)};const done=()=>{clean();resolve()};this.video.addEventListener('seeked',done);this.video.currentTime=time})}
+  // Encoder plans, best first. MediaRecorder.isTypeSupported only checks the container, so each H.264 profile and
+  // size is also checked with WebCodecs where available: hardware encoders often refuse High profile, and Baseline
+  // 3.1 cannot encode more than ~720p ("The given encoder configuration is not supported by the encoder").
+  async plans(width,height){
+    const sizes=[[width,height]]
+    if(width>720)sizes.push([720,Math.round(height*720/width/2)*2])
+    const codecs=['avc1.640033','avc1.4d0033','avc1.42e033','avc1.640028','avc1.4d0028','avc1.42e02a','avc1.42e01f']
+    const plans=[]
+    for(const [w,h] of sizes){
+      const bitrate=Math.round(12000000*w/1080)
+      for(const codec of codecs){
+        const mime=`video/mp4;codecs=${codec},mp4a.40.2`
+        if(!window.MediaRecorder?.isTypeSupported(mime))continue
+        if(window.VideoEncoder?.isConfigSupported){
+          try{if(!(await VideoEncoder.isConfigSupported({codec,width:w,height:h,bitrate,framerate:30})).supported)continue}catch{continue}
+        }
+        plans.push({mime,width:w,height:h,bitrate})
+      }
+      if(window.MediaRecorder?.isTypeSupported('video/mp4'))plans.push({mime:'video/mp4',width:w,height:h,bitrate})
+    }
+    return plans
+  }
   async export({width,height,render}){
     if(this.exporting)throw Error('Eksport już trwa.')
     if(!this.ready)throw Error('Wybierz ponownie źródłowy MP4.')
-    const mime=['video/mp4;codecs=avc1.640033,mp4a.40.2','video/mp4;codecs=avc1.42001f,mp4a.40.2','video/mp4'].find(type=>window.MediaRecorder?.isTypeSupported(type))
-    if(!mime)throw Error('Ta przeglądarka nie koduje MP4. Otwórz Aurę w Safari, aktualnym Chrome lub aplikacji UNCsWay.')
-    const canvas=document.createElement('canvas');canvas.width=width;canvas.height=height
-    if(!canvas.captureStream)throw Error('Eksport wideo jest niedostępny w tej przeglądarce.')
-    const c=canvas.getContext('2d'),video=this.video,previousTime=video.currentTime,wasMuted=video.muted
-    let stream,recorder,raf=0,timeout,progress,complete=false
+    const plans=await this.plans(width,height)
+    if(!plans.length)throw Error('Ta przeglądarka nie koduje MP4. Otwórz Aurę w Safari, aktualnym Chrome lub aplikacji UNCsWay.')
+    if(!document.createElement('canvas').captureStream)throw Error('Eksport wideo jest niedostępny w tej przeglądarce.')
+    const video=this.video,previousTime=video.currentTime,wasMuted=video.muted
     this.exporting=true;this.busy(true);video.pause()
+    try {
+      let last
+      for(const plan of plans){
+        try{const blob=await this.record(plan,render);blob.exportSize=[plan.width,plan.height];return blob}
+        catch(error){
+          last=error
+          // Only a refused configuration (before anything was encoded) moves on to the next plan.
+          if(error?.recorded||!(error?.name==='NotSupportedError'||/not supported|encoder/i.test(error?.message||'')))throw error
+        }
+      }
+      throw last
+    } finally {
+      this.audioSource?.disconnect();if(this.audioContext)this.audioSource?.connect(this.audioContext.destination)
+      video.muted=wasMuted
+      try{await this.at(previousTime)}catch{}
+      this.exporting=false;this.busy(false);this.draw();this.sync()
+    }
+  }
+  async record({mime,width,height,bitrate},render){
+    const canvas=document.createElement('canvas');canvas.width=width;canvas.height=height
+    const c=canvas.getContext('2d'),video=this.video
+    let stream,recorder,raf=0,timeout,progress,complete=false,bytes=0
     try {
       const Audio=window.AudioContext||window.webkitAudioContext
       if(!this.audioContext){this.audioContext=new Audio();this.audioSource=this.audioContext.createMediaElementSource(video)}
@@ -65,13 +107,14 @@ window.PostCreatorVideo = class {
       await this.at(0)
       render(c,width,height);stream=canvas.captureStream(30)
       sound.stream.getAudioTracks().forEach(track=>stream.addTrack(track))
-      recorder=new MediaRecorder(stream,{mimeType:mime,videoBitsPerSecond:12000000,audioBitsPerSecond:192000})
-      const chunks=[];let bytes=0
+      recorder=new MediaRecorder(stream,{mimeType:mime,videoBitsPerSecond:bitrate,audioBitsPerSecond:192000})
+      const chunks=[]
       const result=new Promise((resolve,reject)=>{
         let failure=null
-        this.cancel=(error=new DOMException('Anulowano eksport MP4.','AbortError'))=>{if(complete)return;failure=error;video.pause();if(recorder.state!=='inactive')recorder.stop();else reject(error)}
+        const fail=error=>{if(error&&typeof error==='object')error.recorded=bytes>0;return error}
+        this.cancel=(error=new DOMException('Anulowano eksport MP4.','AbortError'))=>{if(complete)return;failure=fail(error);video.pause();if(recorder.state!=='inactive')recorder.stop();else reject(failure)}
         recorder.ondataavailable=e=>{if(e.data.size){chunks.push(e.data);bytes+=e.data.size;if(bytes>512*1024*1024)this.cancel?.(Error('Film przekracza 512 MB. Użyj krótszego materiału.'))}}
-        recorder.onerror=e=>{failure=e.error||Error('Błąd kodera MP4.');this.cancel?.(failure)}
+        recorder.onerror=e=>{failure=fail(e.error||Error('Błąd kodera MP4.'));this.cancel?.(failure)}
         recorder.onstop=()=>{complete=true;failure?reject(failure):bytes?resolve(new Blob(chunks,{type:'video/mp4'})):reject(Error('Koder nie zwrócił filmu.'))}
         video.onended=()=>{render(c,width,height);if(recorder.state!=='inactive')recorder.stop()}
         video.onerror=()=>this.cancel?.(Error('Nie można odczytać filmu podczas eksportu.'))
@@ -89,10 +132,6 @@ window.PostCreatorVideo = class {
       video.onended=null;video.onerror=null;video.pause()
       if(recorder&&recorder.state!=='inactive')recorder.stop()
       stream?.getTracks().forEach(track=>track.stop())
-      this.audioSource?.disconnect();if(this.audioContext)this.audioSource?.connect(this.audioContext.destination)
-      video.muted=wasMuted
-      try{await this.at(previousTime)}catch{}
-      this.exporting=false;this.busy(false);this.draw();this.sync()
     }
   }
 }

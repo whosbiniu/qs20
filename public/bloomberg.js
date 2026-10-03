@@ -1,7 +1,7 @@
 // Bloomberg Terminal for UNCsWay Final. GP chart screen (launchpad bar with a command line, quote lines, the red
 // action bar with numbered menus, range / periodicity / chart-type controls, candles on a dotted grid) plus WEI
-// world indices, ECO calendar, a watchlist, price alerts, relative comparison (COMP), spreads, our Q1–Q4 session
-// and day/week/month high-low levels, live Hyperliquid crypto and a 1/2/4-pane Launchpad.
+// world indices, ECO calendar, a watchlist, price alerts, relative comparison (COMP), spreads, day/week/month
+// high-low levels, live Hyperliquid crypto and a 1/2/4-pane Launchpad.
 // Data comes from the terminal's own /api (Yahoo, Hyperliquid; in the Mac app through the native proxy).
 (() => {
   const $ = id => document.getElementById(id)
@@ -59,7 +59,7 @@
   const COLORS = ['#fb8b1e', '#35d0ff', '#ff5fd2', '#7cff6b', '#ffe14d']
 
   const state = { sym: load('symbol', pane ? ['NQ1!', 'ES1!', 'GC1!', 'BTC1!'][pane - 1] || 'NQ1!' : 'NQ1!'), period: load('period', 'YTD'), freq: null, freqs: load('freqs', {}),
-    type: load('type', 'candle'), mavg: load('mavg', false), events: load('events', false), sessions: load('sessions', false), track: true, annotate: false,
+    type: load('type', 'candle'), mavg: load('mavg', false), events: load('events', false), track: true, annotate: false,
     compares: load('compares', []), relative: load('relative', false), watch: load('watchOpen', !pane), fn: 'GP', group: load('group', null) }
   if (!PERIODS.includes(state.period)) state.period = 'YTD'
   const history = [state.sym]; let hpos = 0
@@ -99,11 +99,10 @@
   }
   const weekKey = t => { const d = new Date(t * 1000); d.setUTCDate(d.getUTCDate() - (d.getUTCDay() + 6) % 7); return d.toISOString().slice(0, 10) }
   const monthKey = t => new Date(t * 1000).toISOString().slice(0, 7)
-  // New York wall-clock offset of a moment (seconds), cached per UTC day: H4 bars and Q sessions follow the
+  // New York wall-clock offset of a moment (seconds), cached per UTC day: H4 bars follow the
   // 18:00 New York session start in summer and winter.
   const etOffset = new Map()
   const etShift = t => { const day = Math.floor(t / 86400); if (!etOffset.has(day)) { const p = Object.fromEntries(new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour12: false, hour: '2-digit', minute: '2-digit', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date(day * 86400000 + 43200000)).map(x => [x.type, x.value])); etOffset.set(day, Date.UTC(+p.year, p.month - 1, +p.day, +p.hour % 24, +p.minute) / 1000 - (day * 86400 + 43200)) } return etOffset.get(day) }
-  const etHour = t => (((t + etShift(t)) % 86400) + 86400) % 86400 / 3600
   function reshape(candles, freq) {
     if (freq === 'H4') return bucket(candles, t => Math.floor((t + etShift(t) - 18 * 3600) / 14400))
     if (freq === 'Weekly') return bucket(candles, weekKey)
@@ -162,35 +161,8 @@
       : type === 'bar' ? chart.addSeries(LC.BarSeries, { ...common, upColor: UP, downColor: DOWN, thinBars: true })
         : chart.addSeries(LC.CandlestickSeries, { ...common, upColor: UP, downColor: DOWN, borderVisible: false, wickUpColor: WICK, wickDownColor: WICK })
     lastLine = null; markers = null; notes = []; levelLines = []; alertLines = []
-    series.attachPrimitive(sessBands)
   }
   const sma = (data, n) => data.map((c, i) => i < n - 1 ? { time: c.time } : { time: c.time, value: data.slice(i - n + 1, i + 1).reduce((s, x) => s + x.close, 0) / n })
-
-  // Our model: Q1 Asia 18–24, Q2 London 0–6, Q3 NY AM 6–12, Q4 NY PM 12–18 (New York time), as background bands.
-  const SESSIONS = [['Q1 Azja', 'rgba(60,120,255,.13)'], ['Q2 Londyn', 'rgba(60,220,140,.11)'], ['Q3 NY AM', 'rgba(251,139,30,.13)'], ['Q4 NY PM', 'rgba(200,90,255,.12)']]
-  const sessionIndex = t => { const h = etHour(t); return h >= 18 ? 0 : h < 6 ? 1 : h < 12 ? 2 : 3 }
-  // Bands drawn under the candles by a series primitive: each bar's slot (half-way to its neighbours) filled with
-  // its session colour, so the bands touch whatever the bar spacing.
-  const sessBands = {
-    bars: [], requestUpdate: null,
-    attached({ requestUpdate }) { this.requestUpdate = requestUpdate }, detached() { this.requestUpdate = null }, updateAllViews() {},
-    paneViews() { return [{ zOrder: () => 'bottom', renderer: () => ({ draw() {}, drawBackground: target => target.useMediaCoordinateSpace(({ context: ctx, mediaSize }) => {
-      const ts = chart.timeScale(), xs = this.bars.map(c => ts.timeToCoordinate(c.time))
-      for (let i = 0; i < xs.length; i++) {
-        if (xs[i] === null) continue
-        const left = i > 0 && xs[i - 1] !== null ? (xs[i - 1] + xs[i]) / 2 : xs[i] - ((xs[i + 1] ?? xs[i] + 6) - xs[i]) / 2
-        const right = i < xs.length - 1 && xs[i + 1] !== null ? (xs[i] + xs[i + 1]) / 2 : xs[i] + (xs[i] - (xs[i - 1] ?? xs[i] - 6)) / 2
-        ctx.fillStyle = SESSIONS[sessionIndex(this.bars[i].time)][1]
-        ctx.fillRect(left, 0, right - left + .5, mediaSize.height)
-      }
-    }) }) }] },
-  }
-  function drawSessions() {
-    const on = state.sessions && isIntraday() && !state.relative
-    sessBands.bars = on ? shown : []; sessBands.requestUpdate?.()
-    $('sessLegend').hidden = !on
-    if (on) $('sessLegend').innerHTML = SESSIONS.map(([n, c]) => `<span><i style="background:${c.replace(/[\d.]+\)$/, '.7)')}"></i>${n}</span>`).join('')
-  }
 
   // Current day / week / month high and low with their Q labels (our cycle rules, /api/highs), as price lines.
   let qLabels = {}
@@ -225,7 +197,7 @@
     const hi = shown.reduce((a, c) => c.high > a.high ? c : a, shown[0] || {}), lo = shown.reduce((a, c) => c.low < a.low ? c : a, shown[0] || {})
     const list = state.events && !rel && shown.length ? [{ time: hi.time, position: 'aboveBar', color: '#fb8b1e', shape: 'arrowDown', text: 'H' }, { time: lo.time, position: 'belowBar', color: '#fb8b1e', shape: 'arrowUp', text: 'L' }].sort((a, b) => a.time - b.time) : []
     if (!markers) markers = LC.createSeriesMarkers(series, list); else markers.setMarkers(list)
-    drawSessions(); drawLevels(); drawAlerts()
+    drawLevels(); drawAlerts()
     chart.timeScale().fitContent()
     legend()
     if (!$('tableView').hidden) table()
@@ -256,7 +228,6 @@
       $('legend').innerHTML = `<div class="first"><span class="sw"></span><span>${isIntraday() ? new Date(bar.time * 1000).toLocaleString('en-US', { timeZone: 'America/New_York', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }) : short(bar.time)}</span><span></span></div>`
         + (bar.value !== undefined && bar.open === undefined ? `<div><i>·</i><span>${state.relative ? 'Change' : 'Close'}</span><span>${state.relative ? pct(bar.value) : num(bar.value, d)}</span></div>`
           : [['Open', bar.open], ['High', bar.high], ['Low', bar.low], ['Close', bar.close]].map(([k, v]) => `<div><i>·</i><span>${k}</span><span>${num(v, d)}</span></div>`).join(''))
-        + (state.sessions && isIntraday() ? `<div><i>Q</i><span>${SESSIONS[sessionIndex(bar.time)][0]}</span><span></span></div>` : '')
       return
     }
     const hi = shown.reduce((a, c) => c.high > a.high ? c : a, shown[0]), lo = shown.reduce((a, c) => c.low < a.low ? c : a, shown[0])
@@ -456,7 +427,7 @@
     document.querySelectorAll('#types button').forEach(b => b.classList.toggle('on', !state.relative && b.dataset.t === state.type))
     $('freq').textContent = state.freq + ' ▾'
     $('kindName').textContent = state.relative ? 'Relative (COMP)' : { candle: 'Candle Chart', line: 'Line Chart', bar: 'Bar Chart' }[state.type]
-    $('mavg').checked = state.mavg; $('events').checked = state.events; $('sessions').checked = state.sessions
+    $('mavg').checked = state.mavg; $('events').checked = state.events
     $('back').disabled = hpos <= 0; $('fwd').disabled = hpos >= history.length - 1
     $('link').dataset.group = state.group || ''; $('link').style.background = state.group || ''
     document.querySelectorAll('.bb-tools button').forEach(b => b.classList.toggle('on', (b.dataset.tool === 'track' && state.track) || (b.dataset.tool === 'annotate' && state.annotate) || (b.dataset.tool === 'news' && !$('newsView').hidden)))
@@ -496,7 +467,6 @@
   $('types').onclick = e => { const t = e.target.closest('[data-t]')?.dataset.t; if (!t) return; state.type = t; store('type', t); state.relative = false; store('relative', false); makeSeries(); controls(); draw(); drawCompare() }
   $('mavg').onchange = e => { state.mavg = e.target.checked; store('mavg', state.mavg); draw() }
   $('events').onchange = e => { state.events = e.target.checked; store('events', state.events); draw() }
-  $('sessions').onchange = e => { state.sessions = e.target.checked; store('sessions', state.sessions); draw() }
   $('back').onclick = () => { if (hpos > 0) { hpos--; open(history[hpos], false) } }
   $('fwd').onclick = () => { if (hpos < history.length - 1) { hpos++; open(history[hpos], false) } }
   $('table').onclick = () => { $('tableView').hidden = !$('tableView').hidden; $('table').classList.toggle('on', !$('tableView').hidden); if (!$('tableView').hidden) table() }
@@ -544,8 +514,7 @@
   const check = on => on ? '✓ ' : ''
   const MENUS = {
     charts: () => [['1', 'Candle Chart', () => setType('candle')], ['2', 'Line Chart', () => setType('line')], ['3', 'Bar Chart', () => setType('bar')], ['4', check(state.relative) + 'Relative Performance (COMP)', () => setRelative(!state.relative)],
-      ['5', check(state.mavg) + 'Moving Averages 50/200', () => { state.mavg = !state.mavg; store('mavg', state.mavg); controls(); draw() }], ['6', check(state.sessions) + 'Sesje Q1–Q4 (śróddziennie)', () => { state.sessions = !state.sessions; store('sessions', state.sessions); controls(); draw() }],
-      ['7', check(state.events) + 'Poziomy H/L dnia, tygodnia, miesiąca (Q)', () => { state.events = !state.events; store('events', state.events); controls(); draw() }]],
+      ['5', check(state.mavg) + 'Moving Averages 50/200', () => { state.mavg = !state.mavg; store('mavg', state.mavg); controls(); draw() }], ['6', check(state.events) + 'Poziomy H/L dnia, tygodnia, miesiąca (Q)', () => { state.events = !state.events; store('events', state.events); controls(); draw() }]],
     actions: () => [['1', 'Save Chart Image (PNG)', saveImage], ['2', 'Refresh Data', () => { cache.clear(); refresh() }], ['3', 'Copy Security', () => navigator.clipboard?.writeText(state.sym)],
       ['4', `Add to Watchlist`, () => { if (!watch.includes(state.sym)) { watch.push(state.sym); shared.set('watch', watch) } toggleWatch(true) }],
       ['5', `Clear Alerts for ${state.sym} (${alerts.filter(a => a.sym === state.sym).length})`, () => { alerts = alerts.filter(a => a.sym !== state.sym); saveAlerts(); drawAlerts() }],

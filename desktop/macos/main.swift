@@ -527,6 +527,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
         // The self-tests exercise the Kwartały page / the L/H page directly, not the terminal shell.
         let entry = CommandLine.arguments.contains("--self-test") ? "quarters/index.html"
             : CommandLine.arguments.contains("--self-test-highs") ? "quarters/highs.html"
+            : CommandLine.arguments.contains("--self-test-bloomberg") ? "bloomberg.html"
             : isFinal && (!CommandLine.arguments.contains(where: { $0.hasPrefix("--self-test") }) || CommandLine.arguments.contains("--self-test-final")) && bench == nil ? "final.html" : "index.html"
         webView.loadFileURL(root.appendingPathComponent(entry), allowingReadAccessTo: root)
         window.makeKeyAndOrderFront(nil)
@@ -534,7 +535,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
         if CommandLine.arguments.contains("--self-test") || CommandLine.arguments.contains("--self-test-highs") ||
            CommandLine.arguments.contains("--self-test-terminal") || CommandLine.arguments.contains("--self-test-integrations") ||
            CommandLine.arguments.contains("--self-test-tv") || CommandLine.arguments.contains("--self-test-postcreator") ||
-           CommandLine.arguments.contains("--self-test-final") {
+           CommandLine.arguments.contains("--self-test-final") || CommandLine.arguments.contains("--self-test-bloomberg") {
             DispatchQueue.main.asyncAfter(deadline: .now() + 40) { fputs("Self-test timeout\n", stderr); exit(1) }
         }
         if bench != nil { DispatchQueue.main.asyncAfter(deadline: .now() + 900) { fputs("Benchmark timeout\n", stderr); exit(1) } }
@@ -558,7 +559,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
         }
         if isFinal {
             view.submenu!.addItem(.separator())
-            for (title, action, key) in [("Dashboard", #selector(showDashboard), "1"), ("Terminal", #selector(showTerminal), "2")] {
+            for (title, action, key) in [("Dashboard", #selector(showDashboard), "1"), ("Terminal", #selector(showTerminal), "2"), ("Bloomberg", #selector(showBloomberg), "3")] {
                 let item = view.submenu!.addItem(withTitle: title, action: action, keyEquivalent: key); item.target = self
             }
         }
@@ -567,6 +568,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
     @objc func reload() { webView.reload() }
     @objc func showDashboard() { open("final.html") }
     @objc func showTerminal() { open("index.html") }
+    @objc func showBloomberg() { open("bloomberg.html") }
     private func open(_ page: String) {
         let root = Bundle.main.resourceURL!.appendingPathComponent("public")
         webView.loadFileURL(root.appendingPathComponent(page), allowingReadAccessTo: root)
@@ -699,6 +701,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
                         DispatchQueue.main.asyncAfter(deadline: .now() + 6) { exit(0) }
                     }
                 }
+            }
+            return
+        }
+        if CommandLine.arguments.contains("--self-test-bloomberg"), !selfTestStarted {
+            // Bloomberg GP screen: quote, chart and a command-line switch to another security, all through the native proxy.
+            selfTestStarted = true
+            webView.callAsyncJavaScript("""
+            const wait=ms=>new Promise(r=>setTimeout(r,ms)), $=id=>document.getElementById(id);
+            for(let i=0;i<150&&!/\\d/.test($('qLast').textContent);i++)await wait(100);
+            const first=[$('secName').textContent,$('qLast').textContent,document.querySelectorAll('#legend div').length];
+            $('title').click();$('cmdInput').value='ES1! GO';$('cmd').requestSubmit();
+            for(let i=0;i<150&&!/^E-Mini|ES/.test($('secName').textContent);i++)await wait(100);
+            document.querySelector('[data-p="1D"]').click();await wait(2500);
+            const state={first,second:$('secName').textContent,freq:$('freq').textContent,status:$('status').textContent,shell:document.documentElement.dataset.shell};
+            state.ok=/\\d/.test(first[1])&&first[2]>=4&&/E-Mini|ES/.test(state.second)&&/Min/.test(state.freq)&&!state.status;
+            return JSON.stringify(state);
+            """, arguments: [:], in: nil, in: .page) { result in
+                let output = (try? result.get() as? String) ?? "FAIL \(result)"
+                print(output)
+                exit(output.contains("\"ok\":true") ? 0 : 1)
             }
             return
         }

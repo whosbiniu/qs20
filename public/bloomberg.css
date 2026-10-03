@@ -1,0 +1,118 @@
+/* Bloomberg Terminal GP screen: black page, grey launchpad bar, amber fields, dark-red action bar,
+   white/blue candles on a dotted grid. Arial like the terminal's proportional font. */
+:root {
+  --bg: #000; --bar: #1f1f1f; --bar2: #161616; --line: #3a3a3a; --ink: #f2f2f2; --dim: #9a9a9a;
+  --amber: #fb8b1e; --amber2: #f5a623; --red: #7b0a0e; --blue: #2a8cff; --sel: #2f6ed8; --up: #2fcf6b; --down: #ff3b3b;
+  --font: Arial, "Helvetica Neue", Helvetica, sans-serif;
+  color-scheme: dark;
+}
+* { box-sizing: border-box }
+[hidden] { display: none !important }
+html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); font: 15px/1.2 var(--font); overflow: hidden; -webkit-font-smoothing: antialiased }
+button, input { font: inherit; color: inherit }
+button { background: none; border: 0; padding: 0; cursor: pointer }
+svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round }
+.bb { height: 100vh; display: flex; flex-direction: column }
+.bb-grow { flex: 1 }
+
+/* launchpad bar */
+.bb-top { flex: none; height: 30px; display: flex; align-items: center; gap: 10px; padding: 0 10px; background: var(--bar); border-bottom: 1px solid #2b2b2b; font-size: 14.5px; user-select: none }
+html[data-shell=final] .bb-top { padding-left: 82px }
+.bb-nav { width: 16px; font-size: 20px; line-height: 1; color: #d8d8d8 }
+.bb-nav:disabled { color: #555; cursor: default }
+.bb-title, .bb-menu { color: var(--ink); white-space: nowrap }
+.bb-title:hover, .bb-menu:hover { color: #fff; text-decoration: underline }
+.bb-menu i { font-style: normal; font-size: 13px }
+.bb-sep { width: 1px; height: 16px; background: #555 }
+.bb-fn { color: var(--ink) }
+.bb-cmd { display: flex; align-items: center; gap: 6px }
+.bb-cmd input { width: 220px; height: 22px; padding: 0 6px; background: var(--amber); color: #000; border: 0; outline: none; text-transform: uppercase; font-weight: 700 }
+.bb-cmd span { color: var(--amber); font-size: 12px }
+.bb-msg { color: var(--ink); text-decoration: none; white-space: nowrap }
+.bb-icons { display: flex; gap: 12px; color: #cfcfcf; font-size: 13px }
+.bb-icons b { font-weight: 400 }
+
+/* quote */
+.bb-quote { flex: none; padding: 4px 10px 3px; background: #000; font-size: 19px; white-space: nowrap; overflow: hidden }
+.bb-q1, .bb-q2 { display: flex; align-items: baseline; gap: 10px; height: 25px }
+.bb-flag { align-self: center; width: 7px; height: 18px; background: var(--blue) }
+.bb-q1 b { font-weight: 400 }
+#qSym { color: #fff; margin-left: -4px }
+.bb-arrow { margin-left: -9px; font-size: 18px }
+.bb-arrow.up { color: var(--up) } .bb-arrow.down { color: var(--down) }
+.bb-last { min-width: 80px; font-weight: 700 !important }
+.bb-last.up, .bb-chg.up { color: var(--up) } .bb-last.down, .bb-chg.down { color: var(--down) }
+.bb-chg { min-width: 70px; text-align: right; padding-right: 8px }
+#spark { align-self: center; width: 80px; height: 22px }
+.bb-ba { margin-left: 26px; min-width: 150px } .bb-size { min-width: 60px }
+.bb-lbl { color: var(--amber2) }
+.bb-q2 { gap: 9px; padding-left: 8px }
+.bb-q2 b { font-weight: 400; margin-right: 22px; color: #fff }
+
+/* red action bar */
+.bb-red { flex: none; height: 25px; display: flex; align-items: center; gap: 4px; padding: 0 6px; background: var(--red); font-size: 17px }
+.bb-amber { background: var(--amber); color: #000; padding: 0 5px; line-height: 21px; height: 21px; white-space: nowrap }
+.bb-secfield { min-width: 180px; margin-right: 2px }
+.bb-act { height: 21px; padding: 0 8px; color: #fff; background: rgba(0,0,0,.18); white-space: nowrap }
+.bb-act em { font-style: normal; background: #fff; color: var(--red); padding: 0 2px; margin-right: 3px; font-size: 14px; border-radius: 2px }
+.bb-act:hover, .bb-act.open { background: rgba(255,255,255,.12) }
+.bb-kind { display: flex; align-items: center; gap: 8px; padding-right: 6px; color: #fff }
+.bb-kind svg { width: 18px; height: 18px }
+.bb-pop { position: absolute; z-index: 20; min-width: 230px; background: #1b1b1b; border: 1px solid #444; box-shadow: 0 8px 24px rgba(0,0,0,.6); font-size: 14px; padding: 4px 0 }
+.bb-pop button { display: block; width: 100%; text-align: left; padding: 5px 12px; color: var(--ink); white-space: nowrap }
+.bb-pop button:hover { background: var(--sel) }
+.bb-pop button em { font-style: normal; color: var(--amber2); margin-right: 6px }
+
+/* settings rows */
+.bb-row1, .bb-row2 { flex: none; display: flex; align-items: center; white-space: nowrap; overflow: hidden }
+.bb-row1 { height: 22px; gap: 4px; padding: 2px 6px 0; font-size: 16px }
+.bb-date { min-width: 104px }
+.bb-cal { color: #d0d0d0; font-size: 13px; margin-right: 2px }
+.bb-dash { color: #fff; margin: 0 2px }
+.bb-field { min-width: 104px; margin-left: 18px } .bb-ccy { margin-left: 4px; min-width: 96px }
+.bb-drop { color: #000; background: #c9c9c9; height: 21px; line-height: 21px; padding: 0 3px; font-size: 12px }
+.bb-check { display: inline-flex; align-items: center; gap: 6px; margin-left: 14px; color: var(--amber2); cursor: pointer }
+.bb-check input { appearance: none; -webkit-appearance: none; width: 13px; height: 13px; margin: 0; border: 1px solid #777; background: #1b1b1b }
+.bb-check input:checked { background: var(--amber); border-color: var(--amber) }
+.bb-pen { color: #ddd; font-size: 13px }
+.bb-row2 { height: 23px; gap: 2px; padding: 1px 6px; background: var(--bar2); font-size: 15px }
+.bb-periods { display: flex }
+.bb-periods button { padding: 0 9px; height: 20px; color: var(--ink) }
+.bb-periods button.on { background: var(--sel); color: #fff }
+.bb-periods button:hover:not(.on) { background: #2a2a2a }
+.bb-freq { margin-left: 6px; padding: 0 9px; height: 20px; background: #2a2a2a }
+.bb-types { display: flex; margin-left: 4px }
+.bb-types button { width: 26px; height: 20px; display: grid; place-items: center; color: #ddd }
+.bb-types button.on { background: var(--sel); color: #fff }
+.bb-btn { height: 20px; padding: 0 8px; color: var(--ink); background: #232323; margin-left: 4px }
+.bb-btn:hover { background: #2f2f2f }
+#table { padding: 0 18px } #table.on { background: var(--sel) }
+.bb-add { width: 112px; height: 20px; margin-left: 10px; padding: 0 6px; border: 0; outline: none; background: var(--amber); color: #000; font-size: 15px }
+.bb-add::placeholder { color: #6b3b00 }
+.bb-gear { padding: 0 6px }
+
+/* chart */
+.bb-chart { position: relative; flex: 1; min-height: 0; background: #000 }
+#chart { position: absolute; inset: 0 }
+.bb-tools { position: absolute; z-index: 5; top: 2px; left: 50%; transform: translateX(-50%); display: flex; gap: 1px; font-size: 13px }
+.bb-tools button { height: 20px; padding: 0 8px; color: #bdbdbd; background: #121212; border: 1px solid #262626 }
+.bb-tools button:hover { color: #fff }
+.bb-tools button.on { color: #fff; background: #1d1d1d; border-color: #3d3d3d }
+.bb-legend { position: absolute; z-index: 5; top: 10px; right: 50px; min-width: 186px; padding: 4px 6px 5px 8px; background: rgba(32,32,32,.92); font-size: 13px; line-height: 16px; pointer-events: none }
+.bb-legend div { display: grid; grid-template-columns: 12px 1fr auto; gap: 4px; align-items: center }
+.bb-legend i { font-style: normal; color: #bbb; font-size: 11px; text-align: center }
+.bb-legend .sw { width: 11px; height: 11px; background: #fff; border: 1px solid #888 }
+.bb-legend span:last-child { text-align: right; padding-left: 14px }
+.bb-legend .first { font-size: 13.5px }
+.bb-status { position: absolute; z-index: 5; left: 10px; bottom: 26px; margin: 0; color: var(--amber2); font-size: 13px; pointer-events: none }
+.bb-table { position: absolute; inset: 0; z-index: 6; overflow: auto; background: #000; font-size: 14px }
+.bb-table table { border-collapse: collapse; width: 100% }
+.bb-table th { position: sticky; top: 0; background: #1f1f1f; color: var(--amber2); font-weight: 400; text-align: right; padding: 4px 12px }
+.bb-table td { text-align: right; padding: 2px 12px; border-bottom: 1px solid #141414; font-variant-numeric: tabular-nums }
+.bb-table th:first-child, .bb-table td:first-child { text-align: left }
+.bb-table tr:hover td { background: #101a2a }
+.bb-news { position: absolute; z-index: 6; top: 26px; right: 10px; bottom: 30px; width: min(460px, 46%); overflow: auto; background: rgba(12,12,12,.96); border: 1px solid #333; font-size: 14px }
+.bb-news h3 { margin: 0; padding: 6px 10px; background: var(--red); font: 400 15px var(--font) }
+.bb-news a { display: grid; grid-template-columns: 46px 1fr; gap: 8px; padding: 6px 10px; color: var(--ink); text-decoration: none; border-bottom: 1px solid #1d1d1d }
+.bb-news a:hover { background: #101a2a }
+.bb-news time { color: var(--amber2) }

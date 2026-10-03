@@ -118,3 +118,7 @@ html[data-shell=final] .fx-top { padding-left: 90px }
   .fx-tools { display: none }
 }
 @media (prefers-reduced-motion: reduce) { .fx-reticle, .fx-reticle-label { transition: none } }
+
+/* Bloomberg terminal button next to Terminal: amber like the Bloomberg keyboard's function keys. */
+.fx-launch.fx-bbg { background: #fb8b1e; color: #000; margin-right: -12px }
+.fx-launch.fx-bbg:hover { color: #000 }

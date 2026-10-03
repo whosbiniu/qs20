@@ -13,6 +13,9 @@
     '1W': { interval: '1wk', range: '10y' },
     '1D': { interval: '1d', range: '2y' },
     '6H': { interval: '60m', range: '3mo', bucket: 6 * 3600 },
+    // Intraday frames for the Bloomberg GP screen (1D / 3D ranges).
+    '30m': { interval: '30m', range: '1mo' },
+    '5m': { interval: '5m', range: '5d' },
   };
 
   // Terminal symbol -> Yahoo feed. "X1!" is the continuous future X=F (TradingView style), DXY1! is the
@@ -47,6 +50,7 @@
         last.high = Math.max(last.high, c.high);
         last.low = Math.min(last.low, c.low);
         last.close = c.close;
+        if (Number.isFinite(c.volume)) last.volume = (last.volume || 0) + c.volume;
       } else out.push({ ...c, time });
     }
     return out;
@@ -202,7 +206,9 @@
       const candles = [];
       result.timestamp.forEach((time, i) => {
         const [open, high, low, close] = [q.open[i], q.high[i], q.low[i], q.close[i]];
-        if ([open, high, low, close].every(Number.isFinite)) candles.push({ time, open, high, low, close });
+        if (![open, high, low, close].every(Number.isFinite)) return;
+        const volume = q.volume?.[i];
+        candles.push(Number.isFinite(volume) ? { time, open, high, low, close, volume } : { time, open, high, low, close });
       });
       const prev = await previousClose(feed).catch(() => null);
       const meta = result.meta;

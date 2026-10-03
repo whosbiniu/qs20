@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en" data-final-page>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Bloomberg · UNC’s Way</title>
+<link rel="icon" type="image/png" sizes="64x64" href="favicon-64.png">
+<link rel="stylesheet" href="bloomberg.css">
+</head>
+<body>
+<div class="bb" id="bb">
+  <!-- launchpad bar: history arrows, security, function, related functions, messages -->
+  <header class="bb-top" data-drag>
+    <button type="button" class="bb-nav" id="back" aria-label="Wstecz">‹</button><button type="button" class="bb-nav" id="fwd" aria-label="Dalej">›</button>
+    <button type="button" class="bb-title" id="title" title="Kliknij lub zacznij pisać, aby zmienić instrument"><span id="secName">—</span> ▾</button>
+    <span class="bb-sep"></span><span class="bb-fn">GPC</span><span class="bb-sep"></span>
+    <button type="button" class="bb-menu" id="related">Related Functions Menu <i>≫</i></button>
+    <form class="bb-cmd" id="cmd" hidden><input id="cmdInput" autocomplete="off" spellcheck="false" aria-label="Komenda: ticker i Enter (np. ES1! GO)"><span>&lt;GO&gt;</span></form>
+    <span class="bb-grow" data-drag></span>
+    <a class="bb-msg" href="final.html" title="Wróć do dashboardu">✉ Message</a>
+    <span class="bb-icons" aria-hidden="true"><b>⧉▾</b><b>☆</b><b>?▾</b></span>
+  </header>
+
+  <!-- quote lines -->
+  <section class="bb-quote" aria-live="polite">
+    <div class="bb-q1">
+      <i class="bb-flag"></i><b id="qSym">—</b><span id="qArrow" class="bb-arrow"></span><b id="qLast" class="bb-last">—</b>
+      <span id="qChg" class="bb-chg">—</span><canvas id="spark" width="80" height="22" aria-hidden="true"></canvas>
+      <span id="qBidAsk" class="bb-ba">N.A./N.A.</span><span class="bb-size">— x —</span>
+      <span class="bb-grow"></span><span class="bb-lbl">Prev</span><b id="qPrev">—</b>
+    </div>
+    <div class="bb-q2">
+      <span class="bb-lbl">At</span><b id="qAt">—</b><span class="bb-lbl">Vol</span><b id="qVol">—</b>
+      <span class="bb-lbl">Op</span><b id="qOp">—</b><span class="bb-lbl">Hi</span><b id="qHi">—</b><span class="bb-lbl">Lo</span><b id="qLo">—</b>
+      <span class="bb-lbl">OpenInt</span><b>N.A.</b>
+    </div>
+  </section>
+
+  <!-- red action bar -->
+  <nav class="bb-red">
+    <span class="bb-amber bb-secfield" id="secField">—</span>
+    <button type="button" class="bb-act" data-menu="charts"><em>94)</em> Suggested Charts ▾</button>
+    <button type="button" class="bb-act" data-menu="actions"><em>96)</em> Actions ▾</button>
+    <button type="button" class="bb-act" data-menu="edit"><em>97)</em> Edit ▾</button>
+    <span class="bb-grow"></span>
+    <span class="bb-kind"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 3h6M3 3v10h10V7M9 7l4-4M10 3h3v3"/></svg><span id="kindName">Candle Chart</span></span>
+  </nav>
+  <div class="bb-pop" id="pop" hidden></div>
+
+  <!-- settings row -->
+  <div class="bb-row1">
+    <span class="bb-amber bb-date" id="from">—</span><span class="bb-cal">▦</span><span class="bb-dash">-</span>
+    <span class="bb-amber bb-date" id="to">—</span><span class="bb-cal">▦</span>
+    <span class="bb-amber bb-field">Last Px</span>
+    <span class="bb-amber bb-field bb-ccy">Local CCY</span><span class="bb-drop">▾</span>
+    <label class="bb-check"><input type="checkbox" id="mavg"><span>Mov Avgs</span></label><span class="bb-pen">✎</span>
+    <label class="bb-check"><input type="checkbox" id="events"><span>Key Events</span></label>
+  </div>
+
+  <!-- periods and chart controls -->
+  <div class="bb-row2">
+    <span class="bb-periods" id="periods" role="group" aria-label="Zakres">
+      <button data-p="1D">1D</button><button data-p="3D">3D</button><button data-p="1M">1M</button><button data-p="6M">6M</button><button data-p="YTD">YTD</button><button data-p="1Y">1Y</button><button data-p="5Y">5Y</button><button data-p="Max">Max</button>
+    </span>
+    <button type="button" class="bb-freq" id="freq">Daily ▾</button>
+    <span class="bb-types" id="types" role="group" aria-label="Rodzaj wykresu">
+      <button data-t="line" title="Line Chart"><svg viewBox="0 0 16 16"><path d="M1 12l4-5 3 3 3-6 4 4"/><path d="M1 15h14" opacity=".5"/></svg></button>
+      <button data-t="candle" title="Candle Chart"><svg viewBox="0 0 16 16"><path d="M5 2v12M11 4v10"/><rect x="3.5" y="5" width="3" height="6" fill="currentColor"/><rect x="9.5" y="7" width="3" height="4" fill="currentColor"/></svg></button>
+      <button data-t="bar" title="Bar Chart"><svg viewBox="0 0 16 16"><path d="M5 2v12M3 5h2M5 11h2M11 4v10M9 6h2M11 12h2"/></svg></button>
+    </span>
+    <button type="button" class="bb-btn" id="table">Table</button>
+    <button type="button" class="bb-btn" id="relData">+ Related Data ▾</button>
+    <input class="bb-add" id="addData" placeholder="Add Data" spellcheck="false" aria-label="Porównaj z instrumentem (ticker i Enter)">
+    <span class="bb-grow"></span>
+    <button type="button" class="bb-btn" id="collapse">«</button>
+    <button type="button" class="bb-btn" id="editChart">✎ Edit Chart</button><button type="button" class="bb-btn bb-gear" id="gear" aria-label="Ustawienia">⚙</button>
+  </div>
+
+  <!-- chart -->
+  <main class="bb-chart" id="chartBox">
+    <div class="bb-tools" role="group" aria-label="Narzędzia wykresu">
+      <button data-tool="track" class="on">⌖ Track</button><button data-tool="annotate">∠ Annotate</button><button data-tool="news">▤ News</button><button data-tool="zoom">⌕ Zoom</button>
+    </div>
+    <div class="bb-legend" id="legend"></div>
+    <div id="chart"></div>
+    <div class="bb-table" id="tableView" hidden></div>
+    <aside class="bb-news" id="newsView" hidden></aside>
+    <p class="bb-status" id="status"></p>
+  </main>
+</div>
+<script src="storage.js"></script>
+<script src="day-highs.js"></script>
+<script src="terminal-data.js"></script>
+<script src="hyperliquid-data.js"></script>
+<script src="lightweight-charts.js"></script>
+<script src="bloomberg.js"></script>
+</body>
+</html>

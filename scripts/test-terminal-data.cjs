@@ -90,7 +90,7 @@ assert.equal(new Date(articles[0].time).toISOString(),'2026-09-27T10:15:00.000Z'
   assert.equal(c.candles.length,3);
   assert.equal(c.previousClose,100); // second-to-last daily close, not the start of the range
   await assert.rejects(data.chart('nq1!','1D'),/bad symbol/);
-  await assert.rejects(data.chart('NQ1!','5m'),/bad symbol/);
+  await assert.rejects(data.chart('NQ1!','2m'),/bad symbol/);
   const h=await data.highs('NQ1!');
   assert.equal(h.symbol,'NQ1!');
   for(const key of ['hotm','lotm','hotw','lotw','hotd','lotd'])assert.ok(h[key]===null||h[key].length===3,key);

@@ -20,7 +20,7 @@ const CycleRules = require('../../public/cycle-rules.js')
 
 const dir = process.argv[2]
 if (!dir) { console.error('usage: node scripts/research/smt-strategy.mjs <data dir>'); process.exit(1) }
-const GROUPS = { 'Indeksy (NQ/ES/YM/RTY)': ['NQ=F', 'ES=F', 'YM=F', 'RTY=F'], 'Metale (GC/SI)': ['GC=F', 'SI=F'] }
+const GROUPS = { 'Indeksy (NQ/ES/YM/RTY)': ['NQ=F', 'ES=F', 'YM=F', 'RTY=F'], 'Indeksy (NQ/ES/YM)': ['NQ=F', 'ES=F', 'YM=F'], 'NQ/ES': ['NQ=F', 'ES=F'], 'Metale (GC/SI)': ['GC=F', 'SI=F'] }
 const TICK = { 'NQ=F': .25, 'ES=F': .25, 'YM=F': 1, 'RTY=F': .1, 'GC=F': .1, 'SI=F': .005 }
 const COST_TICKS = 2, R_TARGET = +(process.argv[3] || 2), HOLD = process.argv[4] === 'hold'
 
@@ -126,7 +126,7 @@ const pad = (s, n) => String(s).padEnd(n)
 const line = (label, s) => s ? `${pad(label, 34)} n=${pad(s.n, 4)} win ${pad((s.win * 100).toFixed(1) + '%', 6)} avg ${pad((s.avg >= 0 ? '+' : '') + s.avg.toFixed(3) + 'R', 8)} suma ${pad((s.total >= 0 ? '+' : '') + s.total.toFixed(1) + 'R', 8)} PF ${pad(s.pf.toFixed(2), 5)} maxDD ${pad(s.dd.toFixed(1) + 'R', 7)} t=${s.t.toFixed(2)}` : `${pad(label, 34)} brak transakcji`
 
 console.log(`Cel ${R_TARGET}R · ${HOLD ? 'bez wyjścia na koniec dnia (tylko SL albo TP)' : 'wyjście najpóźniej o 17:00 NY'}`)
-for (const [prefix, refsList, label] of [['m5', ['m90', 'pd'], '5 min · ostatnie 60 dni'], ['h', ['pd'], '60 min · ~2,5 roku']]) {
+for (const [prefix, refsList, label] of [['m5', ['m90', 'pd'], '5 min'], ['h', ['pd'], '60 min']]) {
   console.log(`\n######## ${label} ########`)
   for (const [gname, syms] of Object.entries(GROUPS)) {
     if (!syms.every(s => existsSync(join(dir, `${prefix}_${s}.json`)))) continue

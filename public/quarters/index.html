@@ -142,24 +142,7 @@ function probabilityFor(name,q,values){
   const smt=rule.target==='90MIN'?smtForSession(sessionQ):'';
   return {...rule,sourceQ,sourceLabel,text:`High probability Low ${rule.scope} / High ${rule.scope}`,sessionQ,smt};
 }
-function annotateProbability(cell,name,q,x){
-  const match=probabilityFor(name,q,valuesAt(x));
-  if(!match)return;
-  cell.classList.add('probability-match');
-  cell.title+=` · ${match.source} ${match.sourceLabel} → ${name} Q${q} · ${match.text}${match.smt?` · Sesja Q${match.sessionQ} → ${match.smt}`:''}`;
-  cell.setAttribute('aria-label',cell.title);
-  const label=document.createElement('small');
-  label.className='probability-label';
-  const heading=document.createElement('span');heading.textContent='High probability';
-  const detail=document.createElement('span');detail.textContent=`Low ${match.scope} / High ${match.scope}`;
-  label.append(heading,detail);
-  if(match.smt){
-    const arrows=document.createElement('span');arrows.className='smt-arrows';
-    arrows.textContent=match.smt;label.append(arrows);
-  }
-  cell.append(label);
-}
-function build(){grid.innerHTML='';cycles.forEach((c,ri)=>{const segments=(c.high?1:c.perDay)*horizonDays;const row=document.createElement('div');row.className='row '+c.name.toLowerCase();row.style.gridTemplateColumns=`repeat(${segments},1fr)`;for(let i=0;i<segments;){let span=1;if(c.high){const q=valueFor(c,(i+.5)/segments);while(i+span<segments&&valueFor(c,(i+span+.5)/segments)===q)span++}const cell=document.createElement('div');const x=(i+span/2)/segments,q=valueFor(c,x),label=labelFor(c,x,q);cell.className='cell q'+q+(label==='Q1/Q4'?' weekly-mixed':'');cell.style.gridColumn=`span ${span}`;cell.textContent=label;cell.dataset.row=ri;cell.dataset.q=q;if(c.name==='DAILY')cell.dataset.day=String(Math.floor(i/4));if(q>0)cell.title=`${c.name} · Q${q} · ${phase[q][0]} — ${phase[q][1]}`;else cell.title=`${c.name} · ${label} — ${label==='Q0'?'dzień poza cyklem':'piątkowy cykl'}`;annotateProbability(cell,c.name,q,x);row.append(cell);i+=span}grid.append(row)});grid.append(nowline)}
+function build(){grid.innerHTML='';cycles.forEach((c,ri)=>{const segments=(c.high?1:c.perDay)*horizonDays;const row=document.createElement('div');row.className='row '+c.name.toLowerCase();row.style.gridTemplateColumns=`repeat(${segments},1fr)`;for(let i=0;i<segments;){let span=1;if(c.high){const q=valueFor(c,(i+.5)/segments);while(i+span<segments&&valueFor(c,(i+span+.5)/segments)===q)span++}const cell=document.createElement('div');const x=(i+span/2)/segments,q=valueFor(c,x),label=labelFor(c,x,q);cell.className='cell q'+q+(label==='Q1/Q4'?' weekly-mixed':'');cell.style.gridColumn=`span ${span}`;cell.textContent=label;cell.dataset.row=ri;cell.dataset.q=q;if(c.name==='DAILY')cell.dataset.day=String(Math.floor(i/4));if(q>0)cell.title=`${c.name} · Q${q} · ${phase[q][0]} — ${phase[q][1]}`;else cell.title=`${c.name} · ${label} — ${label==='Q0'?'dzień poza cyklem':'piątkowy cykl'}`;row.append(cell);i+=span}grid.append(row)});grid.append(nowline)}
 function clockText(total){const m=((Math.round(total)%1440)+1440)%1440;return `${String(Math.floor(m/60)).padStart(2,'0')}:${String(m%60).padStart(2,'0')} ET`}
 let holidayMarks=[];
 function nyStamp(date){const p=nyParts(date);return Date.UTC(+p.year,+p.month-1,+p.day,+p.hour,+p.minute,+p.second)}
@@ -228,7 +211,7 @@ timeline.addEventListener('mousemove',e=>{
   if(timeline.classList.contains('dragging')||e.target.closest('.view-tools')){tip.classList.remove('show');return}
   const r=grid.getBoundingClientRect(),x=Math.max(0,Math.min(.999999,(e.clientX-r.left)/r.width));
   const elapsed=x*horizonDays*1440;
-  tip.innerHTML=`<div class="tiptime">+${Math.floor(elapsed/1440)}d · ${clockText(1080+elapsed)}</div>`+valuesAt(x).map(v=>{const match=probabilityFor(v.name,v.q,valuesAt(x));return `<div class="tiprow"><span>${v.name}</span><b class="q${v.q}">${v.q===0?v.label:`${v.label} · ${phase[v.q][0]}`}</b></div>`+(match?`<div class="tip-probability">${match.text}<br>${match.source} ${match.sourceLabel} → ${v.name} Q${v.q}${match.smt?`<div class="smt-detail">Sesja Q${match.sessionQ} → ${match.smt}</div>`:''}</div>`:'')}).join('')+ltfTip(x)+holidayTip(x);
+  tip.innerHTML=`<div class="tiptime">+${Math.floor(elapsed/1440)}d · ${clockText(1080+elapsed)}</div>`+valuesAt(x).map(v=>{return `<div class="tiprow"><span>${v.name}</span><b class="q${v.q}">${v.q===0?v.label:`${v.label} · ${phase[v.q][0]}`}</b></div>`}).join('')+ltfTip(x)+holidayTip(x);
   tip.classList.add('show');
   placeTip(e);
 });
